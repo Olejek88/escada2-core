@@ -1,0 +1,1 @@
+# escada2-core
