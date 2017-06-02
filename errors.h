@@ -20,6 +20,9 @@
 //  0100 - MEE error
 //  0101 - IRP error
 
+#define ERROR	-1
+#define OK	0
+
 #define SEND_PROBLEM		0x1
 #define RECIEVE_PROBLEM		0x2
 

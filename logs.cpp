@@ -14,7 +14,7 @@ int Log::setLevel (int loglevel) {
      }
  else {
     printf ("error changing log level\n");
-    this->ulogw ("error changing log level");
+    this->ulogw (LOG_LEVEL_WARNINGS,"error changing log level");
     return -1;
  } 
  
@@ -51,8 +51,10 @@ int Log::init (char* kernellog)
  return 0;
 }
 
-void Log::ulogw (const char* string, ...)
+void Log::ulogw (int loglevel, const char* string, ...)
 {
+ if (loglevel>log_level) return;
+  
  char 	buf[500];
  FILE 	*Log;
  struct tm 	*ttime;
