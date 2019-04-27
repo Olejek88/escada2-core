@@ -5,20 +5,24 @@
 #include "const.h"
 
 class Kernel {
-    public:
-	static Kernel& Instance()
-	    {
-             static Kernel currentKernelInstance;
-    	     return currentKernelInstance;
-	    }
-	Log log;
-	int init ();
-	char logname[MAX_FILE_LENGTH];	// maximum file length
-	tm 	*currenttime;			// current system time
-    private:
-	    Kernel() {}
-	    ~Kernel() {}
+public:
+    static Kernel &Instance() {
+        static Kernel currentKernelInstance;
+        return currentKernelInstance;
+    }
 
-    	    Kernel(Kernel const&);
-    	    Kernel& operator= (Kernel const&);
+    Log log;
+
+    int init();
+
+    char logname[MAX_FILE_LENGTH];    // maximum file length
+    tm *currenttime;            // current system time
+private:
+    Kernel() {}
+
+    ~Kernel() {}
+
+    Kernel(Kernel const &);
+
+    Kernel &operator=(Kernel const &);
 };
