@@ -1,7 +1,7 @@
 #include "errors.h"
-#include <stdio.h>
-#include <stdarg.h>
-#include <string.h>
+#include <cstdio>
+#include <cstdarg>
+#include <cstring>
 #include <cstddef>
 
 #define MODULE_NAME	"[dbase]"
@@ -10,8 +10,7 @@
 #include "kernel.h"
 
 DBase::DBase()
-{
-}
+= default;
 
 int DBase::openConnection(char *driver, char *host, char *user, char *pass, char *table)
 {

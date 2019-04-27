@@ -30,16 +30,16 @@ Log::Log ()
  log_level = LOG_LEVEL_DEBUG; 
 }
 
-int Log::init (char* kernellog)
+int Log::init (char* kernel_log)
 {
  struct stat st = {0};
  FILE *logfile; 
  if (stat("logs", &st) == -1) {
     mkdir("logs", 0700);
  }
- logfile = fopen(kernellog,"w"); 
- if (logfile>0) {
-      snprintf (this->logname, MAX_FILE_LENGTH, "%s",kernellog);
+ logfile = fopen(kernel_log,"w");
+ if (logfile!= nullptr) {
+      snprintf (this->logname, MAX_FILE_LENGTH, "%s",kernel_log);
       fclose (logfile);
      }
  else {
