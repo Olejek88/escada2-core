@@ -17,7 +17,7 @@ public:
 
     DBase();
 
-    int openConnection(char *driver, char *host, char *user, char *pass, char *table); //connect to the database
+    int openConnection(); //connect to the database
     int disconnect(); //disconnect from the database
     MYSQL_RES *sqlexec(const char *query);
 };
