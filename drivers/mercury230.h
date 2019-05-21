@@ -1,5 +1,10 @@
 //-----------------------------------------------------------------------------
 #include <sqltypes.h>
+#include <cstring>
+
+#define TYPE_INPUTCE		0xE	    // CE102 type
+#define TYPE_MERCURY230		0x10	// Mercury 230 type
+#define TYPE_SET_4TM		0x11	// Set 4TM type
 
 #define    CHECK        0x0
 #define    OPEN_CHANNEL    0x1
@@ -31,16 +36,39 @@ class DeviceMER;
 
 class DeviceMER {
 public:
-    UINT id;
-    UINT address[8];
+    u_int16_t id;
+    char address[10];
+    char port[20];
+    u_int16_t q_attempt;
+    u_int16_t q_error;
+    u_int16_t deviceType;
 
     // config
     DeviceMER() {
         id = 0;
-        address[0]={0};
+        q_attempt = 0;
+        q_error = 0;
+        deviceType = TYPE_MERCURY230;
+        strncpy(address, "1", 10);
+        strncpy(port, "/dev/ttyS0", 20);
     }
 
+    bool ReadInfo();
+    // ReadDataCurrent - read single device connected to concentrator
+    int ReadDataCurrent();
+
+    int ReadAllArchive(u_int16_t tp);
+
+    bool send_mercury(u_int8_t op, u_int8_t prm, u_int8_t frame, u_int8_t index);
+
+    u_int16_t read_mercury(u_int8_t *dat, u_int8_t type);
+
+    bool send_ce(u_int8_t op, u_int8_t prm, char *request, u_int8_t frame);
+
+    u_int16_t read_ce(u_int8_t *dat, u_int8_t type);
+
     // store it to class members and form sequence to send in device
+/*
     BYTE *ReadConfig();
 
     // source data will take from db or class member fields
@@ -50,18 +78,5 @@ public:
     // reading data will be store to DB and temp data class member fields
     int read_mercury(BYTE *dat);
 
-    int ReadInfo();
-
-    // ReadDataCurrent - read single device connected to concentrator
-    int ReadDataCurrent();
-
-    int ReadAllArchive(UINT tp);
-
-    BOOL send_mercury(UINT op, UINT prm, UINT frame, UINT index);
-
-    UINT read_mercury(BYTE *dat, BYTE type);
-
-    BOOL send_ce(UINT op, UINT prm, CHAR *request, UINT frame);
-
-    UINT read_ce(BYTE *dat, BYTE type);
+*/
 };

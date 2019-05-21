@@ -3,6 +3,8 @@
 //
 
 #include <string>
+#include <mysql/mysql.h>
+#include <mysql.h>
 #include "TypeThread.h"
 #include "dbase.h"
 
@@ -24,6 +26,8 @@ static TypeThread *TypeThread::getAllThreads() {
                 tThread[r].title = row[3];
                 tThread[r].port = row[1];
                 tThread[r].speed = atoi(row[2]);
+                tThread[r].status = atoi(row[4]);
+                tThread[r].work = atoi(row[5]);
                 tThread[r].deviceType = atoi(row[6]);
                 tThread[r].lastDate = (std::time_t)atoi(row[7]);
             }

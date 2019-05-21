@@ -13,9 +13,11 @@ public:
     std::string title;
     std::string port;
     std::string device_thread;
-    std::string speed;
+    uint16_t speed;
     std::string deviceType;
     std::time_t lastDate;
+    int status;
+    int work;
 
     int id;
 

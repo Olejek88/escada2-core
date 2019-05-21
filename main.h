@@ -1,13 +1,13 @@
-#define	TYPE_CURRENTS		0
-#define	TYPE_HOURS		1
-#define	TYPE_DAYS		2
-#define	TYPE_MONTH		4
-#define	TYPE_INCREMENTS		7
-#define	TYPE_EVENTS		9
+#define    TYPE_CURRENTS        0
+#define    TYPE_HOURS        1
+#define    TYPE_DAYS        2
+#define    TYPE_MONTH        4
+#define    TYPE_INCREMENTS        7
+#define    TYPE_EVENTS        9
 
-#define	 bright		"\e[1;37m"
-#define	 kernel_color	"\e[0;31m"
-#define	 success_color	"\e[0;32m"
-#define	 module_color	"\e[0;34m"
-#define	 sql_color	"\e[0;35m"
-#define	 nc		"\e[0m"
+#define     bright        "\e[1;37m"
+#define     kernel_color    "\e[0;31m"
+#define     success_color    "\e[0;32m"
+#define     module_color    "\e[0;34m"
+#define     sql_color    "\e[0;35m"
+#define     nc        "\e[0m"
