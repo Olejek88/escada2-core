@@ -29,6 +29,39 @@
 #define P_SUM        0x00
 #define Q_SUM        0x04
 #define S_SUM        0x08
+//-----------------------------------------------------------------------------
+#define START		0x2f
+#define STOP		0x21
+#define CR		0xD
+#define LF		0xA
+#define ACK		0x6
+#define SOH		0x1
+#define STX		0x2
+#define ETX		0x3
+#define EOT		0x4
+#define REQUEST		0x3F
+
+#define	SN		0x5002
+
+
+#define	CURRENT_U	0x4001
+#define	CURRENT_W	0x4003
+#define	CURRENT_F	0x400D
+#define	CURRENT_I	0x400A
+
+#define	ARCH_MONTH	0x1201
+#define	ARCH_DAYS	0x1401
+#define	TOTAL_MONTH	0x1101
+#define	TOTAL_DAYS	0x1301
+
+#define	READ_DATE	0x10
+#define	READ_TIME	0x11
+
+#define	READ_PARAMETERS	0x22
+#define	READ_ARCHIVES	0x33
+#define	OPEN_CHANNEL_CE	0x50
+#define	OPEN_PREV	0x51
+
 
 void *mekDeviceThread(void *device);
 
@@ -39,15 +72,21 @@ public:
     u_int16_t id;
     char address[10];
     char port[20];
+    char dev_time[20];
     u_int16_t q_attempt;
     u_int16_t q_error;
     u_int16_t deviceType;
+    u_int8_t protocol;
+    u_int8_t adr;
 
     // config
     DeviceMER() {
         id = 0;
         q_attempt = 0;
         q_error = 0;
+        protocol = 1;
+        adr = 0;
+        strncpy(dev_time, "", 20);
         deviceType = TYPE_MERCURY230;
         strncpy(address, "1", 10);
         strncpy(port, "/dev/ttyS0", 20);
@@ -64,7 +103,6 @@ public:
     u_int16_t read_mercury(u_int8_t *dat, u_int8_t type);
 
     bool send_ce(u_int8_t op, u_int8_t prm, char *request, u_int8_t frame);
-
     u_int16_t read_ce(u_int8_t *dat, u_int8_t type);
 
     // store it to class members and form sequence to send in device

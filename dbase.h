@@ -21,6 +21,6 @@ public:
     int openConnection(); //connect to the database
     int disconnect(); //disconnect from the database
     MYSQL_RES *sqlexec(const char *query);
-    uint16_t  DBase::GetChannel (uint16_t prm, uint16_t pipe, uint16_t device);
-    bool DBase::StoreData(uint16_t device, uint16_t prm, uint16_t type, uint16_t status, double value, char *data, uint16_t channel);
+    uint16_t GetChannel(uint16_t measureType, uint16_t channel, uint16_t device);
+    bool StoreData(uint16_t type, uint16_t status, double value, char *data, uint16_t channel);
 };

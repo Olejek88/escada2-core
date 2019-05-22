@@ -11,3 +11,9 @@
 #define     module_color    "\e[0;34m"
 #define     sql_color    "\e[0;35m"
 #define     nc        "\e[0m"
+
+#define    MEASURE_ENERGY_SUM        1
+#define    MEASURE_ENERGY        2
+#define    MEASURE_CURRENT        3
+#define    MEASURE_VOLTAGE      4
+#define    MEASURE_FREQUENCY    5

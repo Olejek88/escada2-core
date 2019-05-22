@@ -24,7 +24,7 @@ UINT baudrate(UINT baud) {
 }
 
 //---------------------------------------------------------------------------------------------------
-BOOL UpdateThreads(db dbase, int thread_id, uint8_t global, uint8_t start, uint8_t curr,
+BOOL UpdateThreads(DBase dbase, int thread_id, uint8_t global, uint8_t start, uint8_t curr,
                    char *curr_adr, uint8_t status, uint8_t type, char *data_time) {
     MYSQL_RES *res;
     MYSQL_ROW row;
@@ -64,3 +64,9 @@ BOOL UpdateThreads(db dbase, int thread_id, uint8_t global, uint8_t start, uint8
     return true;
 }
 
+uint8_t BCD (uint8_t dat)
+{
+    uint8_t data=0;
+    data=((dat&0xf0)>>4)*10+(dat&0xf);
+    return	data;
+}

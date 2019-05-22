@@ -111,12 +111,12 @@ bool DBase::StoreData(uint16_t type, uint16_t status, double value, char  *data,
 }
 
 //-----------------------------------------------------------------------------    
-uint16_t DBase::GetChannel(uint16_t prm, uint16_t channel, uint16_t device) {
+uint16_t DBase::GetChannel(uint16_t measureType, uint16_t channel, uint16_t device) {
     MYSQL_RES *res;
     MYSQL_ROW row;
     char query[500];
     // TODO если несколько каналов одного типа на устройстве
-    sprintf(query, "SELECT * FROM sensor_channel WHERE measureType=%d AND device=%d", prm, device);
+    sprintf(query, "SELECT * FROM sensor_channel WHERE measureType=%d AND device=%d", measureType, device);
     res = sqlexec(query);
     if (res) {
         row = mysql_fetch_row(res);
