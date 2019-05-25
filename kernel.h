@@ -1,8 +1,9 @@
 #include "consolecolors.h"
-#include <time.h>
+#include <ctime>
 #include <sys/time.h>
 #include <sys/times.h>
 #include "const.h"
+#include "logs.h"
 
 class Kernel {
 public:

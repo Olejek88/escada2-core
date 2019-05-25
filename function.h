@@ -20,46 +20,39 @@ UINT baudrate(UINT baud) {
             return B57600;
         case 115200:
             return B115200;
+        default:
+            return B9600;
     }
 }
 
 //---------------------------------------------------------------------------------------------------
-BOOL UpdateThreads(DBase dbase, int thread_id, uint8_t global, uint8_t start, uint8_t curr,
-                   char *curr_adr, uint8_t status, uint8_t type, char *data_time) {
+BOOL UpdateThreads(DBase dBase, int thread_id, uint8_t type, uint8_t status) {
     MYSQL_RES *res;
     MYSQL_ROW row;
-    CHAR query[500], types[40];
+    char query[500], types[40];
     switch (type) {
         case 0:
-            sprintf(types, "currents");
+            sprintf(types, "read currents");
         case 1:
-            sprintf(types, "hours");
+            sprintf(types, "read hours");
         case 2:
-            sprintf(types, "days");
+            sprintf(types, "read days");
         case 4:
-            sprintf(types, "month");
+            sprintf(types, "read month");
         case 7:
-            sprintf(types, "increments");
+            sprintf(types, "read increments");
     }
-    sprintf(query, "SELECT * FROM threads WHERE thread=%d", thread_id);
-    res = dbase.sqlexec(query);
-    if (row = mysql_fetch_row(res)) {
-        if (strlen(datatime) < 5)
-            sprintf(query,
-                    "UPDATE threads SET global=%d, start=%d, curr=%d, curr_adr=%d, status=%d, type='%s' WHERE thread=%d",
-                    global, start, curr, curr_adr, status, types, thread_id);
-        else
-            sprintf(query,
-                    "UPDATE threads SET global=%d, start=%d, curr=%d, curr_adr=%d, status=%d, type='%s', ctime='%s' WHERE thread=%d",
-                    thread_id, global, start, curr, curr_adr, status, types, ctime);
-    } else {
+    sprintf(query, "SELECT * FROM threads WHERE id=%d", thread_id);
+    printf("%s\n",query);
+    res = dBase.sqlexec(query);
+    if (res && (row = mysql_fetch_row(res))) {
         sprintf(query,
-                "INSERT INTO threads SET global=%d, start=%d, curr=%d, curr_adr=%d, status=%d, type='%s',thread=%d",
-                global, start, curr, curr_adr, status, types, thread_id);
+                "UPDATE threads SET status=%d, message='%s' WHERE id=%d", status, types, thread_id);
+        res = dBase.sqlexec(query);
+        printf("%s\n",query);
     }
-    if (debug > 4) ULOGW("[db] %s", query);
     if (res) mysql_free_result(res);
-    res = dbase.sqlexec(query);
+    res = dBase.sqlexec(query);
     if (res) mysql_free_result(res);
     return true;
 }

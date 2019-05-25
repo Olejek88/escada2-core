@@ -7,7 +7,6 @@
 #define MODULE_NAME    "[dbase]"
 
 #include "dbase.h"
-#include "logs.h"
 #include "main.h"
 #include "kernel.h"
 #include "tinyxml2.h"

@@ -1,6 +1,5 @@
 //----------------------------------------------------------------------------
 #include "errors.h"
-#include "logs.h"
 #include <ctime>
 #include <sys/time.h>
 #include <sys/times.h>
@@ -78,7 +77,7 @@ int Kernel::init() {
     return OK;
 }
 
-// create thread read variable from channal
+// create thread read variable from channel
 // create thread evaluate
 void * dispatcher (void * thread_arg)
 {
@@ -87,6 +86,7 @@ void * dispatcher (void * thread_arg)
     glibtop_cpu cpu1;
     glibtop_cpu cpu2;
     int who = RUSAGE_SELF;
+    unsigned temp=2;
     struct rusage usage{};
     char query[300];
     double ct;
@@ -95,31 +95,33 @@ void * dispatcher (void * thread_arg)
         // читаем конфигурацию
         TypeThread *typeThreads;
         typeThreads = TypeThread::getAllThreads();
-
         // запускаем активные потоки, те сами вызывают функции сохранения
         // периодически пишем в базу загрузку CPU
-        for (int th = 0; th < (sizeof(typeThreads) / sizeof(*typeThreads)); th++) {
+        for (int th = 0; th < (sizeof(*typeThreads) / sizeof(typeThreads[0])); th++) {
             time_t now = time(nullptr);
-            // поток похожу протух
-            if (difftime(typeThreads[th].lastDate,now)>60) {
-                if (pthread_create(&thr, nullptr, mekDeviceThread, nullptr) != 0)
+            // поток походу протух
+            currentKernelInstance.log.ulogw(LOG_LEVEL_ERROR, "thr [%s] %ld %ld", typeThreads[th].title,typeThreads[th].lastDate,now);
+            if ((now-typeThreads[th].lastDate)>60) {
+                if (pthread_create(&thr, nullptr, mekDeviceThread, (void *)&typeThreads[th]) != 0)
                     currentKernelInstance.log.ulogw(LOG_LEVEL_ERROR, "error create %s thread", typeThreads[th].title);
             }
         }
-
-        glibtop_init();
+        sleep(10);
+        // TODO решить как собирать статистику по загрузке и свободному месту с памятью
+        //glibtop_init();
         //glibtop_get_cpu (&cpu1);
-        sleep (1);
+        //sleep (1);
         //glibtop_get_cpu (&cpu2);
-        ct=100*(cpu2.user - cpu1.user + (cpu2.nice - cpu1.nice) + (cpu2.sys - cpu1.sys));
-        ct/=(cpu2.total-cpu1.total);
-        getrusage(who, &usage);
-        sprintf (query,"INSERT INTO stat(type,cpu,mem) VALUES('1','%f','%ld')",ct, usage.ru_maxrss);
-        dBase.sqlexec(query);
-
+        //ct=100*(cpu2.user - cpu1.user + (cpu2.nice - cpu1.nice) + (cpu2.sys - cpu1.sys));
+        //ct/=(cpu2.total-cpu1.total);
+        //getrusage(who, &usage);
+        //sprintf (query,"INSERT INTO stat(type,cpu,mem) VALUES('1','%f','%ld')",ct, usage.ru_maxrss);
+        //dBase.sqlexec(query);
+        if (!temp--)
         break;
     }
     currentKernelInstance.log.ulogw(LOG_LEVEL_INFO, "dispatcher finished");
+    return nullptr;
 }
 
 

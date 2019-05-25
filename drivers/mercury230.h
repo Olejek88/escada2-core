@@ -102,7 +102,7 @@ public:
 
     u_int16_t read_mercury(u_int8_t *dat, u_int8_t type);
 
-    bool send_ce(u_int8_t op, u_int8_t prm, char *request, u_int8_t frame);
+    bool send_ce(u_int16_t op, u_int16_t prm, char *request, u_int8_t frame);
     u_int16_t read_ce(u_int8_t *dat, u_int8_t type);
 
     // store it to class members and form sequence to send in device
