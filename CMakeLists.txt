@@ -13,10 +13,10 @@ include_directories (/usr/local/include/glib-2.0)
 
 include_directories(/usr/local/lib)
 set(CMAKE_LIBRARY_PATH ${CMAKE_LIBRARY_PATH} /usr/local/lib)
-find_library(libmysqlclient
-        PATHS /usr/local/lib)
-find_library(libmysqlconn
-        PATHS /usr/local/lib)
+#find_library(libmysqlclient
+#        PATHS /usr/local/lib)
+#find_library(libmysqlconn
+#        PATHS /usr/local/lib)
 
 add_executable(escada_core
         consolecolors.h
@@ -32,7 +32,8 @@ add_executable(escada_core
         drivers/mercury230.h
         tinyxml2.cpp
         tinyxml2.h TypeThread.cpp TypeThread.h)
-target_link_libraries(escada_core /usr/local/lib/libmysqlclient.dylib)
-target_link_libraries(escada_core /usr/local/lib/libmysqlcppconn.dylib)
+#target_link_libraries(escada_core /usr/local/lib/libmysqlclient.dylib)
+target_link_libraries(escada_core mysqlclient)
+target_link_libraries(escada_core mysqlcppconn)
 
 set_target_properties(escada_core PROPERTIES RUNTIME_OUTPUT_DIRECTORY ./)
