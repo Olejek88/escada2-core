@@ -3,6 +3,7 @@
 #include <mysql/mysql.h>
 #include "const.h"
 #include "mysql/mysql.h"
+#include <stdint.h>
 
 class DBase {
 private:
@@ -14,7 +15,7 @@ public:
     char host[MAX_STR];
     char user[MAX_STR];
     char pass[MAX_STR];
-    char table[MAX_STR];
+    char database[MAX_STR];
 
     DBase();
 

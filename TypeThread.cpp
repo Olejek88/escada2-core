@@ -4,7 +4,7 @@
 
 #include <string>
 #include <mysql/mysql.h>
-#include <mysql.h>
+#include <cstring>
 #include "TypeThread.h"
 #include "dbase.h"
 #include "errors.h"
@@ -23,14 +23,16 @@ TypeThread *TypeThread::getAllThreads() {
             auto *tThread = new TypeThread[nRow];
             for (u_long r = 0; r < nRow; r++) {
                 row = mysql_fetch_row(res);
+                unsigned long *lengths;
+                lengths = mysql_fetch_lengths(res);
                 if (row) {
                     tThread[r].id = atoi(row[0]);
-                    strncpy(tThread[r].port, row[1], 20);
-                    strncpy(tThread[r].title, row[3], 20);
+                    strncpy(tThread[r].port, row[1], lengths[1]);
+                    strncpy(tThread[r].title, row[3], lengths[3]);
                     tThread[r].speed = static_cast<uint16_t>(atoi(row[2]));
                     tThread[r].status = atoi(row[4]);
                     tThread[r].work = atoi(row[5]);
-                    strncpy(tThread[r].deviceType, row[6], 15);
+                    strncpy(tThread[r].deviceType, row[6], lengths[6]);
                     if (row[7]) {
                         strptime(row[7], "%Y-%m-%d %H:%M:%S", &tms);
                         tThread[r].lastDate = mktime(&tms);

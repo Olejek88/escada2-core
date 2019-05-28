@@ -2,7 +2,6 @@
 #include "errors.h"
 #include "main.h"
 #include "mercury230.h"
-#include "db.h"
 #include "dbase.h"
 #include <fcntl.h>
 #include <sys/termios.h>
@@ -10,7 +9,6 @@
 #include <cstdio>
 #include <TypeThread.h>
 #include <mysql/mysql.h>
-#include <mysql.h>
 #include <kernel.h>
 #include <mhash.h>
 #include <sys/ioctl.h>
@@ -29,13 +27,13 @@ auto &currentKernelInstance = Kernel::Instance();
 
 bool OpenCom(char *block, uint16_t speed, uint16_t parity);
 
-uint16_t CRC(const uint8_t *Data, uint8_t DataSize, uint8_t type);
+uint16_t CRC(uint8_t *Data, uint8_t DataSize, uint8_t type);
 
-uint16_t Crc16(const uint8_t *Data, uint8_t DataSize);
+uint16_t Crc16(uint8_t *Data, uint8_t DataSize);
 
 static uint8_t Ct(uint8_t Data);
 
-BYTE CRC_CE(BYTE *Data, BYTE DataSize, BYTE type);
+uint8_t CRC_CE(uint8_t  *Data, uint8_t  DataSize, uint8_t  type);
 
 //-----------------------------------------------------------------------------
 void *mekDeviceThread(void *pth) {
@@ -243,7 +241,7 @@ bool DeviceMER::ReadInfo() {
     bool rs;
     unsigned rec = 0;
     uint8_t data[400];
-    CHAR date[20] = {0};
+    char date[20] = {0};
 
     float kn, kt, A=1;
 
@@ -631,11 +629,11 @@ int DeviceMER::ReadAllArchive(uint16_t tp) {
 
 //-----------------------------------------------------------------------------
 bool DeviceMER::send_mercury(u_int8_t op, u_int8_t prm, u_int8_t frame, u_int8_t index) {
-    UINT crc = 0;          //(* CRC checksum *)
-    UINT nbytes = 0;     //(* number of bytes in send packet *)
-    BYTE data[100];      //(* send sequence *)
-    UINT ht = 0, len = 0, nr = 0;
-    CHAR path[100] = {0};
+    uint32_t crc = 0;          //(* CRC checksum *)
+    uint32_t nbytes = 0;     //(* number of bytes in send packet *)
+    char data[100];      //(* send sequence *)
+    uint32_t ht = 0, len = 0, nr = 0;
+    char path[100] = {0};
 
     if (op == 0x1) // open/close session
     {
@@ -659,15 +657,15 @@ bool DeviceMER::send_mercury(u_int8_t op, u_int8_t prm, u_int8_t frame, u_int8_t
             else nr++;
 
         data[0] = 1;
-        data[1] = static_cast<BYTE>(6 + 3 * nr + len);
-        data[2] = static_cast<BYTE>(16 + (nr - 1));
+        data[1] = static_cast<uint8_t>(6 + 3 * nr + len);
+        data[2] = static_cast<uint8_t>(16 + (nr - 1));
         data[3] = 0;
         data[4] = 0;
         data[5] = 0;    // comp address
         for (ht = 0; ht < nr; ht++) {
-            data[6 + ht * 3] = static_cast<BYTE>(this->address[ht] / 0x10000);
-            data[7 + ht * 3] = static_cast<BYTE>((this->address[ht] & 0xff00) / 0x100);
-            data[8 + ht * 3] = static_cast<BYTE>(this->address[ht] & 0xff);    // PPL-N address
+            data[6 + ht * 3] = static_cast<uint8_t>(this->address[ht] / 0x10000);
+            data[7 + ht * 3] = static_cast<uint8_t>((this->address[ht] & 0xff00) / 0x100);
+            data[8 + ht * 3] = static_cast<uint8_t>(this->address[ht] & 0xff);    // PPL-N address
             sprintf(path, "%s[%d.%d.%d]", path, data[6 + ht * 3], data[7 + ht * 3], data[8 + ht * 3]);
         }
         if (frame == 0 || frame == 5 || op == 6) data[6 + nr * 3] = 0x40;
@@ -678,7 +676,7 @@ bool DeviceMER::send_mercury(u_int8_t op, u_int8_t prm, u_int8_t frame, u_int8_t
                                         ht, path, data[0], data[1], data[2], data[3], data[4], data[5], data[6],
                                         data[7], data[8], data[9], data[10], data[11], data[12]);
     }
-    data[ht + 0] = static_cast<BYTE>(adr & 0xff);
+    data[ht + 0] = static_cast<uint8_t>(adr & 0xff);
     data[ht + 1] = op;
 
     if (op == 0x1 || op == 0x2) // open/close session
@@ -701,9 +699,9 @@ bool DeviceMER::send_mercury(u_int8_t op, u_int8_t prm, u_int8_t frame, u_int8_t
                 data[ht + 7] = 1;
                 data[ht + 8] = 1;
             }
-            crc = CRC(data + ht, 9, 0);
-            data[ht + 9] = static_cast<BYTE>(crc / 256);
-            data[ht + 10] = static_cast<BYTE>(crc % 256);
+            crc = CRC((uint8_t *)(data + ht), 9, 0);
+            data[ht + 9] = static_cast<uint8_t>(crc / 256);
+            data[ht + 10] = static_cast<uint8_t>(crc % 256);
             currentKernelInstance.log.ulogw(LOG_LEVEL_INFO,
                                             "[mer][%d][%s] open channel [%d][%d] wr[0x%x,0x%x,0x%x,0x%x,0x%x,0x%x,0x%x,0x%x,0x%x,0x%x,0x%x]",
                                             this->id, path, op, prm, data[ht + 0], data[ht + 1], data[ht + 2],
@@ -711,9 +709,9 @@ bool DeviceMER::send_mercury(u_int8_t op, u_int8_t prm, u_int8_t frame, u_int8_t
                                             data[ht + 8], data[ht + 9], data[ht + 10]);
 
             if (this->protocol == 13) {
-                crc = Crc16(data + 1, static_cast<const uint8_t>(ht + 10));
-                data[ht + 11] = static_cast<BYTE>(crc % 256);
-                data[ht + 12] = static_cast<BYTE>(crc / 256);
+                crc = Crc16((uint8_t *)(data + 1), static_cast<const uint8_t>(ht + 10));
+                data[ht + 11] = static_cast<uint8_t>(crc % 256);
+                data[ht + 12] = static_cast<uint8_t>(crc / 256);
                 //for (len=0; len<=ht+12;len++) currentKernelInstance.log.ulogw(LOG_LEVEL_INFO,"[mer] %d=%x(%d)",len,data[len],data[len]);
                 //if (debug>2) currentKernelInstance.log.ulogw(LOG_LEVEL_INFO,"[mer] wr crc [0x%x,0x%x] [%d]",data[ht+11],data[ht+12],ht);
                 ht += 2;
@@ -728,18 +726,18 @@ bool DeviceMER::send_mercury(u_int8_t op, u_int8_t prm, u_int8_t frame, u_int8_t
             data[ht + 5] = 0x30;
             data[ht + 6] = 0x30;
             data[ht + 7] = 0x30;
-            crc = CRC(data + ht, 8, 0);
-            data[ht + 8] = static_cast<BYTE>(crc / 256);
-            data[ht + 9] = static_cast<BYTE>(crc % 256);
+            crc = CRC((uint8_t *)(data + ht), 8, 0);
+            data[ht + 8] = static_cast<uint8_t>(crc / 256);
+            data[ht + 9] = static_cast<uint8_t>(crc % 256);
             currentKernelInstance.log.ulogw(LOG_LEVEL_INFO,
                                             "[set] open channel [%s] [%d][%d] wr[0x%x,0x%x,0x%x,0x%x,0x%x,0x%x,0x%x,0x%x,0x%x,0x%x,0x%x]",
                                             path, op, prm, data[ht + 0], data[ht + 1], data[ht + 2], data[ht + 3],
                                             data[ht + 4], data[ht + 5], data[ht + 6], data[ht + 7], data[ht + 8],
                                             data[ht + 9], data[ht + 10]);
             if (this->protocol == 13) {
-                crc = Crc16(data + 1, static_cast<const uint8_t>(9 + ht));
-                data[ht + 10] = static_cast<BYTE>(crc % 256);
-                data[ht + 11] = static_cast<BYTE>(crc / 256);
+                crc = Crc16((uint8_t *)(data + 1), static_cast<const uint8_t>(9 + ht));
+                data[ht + 10] = static_cast<uint8_t>(crc % 256);
+                data[ht + 11] = static_cast<uint8_t>(crc / 256);
                 //for (len=0; len<=ht+11;len++)   currentKernelInstance.log.ulogw(LOG_LEVEL_INFO,"[set] %d=%x",len,data[len]);
                 currentKernelInstance.log.ulogw(LOG_LEVEL_INFO, "[set] wr crc [0x%x,0x%x]", data[ht + 11],
                                                 data[ht + 12]);
@@ -751,15 +749,15 @@ bool DeviceMER::send_mercury(u_int8_t op, u_int8_t prm, u_int8_t frame, u_int8_t
     if (op == 0x4) // time
     {
         data[ht + 2] = 0x0;
-        crc = CRC(data + ht, 3, 0);
-        data[ht + 3] = static_cast<BYTE>(crc / 256);
-        data[ht + 4] = static_cast<BYTE>(crc % 256);
+        crc = CRC((uint8_t *)(data + ht), 3, 0);
+        data[ht + 3] = static_cast<uint8_t>(crc / 256);
+        data[ht + 4] = static_cast<uint8_t>(crc % 256);
         currentKernelInstance.log.ulogw(LOG_LEVEL_INFO, "[mer] read time [%d][%d] wr[0x%x,0x%x,0x%x,0x%x,0x%x]", op,
                                         prm, data[ht + 0], data[ht + 1], data[ht + 2], data[ht + 3], data[ht + 4]);
         if (this->protocol == 13) {
-            crc = Crc16(data + 1, static_cast<const uint8_t>(4 + ht));
-            data[ht + 5] = static_cast<BYTE>(crc % 256);
-            data[ht + 6] = static_cast<BYTE>(crc / 256);
+            crc = Crc16((uint8_t *)(data + 1), static_cast<const uint8_t>(4 + ht));
+            data[ht + 5] = static_cast<uint8_t>(crc % 256);
+            data[ht + 6] = static_cast<uint8_t>(crc / 256);
             //if (debug>3) currentKernelInstance.log.ulogw(LOG_LEVEL_INFO,"[mer] wr crc [0x%x,0x%x]",data[ht+5],data[ht+6]);
             //for (len=0; len<=ht+6;len++) currentKernelInstance.log.ulogw(LOG_LEVEL_INFO,"[mer] %d=%x(%d)",len,data[len],data[len]);
             ht += 2;
@@ -773,17 +771,17 @@ bool DeviceMER::send_mercury(u_int8_t op, u_int8_t prm, u_int8_t frame, u_int8_t
             data[ht + 2] = prm;
             if (index < 0xff) {
                 data[ht + 3] = index;
-                crc = CRC(data + ht, 4, 0);
-                data[ht + 4] = static_cast<BYTE>(crc / 256);
-                data[ht + 5] = static_cast<BYTE>(crc % 256);
+                crc = CRC((uint8_t *)(data + ht), 4, 0);
+                data[ht + 4] = static_cast<uint8_t>(crc / 256);
+                data[ht + 5] = static_cast<uint8_t>(crc % 256);
                 currentKernelInstance.log.ulogw(LOG_LEVEL_INFO,
                                                 "[mer] read parametrs [%d][%d] wr[0x%x,0x%x,0x%x,0x%x,0x%x,0x%x]",
                                                 op, prm, data[ht + 0], data[ht + 1], data[ht + 2], data[ht + 3],
                                                 data[ht + 4], data[ht + 5]);
                 if (this->protocol == 13) {
-                    crc = Crc16(data + 1, static_cast<const uint8_t>(5 + ht));
-                    data[ht + 6] = static_cast<BYTE>(crc % 256);
-                    data[ht + 7] = static_cast<BYTE>(crc / 256);
+                    crc = Crc16((uint8_t *)(data + 1), static_cast<const uint8_t>(5 + ht));
+                    data[ht + 6] = static_cast<uint8_t>(crc % 256);
+                    data[ht + 7] = static_cast<uint8_t>(crc / 256);
                     //if (debug>3) currentKernelInstance.log.ulogw(LOG_LEVEL_INFO,"[mer] wr crc [0x%x,0x%x]",data[ht+6],data[ht+7]);
                     //for (len=0; len<=ht+7;len++)   currentKernelInstance.log.ulogw(LOG_LEVEL_INFO,"[mer] %d=%x(%d)",len,data[len],data[len]);
                     ht += 2;
@@ -791,17 +789,17 @@ bool DeviceMER::send_mercury(u_int8_t op, u_int8_t prm, u_int8_t frame, u_int8_t
                 write(fd, &data, 6 + ht);
             } else {
                 data[ht + 2] = prm;
-                crc = CRC(data + ht, 3, 0);
-                data[ht + 3] = static_cast<BYTE>(crc / 256);
-                data[ht + 4] = static_cast<BYTE>(crc % 256);
+                crc = CRC((uint8_t *)(data + ht), 3, 0);
+                data[ht + 3] = static_cast<uint8_t>(crc / 256);
+                data[ht + 4] = static_cast<uint8_t>(crc % 256);
                 currentKernelInstance.log.ulogw(LOG_LEVEL_INFO,
                                                 "[mer] read parametrs [%d][%d] wr[0x%x,0x%x,0x%x,0x%x,0x%x]", op,
                                                 prm, data[ht + 0], data[ht + 1], data[ht + 2], data[ht + 3],
                                                 data[ht + 4]);
                 if (this->protocol == 13) {
-                    crc = Crc16(data + 1, static_cast<const uint8_t>(4 + ht));
-                    data[ht + 5] = static_cast<BYTE>(crc % 256);
-                    data[ht + 6] = static_cast<BYTE>(crc / 256);
+                    crc = Crc16((uint8_t *)(data + 1), static_cast<const uint8_t>(4 + ht));
+                    data[ht + 5] = static_cast<uint8_t>(crc % 256);
+                    data[ht + 6] = static_cast<uint8_t>(crc / 256);
                     //for (len=0; len<=ht+6;len++)		    currentKernelInstance.log.ulogw(LOG_LEVEL_INFO,"[mer] %d=%x(%d)",len,data[len],data[len]);
                     //if (debug>3) currentKernelInstance.log.ulogw(LOG_LEVEL_INFO,"[mer] wr crc [0x%x,0x%x]",data[ht+5],data[ht+6]);
                     ht += 2;
@@ -812,20 +810,20 @@ bool DeviceMER::send_mercury(u_int8_t op, u_int8_t prm, u_int8_t frame, u_int8_t
 
     if (op == 0x6) {
         data[ht + 2] = prm;
-        data[ht + 3] = static_cast<BYTE>(index / 256);
-        data[ht + 4] = static_cast<BYTE>(index % 256);
+        data[ht + 3] = static_cast<uint8_t>(index / 256);
+        data[ht + 4] = static_cast<uint8_t>(index % 256);
         data[ht + 5] = frame;
-        crc = CRC(data + ht, 6, 0);
-        data[ht + 6] = static_cast<BYTE>(crc / 256);
-        data[ht + 7] = static_cast<BYTE>(crc % 256);
+        crc = CRC((uint8_t *)(data + ht), 6, 0);
+        data[ht + 6] = static_cast<uint8_t>(crc / 256);
+        data[ht + 7] = static_cast<uint8_t>(crc % 256);
         currentKernelInstance.log.ulogw(LOG_LEVEL_INFO,
                                         "[mer] read parametrs!! [%d][%d] wr[0x%x,0x%x,0x%x,0x%x,0x%x,0x%x]", op,
                                         prm, data[ht + 0], data[ht + 1], data[ht + 2], data[ht + 3], data[ht + 4],
                                         data[ht + 5]);
         if (this->protocol == 13) {
-            crc = Crc16(data + 1, static_cast<const uint8_t>(7 + ht));
-            data[ht + 8] = static_cast<BYTE>(crc % 256);
-            data[ht + 9] = static_cast<BYTE>(crc / 256);
+            crc = Crc16((uint8_t *)(data + 1), static_cast<const uint8_t>(7 + ht));
+            data[ht + 8] = static_cast<uint8_t>(crc % 256);
+            data[ht + 9] = static_cast<uint8_t>(crc / 256);
             //if (debug>3) currentKernelInstance.log.ulogw(LOG_LEVEL_INFO,"[mer] wr crc [0x%x,0x%x]",data[ht+6],data[ht+7]);
             //for (len=0; len<=ht+9;len++)   currentKernelInstance.log.ulogw(LOG_LEVEL_INFO,"[mer-s] %d=%x(%d)",len,data[len],data[len]);
             ht += 2;
@@ -839,17 +837,17 @@ bool DeviceMER::send_mercury(u_int8_t op, u_int8_t prm, u_int8_t frame, u_int8_t
         data[ht + 4] = 0;
         data[ht + 5] = 1;
         data[ht + 6] = 0;
-        crc = CRC(data + ht, 7, 0);
-        data[ht + 7] = static_cast<BYTE>(crc / 256);
-        data[ht + 8] = static_cast<BYTE>(crc % 256);
+        crc = CRC((uint8_t *)(data + ht), 7, 0);
+        data[ht + 7] = static_cast<uint8_t>(crc / 256);
+        data[ht + 8] = static_cast<uint8_t>(crc % 256);
         currentKernelInstance.log.ulogw(LOG_LEVEL_INFO,
                                         "[mer] read long [%d][%d] wr[0x%x,0x%x,0x%x,0x%x,0x%x,0x%x,0x%x,0x%x,0x%x]",
                                         op, prm, data[ht + 0], data[ht + 1], data[ht + 2], data[ht + 3],
                                         data[ht + 4], data[ht + 5], data[ht + 6], data[ht + 7], data[ht + 8]);
         if (this->protocol == 13) {
-            crc = Crc16(data + 1, static_cast<const uint8_t>(8 + ht));
-            data[ht + 9] = static_cast<BYTE>(crc % 256);
-            data[ht + 10] = static_cast<BYTE>(crc / 256);
+            crc = Crc16((uint8_t *)(data + 1), static_cast<const uint8_t>(8 + ht));
+            data[ht + 9] = static_cast<uint8_t>(crc % 256);
+            data[ht + 10] = static_cast<uint8_t>(crc / 256);
             //if (debug>3) currentKernelInstance.log.ulogw(LOG_LEVEL_INFO,"[mer] wr crc [0x%x,0x%x]",data[ht+6],data[ht+7]);
             //for (len=0; len<=ht+7;len++)   currentKernelInstance.log.ulogw(LOG_LEVEL_INFO,"[mer] %d=%x(%d)",len,data[len],data[len]);
             ht += 2;
@@ -863,17 +861,17 @@ bool DeviceMER::send_mercury(u_int8_t op, u_int8_t prm, u_int8_t frame, u_int8_t
             data[ht + 2] = prm;
             data[ht + 3] = 1;
             data[ht + 4] = index;
-            crc = CRC(data + ht, 5, 0);
-            data[ht + 5] = static_cast<BYTE>(crc / 256);
-            data[ht + 6] = static_cast<BYTE>(crc % 256);
+            crc = CRC((uint8_t *)(data + ht), 5, 0);
+            data[ht + 5] = static_cast<uint8_t>(crc / 256);
+            data[ht + 6] = static_cast<uint8_t>(crc % 256);
             currentKernelInstance.log.ulogw(LOG_LEVEL_INFO,
                                             "[mer] read parametrs [%d][%d] wr[0x%x,0x%x,0x%x,0x%x,0x%x,0x%x,0x%x]",
                                             op, prm, data[ht + 0], data[ht + 1], data[ht + 2], data[ht + 3],
                                             data[ht + 4], data[ht + 5], data[ht + 6]);
             if (this->protocol == 13) {
-                crc = Crc16(data + 1, static_cast<const uint8_t>(6 + ht));
-                data[ht + 7] = static_cast<BYTE>(crc % 256);
-                data[ht + 8] = static_cast<BYTE>(crc / 256);
+                crc = Crc16((uint8_t *)(data + 1), static_cast<const uint8_t>(6 + ht));
+                data[ht + 7] = static_cast<uint8_t>(crc % 256);
+                data[ht + 8] = static_cast<uint8_t>(crc / 256);
                 //for (len=0; len<=ht+8;len++)		    currentKernelInstance.log.ulogw(LOG_LEVEL_INFO,"[mer] %d=%x(%d)",len,data[len],data[len]);
                 //if (debug>3) currentKernelInstance.log.ulogw(LOG_LEVEL_INFO,"[mer] wr crc [0x%x,0x%x]",data[ht+5],data[ht+6]);
 
@@ -885,9 +883,9 @@ bool DeviceMER::send_mercury(u_int8_t op, u_int8_t prm, u_int8_t frame, u_int8_t
     if (0 && op == 0x8) // parametrs
     {
         data[ht + 2] = prm;
-        crc = CRC(data, 3, 0);
-        data[ht + 3] = static_cast<BYTE>(crc / 256);
-        data[ht + 4] = static_cast<BYTE>(crc % 256);
+        crc = CRC((uint8_t *)data, 3, 0);
+        data[ht + 3] = static_cast<uint8_t>(crc / 256);
+        data[ht + 4] = static_cast<uint8_t>(crc % 256);
         currentKernelInstance.log.ulogw(LOG_LEVEL_INFO,
                                         "[mer] read parametrs [%d][%d] wr[0x%x,0x%x,0x%x,0x%x,0x%x]", op, prm,
                                         data[ht + 0], data[ht + 1], data[ht + 2], data[ht + 3], data[ht + 4]);
@@ -923,7 +921,7 @@ u_int16_t DeviceMER::read_mercury(u_int8_t *dat, u_int8_t type) {
 
     if (nbytes >= 4) {
         if (this->protocol == 14)
-            crc = CRC(data + 1, static_cast<const uint8_t>(nbytes - 3), 0);
+            crc = CRC((uint8_t *)(data + 1), static_cast<const uint8_t>(nbytes - 3), 0);
         else crc = Crc16(data + 1, static_cast<const uint8_t>(nbytes - 3));
         currentKernelInstance.log.ulogw(LOG_LEVEL_INFO,
                                         "[mer] READ [%d][0x%x,0x%x,0x%x,0x%x,0x%x,0x%x,0x%x,0x%x,0x%x,0x%x,0x%x,0x%x,0x%x,0x%x,0x%x,0x%x,0x%x,0x%x,0x%x][crc][0x%x,0x%x]",
@@ -990,7 +988,7 @@ bool DeviceMER::send_ce(uint16_t op, u_int16_t prm, char *request, u_int8_t fram
     if (op == READ_DATE || op == READ_TIME || op == READ_PARAMETERS)
         len = 13;
     if (op == ARCH_MONTH || op == ARCH_DAYS)
-        len = static_cast<UINT>(strlen(request) + 6);
+        len = static_cast<uint32_t>(strlen(request) + 6);
 
     if (this->protocol == 13) {
         for (ht = 0; ht < 8; ht++)
@@ -998,15 +996,15 @@ bool DeviceMER::send_ce(uint16_t op, u_int16_t prm, char *request, u_int8_t fram
             else nr++;
 
         data[0] = 1;    // redunancy
-        data[1] = static_cast<BYTE>(6 + 3 * nr + len);
-        data[2] = static_cast<BYTE>(16 + (nr - 1));
+        data[1] = static_cast<uint8_t>(6 + 3 * nr + len);
+        data[2] = static_cast<uint8_t>(16 + (nr - 1));
         data[3] = 0;
         data[4] = 0;
         data[5] = 0;    // comp address
         for (ht = 0; ht < nr; ht++) {
-            data[6 + ht * 3] = static_cast<BYTE>(address[ht] / 0x10000);
-            data[7 + ht * 3] = static_cast<BYTE>((address[ht] & 0xff00) / 0x100);
-            data[8 + ht * 3] = static_cast<BYTE>(address[ht] & 0xff);    // PPL-N address
+            data[6 + ht * 3] = static_cast<uint8_t>(address[ht] / 0x10000);
+            data[7 + ht * 3] = static_cast<uint8_t>((address[ht] & 0xff00) / 0x100);
+            data[8 + ht * 3] = static_cast<uint8_t>(address[ht] & 0xff);    // PPL-N address
             sprintf(path, "%s[%d.%d.%d]", path, data[6 + ht * 3], data[7 + ht * 3], data[8 + ht * 3]);
         }
         data[6 + nr * 3] = 0x40;
@@ -1025,9 +1023,9 @@ bool DeviceMER::send_ce(uint16_t op, u_int16_t prm, char *request, u_int8_t fram
         data[ht + 0] = START;
         data[ht + 1] = REQUEST;
         sprintf(adr, "%d", prm);
-        data[ht + 2] = static_cast<BYTE>(adr[0]);
-        data[ht + 3] = static_cast<BYTE>(adr[1]);
-        data[ht + 4] = static_cast<BYTE>(adr[2]);
+        data[ht + 2] = static_cast<uint8_t>(adr[0]);
+        data[ht + 3] = static_cast<uint8_t>(adr[1]);
+        data[ht + 4] = static_cast<uint8_t>(adr[2]);
         data[ht + 5] = 0x21;
         data[ht + 6] = CR;
         data[ht + 7] = LF;
@@ -1039,8 +1037,8 @@ bool DeviceMER::send_ce(uint16_t op, u_int16_t prm, char *request, u_int8_t fram
                                         data[ht + 5], data[ht + 6], data[ht + 7], data[ht + 8]);
         if (this->protocol == 13) {
             crc = Crc16(data + 1, static_cast<const uint8_t>(7 + ht));
-            data[ht + 8] = static_cast<BYTE>(crc % 256);
-            data[ht + 9] = static_cast<BYTE>(crc / 256);
+            data[ht + 8] = static_cast<uint8_t>(crc % 256);
+            data[ht + 9] = static_cast<uint8_t>(crc / 256);
         }
         for (len = 0; len <= ht + 9; len++)
             currentKernelInstance.log.ulogw(LOG_LEVEL_INFO, "[303] %d=%x(%c)", len, data[len] & 0x7f, data[len] & 0x7f);
@@ -1060,8 +1058,8 @@ bool DeviceMER::send_ce(uint16_t op, u_int16_t prm, char *request, u_int8_t fram
                                         data[ht + 1], data[ht + 2], data[ht + 3], data[ht + 4], data[ht + 5]);
         if (this->protocol == 13) {
             crc = Crc16(data + 1, static_cast<const uint8_t>(5 + ht));
-            data[ht + 6] = static_cast<BYTE>(crc % 256);
-            data[ht + 7] = static_cast<BYTE>(crc / 256);
+            data[ht + 6] = static_cast<uint8_t>(crc % 256);
+            data[ht + 7] = static_cast<uint8_t>(crc / 256);
         }
         for (len = 0; len < ht + 8; len++)
             currentKernelInstance.log.ulogw(LOG_LEVEL_INFO, "[303] %d=%x(%c)", len, data[len] & 0x7f, data[len] & 0x7f);
@@ -1094,8 +1092,8 @@ bool DeviceMER::send_ce(uint16_t op, u_int16_t prm, char *request, u_int8_t fram
                                         data[ht + 5]);
         if (this->protocol == 13) {
             crc = Crc16(data + 1, static_cast<const uint8_t>(17 + ht));
-            data[ht + 18] = static_cast<BYTE>(crc % 256);
-            data[ht + 19] = static_cast<BYTE>(crc / 256);
+            data[ht + 18] = static_cast<uint8_t>(crc % 256);
+            data[ht + 19] = static_cast<uint8_t>(crc / 256);
         }
         for (len = 0; len < ht + 20; len++)
             currentKernelInstance.log.ulogw(LOG_LEVEL_INFO, "[303] %d=%x(%c)", len, data[len] & 0x7f, data[len] & 0x7f);
@@ -1113,8 +1111,8 @@ bool DeviceMER::send_ce(uint16_t op, u_int16_t prm, char *request, u_int8_t fram
                                         data[ht + 1], data[ht + 2], data[ht + 3], data[ht + 4], data[ht + 5]);
         if (this->protocol == 13) {
             crc = Crc16(data + 1, static_cast<const uint8_t>(4 + ht));
-            data[ht + 5] = static_cast<BYTE>(crc % 256);
-            data[ht + 6] = static_cast<BYTE>(crc / 256);
+            data[ht + 5] = static_cast<uint8_t>(crc % 256);
+            data[ht + 6] = static_cast<uint8_t>(crc / 256);
         }
         for (len = 0; len < ht + 7; len++)
             currentKernelInstance.log.ulogw(LOG_LEVEL_INFO, "[303] %d=%x(%c)", len, data[len] & 0x7f, data[len] & 0x7f);
@@ -1155,8 +1153,8 @@ bool DeviceMER::send_ce(uint16_t op, u_int16_t prm, char *request, u_int8_t fram
                                         data[ht + 5], data[ht + 6], data[ht + 7], data[ht + 8], data[ht + 9],
                                         data[ht + 10], data[ht + 11], data[ht + 12], data[ht + 13]);
         crc = Crc16(data + 1, static_cast<const uint8_t>(13 + ht));
-        data[ht + 14] = static_cast<BYTE>(crc % 256);
-        data[ht + 15] = static_cast<BYTE>(crc / 256);
+        data[ht + 14] = static_cast<uint8_t>(crc % 256);
+        data[ht + 15] = static_cast<uint8_t>(crc / 256);
         for (len = 0; len < ht + 16; len++)
             currentKernelInstance.log.ulogw(LOG_LEVEL_INFO, "[303] %d=%x(%c)", len, data[len] & 0x7f, data[len] & 0x7f);
         write(fd, &data, ht + 16);
@@ -1178,8 +1176,8 @@ bool DeviceMER::send_ce(uint16_t op, u_int16_t prm, char *request, u_int8_t fram
                                         data[ht + 5], data[ht + 6], data[ht + 7], data[ht + 8], data[ht + 9],
                                         data[ht + 10], data[ht + 11], data[ht + 12]);
         crc = Crc16(data + 1, static_cast<const uint8_t>(12 + ht));
-        data[ht + 13] = static_cast<BYTE>(crc % 256);
-        data[ht + 14] = static_cast<BYTE>(crc / 256);
+        data[ht + 13] = static_cast<uint8_t>(crc % 256);
+        data[ht + 14] = static_cast<uint8_t>(crc / 256);
         for (len = 0; len < ht + 15; len++)
             currentKernelInstance.log.ulogw(LOG_LEVEL_INFO, "[303] %d=%x(%c)", len, data[len] & 0x7f, data[len] & 0x7f);
         write(fd, &data, ht + 15);
@@ -1210,8 +1208,8 @@ bool DeviceMER::send_ce(uint16_t op, u_int16_t prm, char *request, u_int8_t fram
                                         data[ht + 5], data[ht + 6], data[ht + 7], data[ht + 8], data[ht + 9],
                                         data[ht + 10], data[ht + 11], data[ht + 12]);
         crc = Crc16(data + 1, static_cast<const uint8_t>(12 + ht));
-        data[ht + 13] = static_cast<BYTE>(crc % 256);
-        data[ht + 14] = static_cast<BYTE>(crc / 256);
+        data[ht + 13] = static_cast<uint8_t>(crc % 256);
+        data[ht + 14] = static_cast<uint8_t>(crc / 256);
         for (len = 0; len < ht + 15; len++)
             currentKernelInstance.log.ulogw(LOG_LEVEL_INFO, "[303] %d=%x(%c)", len, data[len] & 0x7f, data[len] & 0x7f);
         write(fd, &data, ht + 15);
@@ -1222,9 +1220,9 @@ bool DeviceMER::send_ce(uint16_t op, u_int16_t prm, char *request, u_int8_t fram
         data[ht + 2] = 0x31;
         data[ht + 3] = STX;
         sprintf((char *) data + ht + 4, "%s", request);
-        len = static_cast<UINT>(strlen(request) + 3);
+        len = static_cast<uint32_t>(strlen(request) + 3);
         data[ht + len + 1] = ETX;
-        data[ht + len + 2] = CRC_CE(data + ht, static_cast<const BYTE>(len + 2), 1);
+        data[ht + len + 2] = CRC_CE(data + ht, static_cast<const uint8_t>(len + 2), 1);
         //crc=CRC (data+ht, 7, 0);
         for (len = 0; len <= ht + len + 2; len++) data[ht + len] = Ct(data[ht + len]);
         currentKernelInstance.log.ulogw(LOG_LEVEL_INFO,
@@ -1234,8 +1232,8 @@ bool DeviceMER::send_ce(uint16_t op, u_int16_t prm, char *request, u_int8_t fram
                                         data[ht + 10], data[ht + 11], data[ht + 12], data[ht + 13], data[ht + 14],
                                         data[ht + 15], data[ht + 16], data[ht + 17]);
         crc = Crc16(data + 1, static_cast<const uint8_t>(len + 2 + ht));
-        data[ht + len + 3] = static_cast<BYTE>(crc % 256);
-        data[ht + len + 4] = static_cast<BYTE>(crc / 256);
+        data[ht + len + 3] = static_cast<uint8_t>(crc % 256);
+        data[ht + len + 4] = static_cast<uint8_t>(crc / 256);
         write(fd, &data, ht + len + 5);
     }
 
@@ -1247,8 +1245,8 @@ u_int16_t DeviceMER::read_ce(u_int8_t *dat, u_int8_t type) {
     unsigned crc_in = 0, crc = 0;        //(* CRC checksum *)
     int nbytes = 0;     //(* number of bytes in recieve packet *)
     int bytes = 0;      //(* number of bytes in packet *)
-    BYTE data[500];      //(* recieve sequence *)
-    BYTE data2[500];      //(* recieve sequence *)
+    uint8_t data[500];      //(* recieve sequence *)
+    uint8_t data2[500];      //(* recieve sequence *)
     unsigned i = 0;            //(* current position *)
     unsigned char ok = 0xFF;        //(* flajochek *)
     char op = 0;           //(* operation *)
@@ -1275,20 +1273,20 @@ u_int16_t DeviceMER::read_ce(u_int8_t *dat, u_int8_t type) {
     if (nbytes == 1) {
         currentKernelInstance.log.ulogw(LOG_LEVEL_INFO, "[ce] [%d][0x%x]", nbytes, data[0]);
         dat[0] = data[0];
-        return static_cast<UINT>(nbytes);
+        return static_cast<uint32_t>(nbytes);
     }
     if (nbytes > 5) {
 //	 crc=CRC (data+1, nbytes-2, 1);
         //crc=CRC (data+1, nbytes-3, 0);
         crc = Crc16(data + 1, static_cast<const uint8_t>(nbytes - 3));
-        crc_in = static_cast<UINT>(data[nbytes - 2] + data[nbytes - 1] * 256);
+        crc_in = static_cast<uint32_t>(data[nbytes - 2] + data[nbytes - 1] * 256);
 
         currentKernelInstance.log.ulogw(LOG_LEVEL_INFO,
                                         "[ce] [%d][0x%x,0x%x,0x%x,0x%x,0x%x,0x%x,0x%x,0x%x,0x%x,0x%x,0x%x,0x%x,0x%x,0x%x,0x%x,0x%x,0x%x,0x%x][crc][0x%x,0x%x]",
                                         nbytes, data[0], data[1], data[2], data[3], data[4], data[5], data[6],
                                         data[7], data[8], data[9], data[10], data[11], data[12], data[13], data[14],
                                         data[15], data[16], data[17], data[nbytes - 1], crc);
-        for (rr = 0; rr < nbytes; rr++) data[rr] = static_cast<BYTE>(data[rr] & 0x7f);
+        for (rr = 0; rr < nbytes; rr++) data[rr] = static_cast<uint8_t>(data[rr] & 0x7f);
         for (rr = 0; rr < nbytes; rr++)
             currentKernelInstance.log.ulogw(LOG_LEVEL_INFO, "[ce] [%d][0x%x] (%c)", rr, data[rr] & 0x7f,
                                             data[rr] & 0x7f);
@@ -1308,7 +1306,7 @@ u_int16_t DeviceMER::read_ce(u_int8_t *dat, u_int8_t type) {
                 memcpy(dat, data + 11, static_cast<size_t>(nbytes - 11));
             }
         } else dat[0] = 0;
-        return static_cast<UINT>(nbytes);
+        return static_cast<uint32_t>(nbytes);
     }
     return 0;
 }
@@ -1423,7 +1421,7 @@ const uint8_t srCRCLo[] = {
         0x4C, 0x8C,
         0x44, 0x84, 0x85, 0x45, 0x87, 0x47, 0x46, 0x86, 0x82, 0x42, 0x43, 0x83, 0x41, 0x81, 0x80, 0x40};
 
-uint16_t CRC(const uint8_t *const Data, const uint8_t DataSize, uint8_t type) {
+uint16_t CRC(uint8_t *Data, uint8_t DataSize, uint8_t type) {
     uint16_t InitCRC = 0xffff;
     uint16_t _CRC;
     uint8_t i, p;
@@ -1450,7 +1448,7 @@ uint8_t Ct(const uint8_t Data) {
     else return Data;
 }
 
-uint16_t Crc16(const uint8_t *const Data, const uint8_t DataSize) {
+uint16_t Crc16(uint8_t *Data, uint8_t DataSize) {
     uint8_t p = 0, w = 0, d = 0, q = 0;
     uint8_t sl = 0, sh = 0;
     for (p = 0; p < DataSize; p++) {
@@ -1475,8 +1473,8 @@ uint16_t Crc16(const uint8_t *const Data, const uint8_t DataSize) {
 
 //-----------------------------------------------------------------------------
 //BYTE CRC_CE(const char* const Data, const BYTE DataSize, BYTE type)
-BYTE CRC_CE(BYTE *Data, const BYTE DataSize, BYTE type) {
-    BYTE _CRC = 0;
+uint8_t CRC_CE(uint8_t *Data, const uint8_t DataSize, uint8_t type) {
+    uint8_t _CRC = 0;
     for (int i = 0; i < DataSize; i++) {
         if (Data[i] % 2 == 1) _CRC += (Data[i] | 0x80);
         else _CRC += ((Data[i]) & 0x7f);

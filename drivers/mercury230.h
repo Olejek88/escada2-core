@@ -1,6 +1,6 @@
 //-----------------------------------------------------------------------------
-#include <sqltypes.h>
 #include <cstring>
+#include <mhash.h>
 
 #define TYPE_INPUTCE		0xE	    // CE102 type
 #define TYPE_MERCURY230		0x10	// Mercury 230 type
