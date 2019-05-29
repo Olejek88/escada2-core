@@ -15,15 +15,17 @@
 #include <libgtop-2.0/glibtop.h>
 #include <libgtop-2.0/glibtop/cpu.h>
 #include <mhash.h>
-#include <tidyplatform.h>
+#include <tidy/tidyplatform.h>
 
 #include "version/version.h"
 #include "TypeThread.h"
 
+#include <sys/resource.h>
+
 DBase dBase;
 void * dispatcher (void * thread_arg);
 //----------------------------------------------------------------------------
-int main() {
+int main(int argc, char *argv[]) {
     int res = 0;
     Kernel &currentKernelInstance = Kernel::Instance();
     pthread_t dispatcher_thread;
@@ -108,15 +110,15 @@ void * dispatcher (void * thread_arg)
         }
         sleep(10);
         // TODO решить как собирать статистику по загрузке и свободному месту с памятью
-        //glibtop_init();
-        //glibtop_get_cpu (&cpu1);
-        //sleep (1);
-        //glibtop_get_cpu (&cpu2);
-        //ct=100*(cpu2.user - cpu1.user + (cpu2.nice - cpu1.nice) + (cpu2.sys - cpu1.sys));
-        //ct/=(cpu2.total-cpu1.total);
-        //getrusage(who, &usage);
-        //sprintf (query,"INSERT INTO stat(type,cpu,mem) VALUES('1','%f','%ld')",ct, usage.ru_maxrss);
-        //dBase.sqlexec(query);
+        glibtop_init();
+        glibtop_get_cpu (&cpu1);
+        sleep (1);
+        glibtop_get_cpu (&cpu2);
+        ct=100*(cpu2.user - cpu1.user + (cpu2.nice - cpu1.nice) + (cpu2.sys - cpu1.sys));
+        ct/=(cpu2.total-cpu1.total);
+        getrusage(who, &usage);
+        sprintf (query,"INSERT INTO stat(type,cpu,mem) VALUES('1','%f','%ld')",ct, usage.ru_maxrss);
+        dBase.sqlexec(query);
         if (!temp--)
         break;
     }

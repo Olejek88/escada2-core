@@ -1,4 +1,4 @@
-UINT baudrate(UINT baud) {
+uint32_t baudrate(uint32_t  baud) {
     switch (baud) {
         case 300:
             return B300;
@@ -26,7 +26,7 @@ UINT baudrate(UINT baud) {
 }
 
 //---------------------------------------------------------------------------------------------------
-BOOL UpdateThreads(DBase dBase, int thread_id, uint8_t type, uint8_t status) {
+bool UpdateThreads(DBase dBase, int thread_id, uint8_t type, uint8_t status) {
     MYSQL_RES *res;
     MYSQL_ROW row;
     char query[500], types[40];

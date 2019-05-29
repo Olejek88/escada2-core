@@ -25,12 +25,12 @@ int DBase::openConnection() {
         snprintf(user, MAX_STR, "%s", doc.FirstChildElement("database")->FirstChildElement("user")->GetText());
         snprintf(host, MAX_STR, "%s", doc.FirstChildElement("database")->FirstChildElement("host")->GetText());
         snprintf(pass, MAX_STR, "%s", doc.FirstChildElement("database")->FirstChildElement("pass")->GetText());
-        snprintf(table, MAX_STR, "%s", doc.FirstChildElement("database")->FirstChildElement("table")->GetText());
+        snprintf(database, MAX_STR, "%s", doc.FirstChildElement("database")->FirstChildElement("database")->GetText());
     }
 
     char query[MAX_QUERY_LENGTH];
     if (strlen(pass) == 0)
-        sprintf(pass, "");
+        sprintf(pass, "%s", "");
     if (strlen(user) == 0)
         sprintf(user, "root");
     if (strlen(host) == 0)
@@ -46,7 +46,7 @@ int DBase::openConnection() {
         mysql_close(mysql);
         return ERROR;
     }
-    if (!mysql_real_connect(mysql, host, user, pass, table, 0, nullptr, 0)) {
+    if (!mysql_real_connect(mysql, host, user, pass, database, 0, nullptr, 0)) {
         currentKernelInstance.log.ulogw(LOG_LEVEL_ERROR, "%s connecting to database........failed [[%d] %s]",
                                         MODULE_NAME, mysql_errno(mysql), mysql_error(mysql));
         mysql_close(mysql);
@@ -54,8 +54,11 @@ int DBase::openConnection() {
     } else {
         currentKernelInstance.log.ulogw(LOG_LEVEL_INFO, "%s connecting to database........success", MODULE_NAME);
     }
-    snprintf(query, MAX_QUERY_LENGTH, "USE %s", table);
+    snprintf(query, MAX_QUERY_LENGTH, "USE %s", database);
     mysql_real_query(mysql, query, strlen(query));
+    snprintf(query, MAX_QUERY_LENGTH, "SET CHARSET 'UTF8'");
+    mysql_real_query(mysql, query, strlen(query));
+
     //successfully connected to the database
     return OK;
 }
