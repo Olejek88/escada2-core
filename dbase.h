@@ -1,9 +1,9 @@
 #define MAX_QUERY_LENGTH    300
 
 #include <mysql/mysql.h>
-#include "const.h"
-#include "mysql/mysql.h"
 #include <stdint.h>
+#include <mysql/mysql.h>
+#include "const.h"
 
 class DBase {
 private:

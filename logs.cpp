@@ -1,4 +1,3 @@
-#include "logs.h"
 #include <time.h>
 #include <sys/time.h>
 #include <sys/times.h>
@@ -6,6 +5,7 @@
 #include <stdarg.h>
 #include <sys/stat.h>
 #include <unistd.h>
+#include "logs.h"
 
 int Log::setLevel(int loglevel) {
     if (loglevel >= LOG_LEVEL_NONE && loglevel <= LOG_LEVEL_DEBUG) {

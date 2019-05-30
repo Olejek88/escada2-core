@@ -6,24 +6,22 @@
 #include <cstdio>
 #include <cstdarg>
 #include <pthread.h>
-
+#include <libgtop-2.0/glibtop.h>
+#include <libgtop-2.0/glibtop/cpu.h>
+#include <sys/resource.h>
+#include <unistd.h>
 #include "dbase.h"
 #include "kernel.h"
 #include "drivers/mercury230.h"
 #include "tinyxml2.h"
-
-#include <libgtop-2.0/glibtop.h>
-#include <libgtop-2.0/glibtop/cpu.h>
-#include <mhash.h>
-#include <tidy/tidyplatform.h>
-
 #include "version/version.h"
 #include "TypeThread.h"
 
-#include <sys/resource.h>
 
 DBase dBase;
-void * dispatcher (void * thread_arg);
+
+void *dispatcher(void *thread_arg);
+
 //----------------------------------------------------------------------------
 int main(int argc, char *argv[]) {
     int res = 0;
@@ -46,8 +44,8 @@ int main(int argc, char *argv[]) {
     }
 
     currentKernelInstance.log.ulogw(LOG_LEVEL_INFO, "escada kernel v.%s started", version);
-    if (currentKernelInstance.init()==OK) {
-        if(pthread_create (&dispatcher_thread, nullptr,dispatcher, nullptr) != 0)
+    if (currentKernelInstance.init() == OK) {
+        if (pthread_create(&dispatcher_thread, nullptr, dispatcher, nullptr) != 0)
             currentKernelInstance.log.ulogw(LOG_LEVEL_ERROR, "error create dispatcher thread");
     } else {
         currentKernelInstance.log.ulogw(LOG_LEVEL_ERROR, "%skernel finished, because initialization failed%s",
@@ -81,46 +79,46 @@ int Kernel::init() {
 
 // create thread read variable from channel
 // create thread evaluate
-void * dispatcher (void * thread_arg)
-{
+void *dispatcher(void *thread_arg) {
     Kernel &currentKernelInstance = Kernel::Instance();
     pthread_t thr;
     glibtop_cpu cpu1;
     glibtop_cpu cpu2;
     int who = RUSAGE_SELF;
-    unsigned temp=2;
+    unsigned temp = 2;
     struct rusage usage{};
     char query[300];
     double ct;
 
     while (true) {
         // читаем конфигурацию
-        TypeThread *typeThreads;
-        typeThreads = TypeThread::getAllThreads();
+        TypeThread *typeThreads = nullptr;
+        uint32_t numThreads = TypeThread::getAllThreads(&typeThreads);
         // запускаем активные потоки, те сами вызывают функции сохранения
         // периодически пишем в базу загрузку CPU
-        for (int th = 0; th < (sizeof(*typeThreads) / sizeof(typeThreads[0])); th++) {
+        for (int th = 0; th < numThreads; th++) {
             time_t now = time(nullptr);
             // поток походу протух
-            currentKernelInstance.log.ulogw(LOG_LEVEL_ERROR, "thr [%s] %ld %ld", typeThreads[th].title,typeThreads[th].lastDate,now);
-            if ((now-typeThreads[th].lastDate)>60) {
-                if (pthread_create(&thr, nullptr, mekDeviceThread, (void *)&typeThreads[th]) != 0)
+            currentKernelInstance.log.ulogw(LOG_LEVEL_ERROR, "thr [%s] %ld %ld", typeThreads[th].title,
+                                            typeThreads[th].lastDate, now);
+            if ((now - typeThreads[th].lastDate) > 60) {
+                if (pthread_create(&thr, nullptr, mekDeviceThread, (void *) &typeThreads[th]) != 0)
                     currentKernelInstance.log.ulogw(LOG_LEVEL_ERROR, "error create %s thread", typeThreads[th].title);
             }
         }
         sleep(10);
         // TODO решить как собирать статистику по загрузке и свободному месту с памятью
         glibtop_init();
-        glibtop_get_cpu (&cpu1);
-        sleep (1);
-        glibtop_get_cpu (&cpu2);
-        ct=100*(cpu2.user - cpu1.user + (cpu2.nice - cpu1.nice) + (cpu2.sys - cpu1.sys));
-        ct/=(cpu2.total-cpu1.total);
+        glibtop_get_cpu(&cpu1);
+        sleep(1);
+        glibtop_get_cpu(&cpu2);
+        ct = 100 * (cpu2.user - cpu1.user + (cpu2.nice - cpu1.nice) + (cpu2.sys - cpu1.sys));
+        ct /= (cpu2.total - cpu1.total);
         getrusage(who, &usage);
-        sprintf (query,"INSERT INTO stat(type,cpu,mem) VALUES('1','%f','%ld')",ct, usage.ru_maxrss);
+        sprintf(query, "INSERT INTO stat(type,cpu,mem) VALUES('1','%f','%ld')", ct, usage.ru_maxrss);
         dBase.sqlexec(query);
         if (!temp--)
-        break;
+            break;
     }
     currentKernelInstance.log.ulogw(LOG_LEVEL_INFO, "dispatcher finished");
     return nullptr;

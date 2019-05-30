@@ -1,6 +1,6 @@
 //-----------------------------------------------------------------------------
 #include <cstring>
-#include <mhash.h>
+#include <stdint.h>
 
 #define TYPE_INPUTCE		0xE	    // CE102 type
 #define TYPE_MERCURY230		0x10	// Mercury 230 type
@@ -69,15 +69,15 @@ class DeviceMER;
 
 class DeviceMER {
 public:
-    u_int16_t id;
+    uint16_t id;
     char address[10];
     char port[20];
     char dev_time[20];
-    u_int16_t q_attempt;
-    u_int16_t q_error;
-    u_int16_t deviceType;
-    u_int8_t protocol;
-    u_int8_t adr;
+    uint16_t q_attempt;
+    uint16_t q_error;
+    uint16_t deviceType;
+    uint8_t protocol;
+    uint8_t adr;
 
     // config
     DeviceMER() {
@@ -96,14 +96,15 @@ public:
     // ReadDataCurrent - read single device connected to concentrator
     int ReadDataCurrent();
 
-    int ReadAllArchive(u_int16_t tp);
+    int ReadAllArchive(uint16_t tp);
 
-    bool send_mercury(u_int8_t op, u_int8_t prm, u_int8_t frame, u_int8_t index);
+    bool send_mercury(uint8_t op, uint8_t prm, uint8_t frame, uint8_t index);
 
-    u_int16_t read_mercury(u_int8_t *dat, u_int8_t type);
+    uint16_t read_mercury(uint8_t *dat, uint8_t type);
 
-    bool send_ce(u_int16_t op, u_int16_t prm, char *request, u_int8_t frame);
-    u_int16_t read_ce(u_int8_t *dat, u_int8_t type);
+    bool send_ce(uint16_t op, uint16_t prm, char *request, uint8_t frame);
+
+    uint16_t read_ce(uint8_t *dat, uint8_t type);
 
     // store it to class members and form sequence to send in device
 /*
