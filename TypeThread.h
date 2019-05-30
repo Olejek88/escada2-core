@@ -7,6 +7,7 @@
 
 
 #include <ctime>
+#include <cstdint>
 
 class TypeThread {
 public:
@@ -14,7 +15,7 @@ public:
     char port[15];
     char device_thread[15];
     uint16_t speed;
-    char deviceType[15];
+    uint16_t deviceType;
     std::time_t lastDate;
     int status;
     int work;

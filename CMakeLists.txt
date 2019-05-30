@@ -38,7 +38,7 @@ add_executable(escada_core
         drivers/mercury230.cpp
         drivers/mercury230.h
         tinyxml2.cpp
-        tinyxml2.h TypeThread.cpp TypeThread.h)
+        tinyxml2.h TypeThread.cpp TypeThread.h drivers/MtmZigbee.cpp drivers/MtmZigbee.h)
 
 target_link_libraries(escada_core mysqlclient)
 target_link_libraries(escada_core pthread)

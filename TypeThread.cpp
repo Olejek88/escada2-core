@@ -39,9 +39,7 @@ uint32_t TypeThread::getAllThreads(TypeThread **dstPtr) {
                     tThread[r].speed = static_cast<uint16_t>(strtol(row[2], nullptr, 10));
                     tThread[r].status = strtol(row[4], nullptr, 10);
                     tThread[r].work = strtol(row[5], nullptr, 10);
-                    flen = lengths[6];
-                    memset(tThread[r].deviceType, 0, 15);
-                    strncpy(tThread[r].deviceType, row[6], flen);
+                    tThread[r].deviceType = strtol(row[6], nullptr, 10);
                     if (row[7]) {
                         strptime(row[7], "%Y-%m-%d %H:%M:%S", &tms);
                         tThread[r].lastDate = mktime(&tms);

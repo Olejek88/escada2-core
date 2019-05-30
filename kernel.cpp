@@ -16,9 +16,10 @@
 #include "tinyxml2.h"
 #include "version/version.h"
 #include "TypeThread.h"
+#include "drivers/MtmZigbee.h"
 
 
-DBase dBase;
+DBase *dBase;
 
 void *dispatcher(void *thread_arg);
 
@@ -29,6 +30,7 @@ int main(int argc, char *argv[]) {
     pthread_t dispatcher_thread;
     time_t tim;
     tim = time(&tim);
+    dBase = new DBase();
 
     currentKernelInstance.current_time = localtime(&tim);
     sprintf(currentKernelInstance.log_name, "logs/kernel-%04d%02d%02d_%02d%02d.log",
@@ -67,7 +69,7 @@ int main(int argc, char *argv[]) {
 int Kernel::init() {
     tinyxml2::XMLDocument doc;
     if (doc.LoadFile("config/escada.conf") == tinyxml2::XML_SUCCESS) {
-        if (dBase.openConnection()) {
+        if (dBase->openConnection()) {
             log.ulogw(LOG_LEVEL_INFO, "database initialisation success");
         }
     } else {
@@ -89,6 +91,7 @@ void *dispatcher(void *thread_arg) {
     struct rusage usage{};
     char query[300];
     double ct;
+    int32_t pRc;
 
     while (true) {
         // читаем конфигурацию
@@ -102,10 +105,24 @@ void *dispatcher(void *thread_arg) {
             currentKernelInstance.log.ulogw(LOG_LEVEL_ERROR, "thr [%s] %ld %ld", typeThreads[th].title,
                                             typeThreads[th].lastDate, now);
             if ((now - typeThreads[th].lastDate) > 60) {
-                if (pthread_create(&thr, nullptr, mekDeviceThread, (void *) &typeThreads[th]) != 0)
+                switch (typeThreads[th].deviceType) {
+                    case 1:
+                        pRc = pthread_create(&thr, nullptr, mekDeviceThread, (void *) &typeThreads[th]);
+                        break;
+                    case 4:
+                        pRc = pthread_create(&thr, nullptr, mtmZigbeeDeviceThread, (void *) &typeThreads[th]);
+                        break;
+                    default:
+                        pRc = 0;
+                        break;
+                }
+
+                if (pRc != 0) {
                     currentKernelInstance.log.ulogw(LOG_LEVEL_ERROR, "error create %s thread", typeThreads[th].title);
+                }
             }
         }
+
         sleep(10);
         // TODO решить как собирать статистику по загрузке и свободному месту с памятью
         glibtop_init();
@@ -116,9 +133,10 @@ void *dispatcher(void *thread_arg) {
         ct /= (cpu2.total - cpu1.total);
         getrusage(who, &usage);
         sprintf(query, "INSERT INTO stat(type,cpu,mem) VALUES('1','%f','%ld')", ct, usage.ru_maxrss);
-        dBase.sqlexec(query);
-        if (!temp--)
+        dBase->sqlexec(query);
+        if (!temp--) {
             break;
+        }
     }
     currentKernelInstance.log.ulogw(LOG_LEVEL_INFO, "dispatcher finished");
     return nullptr;
