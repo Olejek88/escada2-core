@@ -1,8 +1,8 @@
-#include "errors.h"
 #include <cstdio>
 #include <cstdarg>
 #include <cstring>
 #include <cstddef>
+#include "errors.h"
 
 #define MODULE_NAME    "[dbase]"
 

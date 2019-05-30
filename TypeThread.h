@@ -21,7 +21,7 @@ public:
 
     int id;
 
-    static TypeThread* getAllThreads ();
+    static uint32_t getAllThreads(TypeThread **dstPtr);
 };
 
 #endif //ESCADA_CORE_TYPETHREAD_H

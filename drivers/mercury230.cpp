@@ -1,17 +1,17 @@
 //-----------------------------------------------------------------------------
-#include "errors.h"
-#include "main.h"
-#include "mercury230.h"
-#include "dbase.h"
 #include <fcntl.h>
 #include <sys/termios.h>
 #include <pthread.h>
 #include <cstdio>
-#include <TypeThread.h>
 #include <mysql/mysql.h>
-#include <kernel.h>
-#include <mhash.h>
+#include <unistd.h>
 #include <sys/ioctl.h>
+#include "errors.h"
+#include "main.h"
+#include "mercury230.h"
+#include "dbase.h"
+#include "TypeThread.h"
+#include "kernel.h"
 #include "function.h"
 
 //-----------------------------------------------------------------------------
