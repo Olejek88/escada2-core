@@ -6,8 +6,8 @@
 #include <cstdio>
 #include <cstdarg>
 #include <pthread.h>
-#include <libgtop-2.0/glibtop.h>
-#include <libgtop-2.0/glibtop/cpu.h>
+//#include <libgtop-2.0/glibtop.h>
+//#include <libgtop-2.0/glibtop/cpu.h>
 #include <sys/resource.h>
 #include <unistd.h>
 #include "dbase.h"
@@ -82,8 +82,8 @@ int Kernel::init() {
 void *dispatcher(void *thread_arg) {
     Kernel &currentKernelInstance = Kernel::Instance();
     pthread_t thr;
-    glibtop_cpu cpu1;
-    glibtop_cpu cpu2;
+    //glibtop_cpu cpu1;
+    //glibtop_cpu cpu2;
     int who = RUSAGE_SELF;
     unsigned temp = 2;
     struct rusage usage{};
@@ -108,6 +108,7 @@ void *dispatcher(void *thread_arg) {
         }
         sleep(10);
         // TODO решить как собирать статистику по загрузке и свободному месту с памятью
+/*
         glibtop_init();
         glibtop_get_cpu(&cpu1);
         sleep(1);
@@ -117,6 +118,7 @@ void *dispatcher(void *thread_arg) {
         getrusage(who, &usage);
         sprintf(query, "INSERT INTO stat(type,cpu,mem) VALUES('1','%f','%ld')", ct, usage.ru_maxrss);
         dBase.sqlexec(query);
+*/
         if (!temp--)
             break;
     }

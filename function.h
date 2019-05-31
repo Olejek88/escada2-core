@@ -42,12 +42,12 @@ bool UpdateThreads(DBase dBase, int thread_id, uint8_t type, uint8_t status) {
         case 7:
             sprintf(types, "read increments");
     }
-    sprintf(query, "SELECT * FROM threads WHERE id=%d", thread_id);
+    sprintf(query, "SELECT * FROM threads WHERE _id=%d", thread_id);
     printf("%s\n",query);
     res = dBase.sqlexec(query);
     if (res && (row = mysql_fetch_row(res))) {
         sprintf(query,
-                "UPDATE threads SET status=%d, message='%s' WHERE id=%d", status, types, thread_id);
+                "UPDATE threads SET status=%d, message='%s' WHERE _id=%d", status, types, thread_id);
         res = dBase.sqlexec(query);
         printf("%s\n",query);
     }

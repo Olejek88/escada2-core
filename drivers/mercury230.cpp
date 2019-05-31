@@ -33,7 +33,7 @@ uint16_t Crc16(uint8_t *Data, uint8_t DataSize);
 
 static uint8_t Ct(uint8_t Data);
 
-uint8_t CRC_CE(uint8_t  *Data, uint8_t  DataSize, uint8_t  type);
+uint8_t CRC_CE(const uint8_t  *Data, uint8_t  DataSize, uint8_t  type);
 
 //-----------------------------------------------------------------------------
 void *mekDeviceThread(void *pth) {
@@ -48,6 +48,7 @@ void *mekDeviceThread(void *pth) {
             for (u_long r = 0; r < nRow; r++) {
                 row = mysql_fetch_row(res);
                 if (row) {
+                    strncpy(deviceMER.uuid, row[1], 20);
                     strncpy(deviceMER.address, row[3], 10);
                     strncpy(deviceMER.port, row[16], 20);
                 }
@@ -91,7 +92,7 @@ void *mekDeviceThread(void *pth) {
 int DeviceMER::ReadDataCurrent() {
     bool rs;
     uint16_t rec = 0;
-    uint16_t chan = 0;
+    char chan[20];
     // TODO решить что делать с коэффициентом трансформации
     float fl, knt = 6200, A = 0;
     unsigned char data[400];
@@ -112,13 +113,13 @@ int DeviceMER::ReadDataCurrent() {
         }
         fl *= knt;
 
-        chan = dBase.GetChannel(MEASURE_ENERGY_SUM, 1, this->id);
-        dBase.StoreData(MEASURE_ENERGY_SUM, TYPE_CURRENTS, fl, nullptr, chan);
+        strncpy(chan, dBase.GetChannel(const_cast<char *>(MEASURE_ENERGY), 1, this->uuid), 20);
+        dBase.StoreData(TYPE_CURRENTS, 0, fl, nullptr, chan);
         sprintf(date, "%04d%02d%02d%02d%02d00", currentKernelInstance.current_time->tm_year + 1900,
                 currentKernelInstance.current_time->tm_mon + 1,
                 currentKernelInstance.current_time->tm_mday, currentKernelInstance.current_time->tm_hour,
                 (5 * (currentKernelInstance.current_time->tm_min / 5)));
-        dBase.StoreData(MEASURE_ENERGY_SUM, TYPE_INCREMENTS, fl, date, chan);
+        dBase.StoreData(TYPE_INCREMENTS, 0, fl, date, chan);
     }
 
     if (this->deviceType == TYPE_MERCURY230)
@@ -138,13 +139,13 @@ int DeviceMER::ReadDataCurrent() {
         }
         currentKernelInstance.log.ulogw(LOG_LEVEL_INFO, "[mer][0x%x 0x%x 0x%x 0x%x] W=[%f]", data[0], data[1], data[2],
                                         data[3], fl);
-        chan = dBase.GetChannel(MEASURE_ENERGY_SUM, TYPE_DAYS, this->id);
+        strncpy(chan, dBase.GetChannel(const_cast<char *>(MEASURE_ENERGY), 1, this->uuid), 20);
         if (fl < 50000000) {
             sprintf(date, "%04d%02d%02d%02d%02d00", currentKernelInstance.current_time->tm_year + 1900,
                     currentKernelInstance.current_time->tm_mon + 1,
                     currentKernelInstance.current_time->tm_mday, currentKernelInstance.current_time->tm_hour,
                     (5 * (currentKernelInstance.current_time->tm_min / 5)));
-            dBase.StoreData(MEASURE_ENERGY_SUM, TYPE_DAYS, fl, date, chan);
+            dBase.StoreData(TYPE_DAYS, 0, fl, date, chan);
         }
     }
 
@@ -173,13 +174,13 @@ int DeviceMER::ReadDataCurrent() {
         }
         currentKernelInstance.log.ulogw(LOG_LEVEL_INFO, "[mer][0x%x 0x%x 0x%x 0x%x] Wn[%d]=[%f] [%f][%f]",
                                         data[0], data[1], data[2], data[3], this->id, fl, A, knt);
-        chan = dBase.GetChannel(MEASURE_ENERGY, TYPE_DAYS, this->id);
+        strncpy(chan, dBase.GetChannel(const_cast<char *>(MEASURE_ENERGY), 1, this->uuid), 20);
         if (fl < 500000000) {
             sprintf(date, "%04d%02d%02d%02d%02d00", currentKernelInstance.current_time->tm_year + 1900,
                     currentKernelInstance.current_time->tm_mon + 1,
                     currentKernelInstance.current_time->tm_mday, currentKernelInstance.current_time->tm_hour,
                     (5 * (currentKernelInstance.current_time->tm_min / 5)));
-            dBase.StoreData(MEASURE_ENERGY, TYPE_DAYS, fl, date, chan);
+            dBase.StoreData(TYPE_DAYS, 0, fl, date, chan);
         }
     }
 
@@ -190,9 +191,9 @@ int DeviceMER::ReadDataCurrent() {
             fl = ((float) ((data[0] & 0x3f) * 256 * 256) + (float) data[1] * 256 + (float) data[2]);
         else fl = ((float) ((data[0] & 0x3f) * 256 * 256) + (float) data[1] + (float) data[2] * 256);
         fl = fl / 10000;
-        chan = dBase.GetChannel(MEASURE_CURRENT, TYPE_CURRENTS, this->id);
+        strncpy(chan, dBase.GetChannel(const_cast<char *>(MEASURE_ENERGY), 1, this->uuid), 20);
         currentKernelInstance.log.ulogw(LOG_LEVEL_INFO, "[mer][0x%x 0x%x 0x%x] I3=[%f]", data[0], data[1], data[2], fl);
-        dBase.StoreData(MEASURE_ENERGY, TYPE_CURRENTS, fl, nullptr, chan);
+        dBase.StoreData(TYPE_CURRENTS, 0, fl, nullptr, chan);
     }
 
     rs = send_mercury(READ_PARAMETRS, 0x11, U1, 0);
@@ -203,14 +204,14 @@ int DeviceMER::ReadDataCurrent() {
         else fl = ((float) ((data[0] & 0x3f) * 256 * 256) + (float) data[1] + (float) data[2] * 256);
         fl = fl / 100;
         currentKernelInstance.log.ulogw(LOG_LEVEL_INFO, "[mer][0x%x 0x%x 0x%x] U3=[%f]", data[0], data[1], data[2], fl);
-        chan = dBase.GetChannel(MEASURE_VOLTAGE, TYPE_CURRENTS, this->id);
+        strncpy(chan, dBase.GetChannel(const_cast<char *>(MEASURE_ENERGY), 1, this->uuid), 20);
         if (fl < 300) {
-            dBase.StoreData(MEASURE_VOLTAGE, TYPE_CURRENTS, fl, nullptr, chan);
+            dBase.StoreData(TYPE_CURRENTS, 0, fl, nullptr, chan);
             sprintf(date, "%04d%02d%02d%02d%02d00", currentKernelInstance.current_time->tm_year + 1900,
                     currentKernelInstance.current_time->tm_mon + 1,
                     currentKernelInstance.current_time->tm_mday, currentKernelInstance.current_time->tm_hour,
                     (5 * (currentKernelInstance.current_time->tm_min / 5)));
-            dBase.StoreData(MEASURE_VOLTAGE, TYPE_INCREMENTS, fl, nullptr, chan);
+            dBase.StoreData(TYPE_INCREMENTS, 0, fl, nullptr, chan);
         }
     }
 
@@ -222,14 +223,14 @@ int DeviceMER::ReadDataCurrent() {
         else fl = ((float) ((data[0] & 0x3f) * 256 * 256) + (float) data[1] + (float) data[2] * 256);
         fl = fl / 100;
         currentKernelInstance.log.ulogw(LOG_LEVEL_INFO, "[mer][0x%x 0x%x 0x%x] F=[%f]", data[0], data[1], data[2], fl);
-        chan = dBase.GetChannel(MEASURE_FREQUENCY, TYPE_CURRENTS, this->id);
+        strncpy(chan, dBase.GetChannel(const_cast<char *>(MEASURE_ENERGY), 1, this->uuid), 20);
         if (fl < 300) {
-            dBase.StoreData(MEASURE_FREQUENCY, TYPE_CURRENTS, fl, nullptr, chan);
+            dBase.StoreData(TYPE_CURRENTS, 0, fl, nullptr, chan);
             sprintf(date, "%04d%02d%02d%02d%02d00", currentKernelInstance.current_time->tm_year + 1900,
                     currentKernelInstance.current_time->tm_mon + 1,
                     currentKernelInstance.current_time->tm_mday, currentKernelInstance.current_time->tm_hour,
                     (5 * (currentKernelInstance.current_time->tm_min / 5)));
-            dBase.StoreData(MEASURE_FREQUENCY, TYPE_INCREMENTS, fl, nullptr, chan);
+            dBase.StoreData(TYPE_INCREMENTS, 0, fl, nullptr, chan);
         }
     }
     return 0;
@@ -348,8 +349,8 @@ bool DeviceMER::ReadInfo() {
         }
         return true;
     } else {
-        if (rec > 10) sprintf(query, "UPDATE device SET lastdate=NULL,conn=2 WHERE id=%d", this->id);
-        else sprintf(query, "UPDATE device SET lastdate=NULL,conn=0 WHERE id=%d", this->id);
+        if (rec > 10) sprintf(query, "UPDATE device SET last_date=NULL WHERE id=%d", this->id);
+        else sprintf(query, "UPDATE device SET last_date=NULL WHERE id=%d", this->id);
         currentKernelInstance.log.ulogw(LOG_LEVEL_INFO, "[mer] [%s]", query);
         this->q_error++;
         if (this->q_error > 10) {
@@ -369,7 +370,7 @@ int DeviceMER::ReadAllArchive(uint16_t tp) {
     uint8_t data[400], data2[100];
     char date[20];
     unsigned month, year, index;
-    uint16_t chan;
+    char chan[20];
     float fl, fl2, fl3, fl4, knt = 1, A = 1;
     unsigned code, vsk = 0, adr = 0, j = 0, f = 0;
     time_t tims, tim;
@@ -426,8 +427,8 @@ int DeviceMER::ReadAllArchive(uint16_t tp) {
                                                                         BCD(data[1]),
                                                                         BCD(data[3]), BCD(data[4]), BCD(data[5]), fl);
 
-                                        chan = dBase.GetChannel(MEASURE_ENERGY, TYPE_CURRENTS, this->id);
-                                        dBase.StoreData(MEASURE_ENERGY, TYPE_CURRENTS, fl, date, chan);
+                                        dBase.StoreData(TYPE_CURRENTS, 0, fl, nullptr, chan);
+                                        dBase.StoreData(TYPE_CURRENTS, 0, fl, date, chan);
                                     }
 
                                 }
@@ -500,10 +501,8 @@ int DeviceMER::ReadAllArchive(uint16_t tp) {
                                                                                             data2[9]);
                                                             //if (debug>2) currentKernelInstance.log.ulogw(LOG_LEVEL_INFO,"[mer] P+[0x%x,0x%x,0x%x,0x%x,0x%x,0x%x,0x%x,0x%x] (%d)",data2[8]&0x7f,data2[9],data2[10],data2[11],data2[12],data2[13],data2[14],data2[15],data2[8]&0x7f*256+data2[9]);
                                                             //if (debug>2) currentKernelInstance.log.ulogw(LOG_LEVEL_INFO,"[mer] P+[0x%x,0x%x,0x%x,0x%x,0x%x,0x%x,0x%x,0x%x] (%d)",data2[16]&0x7f,data2[17],data2[18],data2[19],data2[20],data2[21],data2[22],data2[23],data2[16]&0x7f*256+data2[17]);
-                                                            chan = dBase.GetChannel(MEASURE_ENERGY, TYPE_CURRENTS,
-                                                                                    this->id);
-                                                            dBase.StoreData(MEASURE_ENERGY, TYPE_CURRENTS, fl, date,
-                                                                            chan);
+                                                            strncpy(chan, dBase.GetChannel(const_cast<char *>(MEASURE_ENERGY), 1, this->uuid), 20);
+                                                            dBase.StoreData(TYPE_CURRENTS, 0, fl, date, chan);
                                                             break;
                                                         }
                                     }
@@ -537,8 +536,8 @@ int DeviceMER::ReadAllArchive(uint16_t tp) {
         sprintf(date, "%04d%02d%02d000000", tt.tm_year + 1900, tt.tm_mon + 1, tt.tm_mday);
         currentKernelInstance.log.ulogw(LOG_LEVEL_INFO, "[mer][2][0x%x 0x%x 0x%x 0x%x] [%f][%s][%f]",
                                         data[0], data[1], data[2], data[3], fl, date, knt);
-        chan = dBase.GetChannel(MEASURE_ENERGY, TYPE_CURRENTS, this->id);
-        dBase.StoreData(MEASURE_ENERGY, TYPE_DAYS, fl, date, chan);
+        dBase.StoreData(TYPE_CURRENTS, 0, fl, nullptr, chan);
+        dBase.StoreData(TYPE_DAYS, 0, fl, date, chan);
     }
 
     //rs=send_mercury (READ_DATA_230, 0x84, 0x0, 0);
@@ -564,8 +563,8 @@ int DeviceMER::ReadAllArchive(uint16_t tp) {
         sprintf(date, "%04d%02d%02d000000", tt.tm_year + 1900, tt.tm_mon + 1, tt.tm_mday);
         currentKernelInstance.log.ulogw(LOG_LEVEL_INFO, "[mer][0x%x 0x%x 0x%x 0x%x] [%f][%s]", data[0], data[1],
                                         data[2], data[3], fl, date);
-        chan = dBase.GetChannel(MEASURE_ENERGY, TYPE_CURRENTS, this->id);
-        dBase.StoreData(MEASURE_ENERGY, TYPE_DAYS, fl, date, chan);
+        dBase.StoreData(TYPE_CURRENTS, 0, fl, nullptr, chan);
+        dBase.StoreData(TYPE_DAYS, 0, fl, date, chan);
     }
 
     tim = time(&tim);
@@ -591,8 +590,8 @@ int DeviceMER::ReadAllArchive(uint16_t tp) {
                 if (knt) fl *= knt;
             }
             sprintf(date, "%04d%02d01000000", tt.tm_year + 1900, tt.tm_mon + 1);
-            chan = dBase.GetChannel(MEASURE_ENERGY, TYPE_CURRENTS, this->id);
-            dBase.StoreData(MEASURE_ENERGY, TYPE_DAYS, fl, date, chan);
+            strncpy(chan, dBase.GetChannel(const_cast<char *>(MEASURE_ENERGY), 1, this->uuid), 20);
+            dBase.StoreData(TYPE_DAYS, 0, fl, date, chan);
             currentKernelInstance.log.ulogw(LOG_LEVEL_INFO, "[mer][4][%d][0x%x 0x%x 0x%x 0x%x] [%f] [%s]",
                                             chan, data[0], data[1], data[2], data[3], fl, date);
         }
@@ -616,8 +615,8 @@ int DeviceMER::ReadAllArchive(uint16_t tp) {
                     if (knt) fl *= knt;
                 }
                 sprintf(date, "%04d%02d01000000", tt.tm_year + 1900, tt.tm_mon + 1);
-                chan = dBase.GetChannel(MEASURE_ENERGY, TYPE_CURRENTS, this->id);
-                dBase.StoreData(MEASURE_ENERGY, TYPE_DAYS, fl, date, chan);
+                strncpy(chan, dBase.GetChannel(const_cast<char *>(MEASURE_ENERGY), 1, this->uuid), 20);
+                dBase.StoreData(TYPE_DAYS, 0, fl, date, chan);
                 currentKernelInstance.log.ulogw(LOG_LEVEL_INFO, "[mer][4][%d][0x%x 0x%x 0x%x 0x%x] [%f] [%s]",
                                                 chan, data[0], data[1], data[2], data[3], fl, date);
             }
@@ -1473,7 +1472,7 @@ uint16_t Crc16(uint8_t *Data, uint8_t DataSize) {
 
 //-----------------------------------------------------------------------------
 //BYTE CRC_CE(const char* const Data, const BYTE DataSize, BYTE type)
-uint8_t CRC_CE(uint8_t *Data, const uint8_t DataSize, uint8_t type) {
+uint8_t CRC_CE(const uint8_t *Data, const uint8_t DataSize, uint8_t type) {
     uint8_t _CRC = 0;
     for (int i = 0; i < DataSize; i++) {
         if (Data[i] % 2 == 1) _CRC += (Data[i] | 0x80);
