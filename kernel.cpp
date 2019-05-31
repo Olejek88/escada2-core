@@ -139,6 +139,10 @@ void *dispatcher(void *thread_arg) {
         }
     }
     currentKernelInstance.log.ulogw(LOG_LEVEL_INFO, "dispatcher finished");
+
+    // пример как остановить поток драйвера zigbee
+    mtmZigbeeSetRun(false);
+
     return nullptr;
 }
 

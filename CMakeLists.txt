@@ -44,4 +44,8 @@ target_link_libraries(escada_core mysqlclient)
 target_link_libraries(escada_core pthread)
 target_link_libraries(escada_core gtop-2.0)
 
+include_directories(external/zigbeemtm)
+add_subdirectory(external/zigbeemtm)
+target_link_libraries(escada_core zigbeemtm)
+
 set_target_properties(escada_core PROPERTIES RUNTIME_OUTPUT_DIRECTORY ./)
