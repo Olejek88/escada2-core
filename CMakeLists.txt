@@ -38,11 +38,12 @@ add_executable(escada_core
         drivers/mercury230.cpp
         drivers/mercury230.h
         tinyxml2.cpp
-        tinyxml2.h TypeThread.cpp TypeThread.h drivers/MtmZigbee.cpp drivers/MtmZigbee.h)
+        tinyxml2.h TypeThread.cpp TypeThread.h drivers/MtmZigbee.cpp drivers/MtmZigbee.h function.cpp)
 
 target_link_libraries(escada_core mysqlclient)
 target_link_libraries(escada_core pthread)
 target_link_libraries(escada_core gtop-2.0)
+target_link_libraries(escada_core nettle)
 
 include_directories(external/zigbeemtm)
 add_subdirectory(external/zigbeemtm)

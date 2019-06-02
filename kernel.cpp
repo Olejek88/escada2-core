@@ -105,17 +105,25 @@ void *dispatcher(void *thread_arg) {
             currentKernelInstance.log.ulogw(LOG_LEVEL_ERROR, "thr [%s] %ld %ld", typeThreads[th].title,
                                             typeThreads[th].lastDate, now);
             if ((now - typeThreads[th].lastDate) > 60) {
-                switch (typeThreads[th].deviceType) {
-                    case 1:
-                        pRc = pthread_create(&thr, nullptr, mekDeviceThread, (void *) &typeThreads[th]);
-                        break;
-                    case 4:
-                        pRc = pthread_create(&thr, nullptr, mtmZigbeeDeviceThread, (void *) &typeThreads[th]);
-                        break;
-                    default:
-                        pRc = 0;
-                        break;
+                if (strncasecmp("0FBACF26-31CA-4B92-BCA3-220E09A6D2D3", typeThreads[th].deviceType, 36) == 0) {
+                    pRc = pthread_create(&thr, nullptr, mekDeviceThread, (void *) &typeThreads[th]);
+                } else if (strncasecmp("CFD3C7CC-170C-4764-9A8D-10047C8B8B1D", typeThreads[th].deviceType, 36) == 0) {
+                    pRc = pthread_create(&thr, nullptr, mtmZigbeeDeviceThread, (void *) &typeThreads[th]);
+                } else {
+                    pRc = 0;
                 }
+
+//                switch (typeThreads[th].deviceType) {
+//                    case 1:
+//                        pRc = pthread_create(&thr, nullptr, mekDeviceThread, (void *) &typeThreads[th]);
+//                        break;
+//                    case 4:
+//                        pRc = pthread_create(&thr, nullptr, mtmZigbeeDeviceThread, (void *) &typeThreads[th]);
+//                        break;
+//                    default:
+//                        pRc = 0;
+//                        break;
+//                }
 
                 if (pRc != 0) {
                     currentKernelInstance.log.ulogw(LOG_LEVEL_ERROR, "error create %s thread", typeThreads[th].title);
@@ -138,6 +146,7 @@ void *dispatcher(void *thread_arg) {
             break;
         }
     }
+
     currentKernelInstance.log.ulogw(LOG_LEVEL_INFO, "dispatcher finished");
 
     // пример как остановить поток драйвера zigbee

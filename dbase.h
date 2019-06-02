@@ -1,3 +1,6 @@
+#ifndef ESCADA_CORE_DBASE_H
+#define ESCADA_CORE_DBASE_H
+
 #define MAX_QUERY_LENGTH    300
 
 #include <mysql/mysql.h>
@@ -25,3 +28,5 @@ public:
     uint16_t GetChannel(uint16_t measureType, uint16_t channel, uint16_t device);
     bool StoreData(uint16_t type, uint16_t status, double value, char *data, uint16_t channel);
 };
+
+#endif //ESCADA_CORE_DBASE_H

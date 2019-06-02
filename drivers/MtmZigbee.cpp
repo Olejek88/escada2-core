@@ -5,15 +5,21 @@
 #include <sys/stat.h>
 #include <sys/queue.h>
 #include <cstring>
+#include <nettle/base64.h>
+#include <stdio.h>
+#include "dbase.h"
 #include "TypeThread.h"
 #include "MtmZigbee.h"
 #include "kernel.h"
+#include "function.h"
 
 int coordinatorFd;
 bool mtmZigbeeStarted = false;
 uint8_t TAG[] = "mtmzigbee";
 pthread_mutex_t mtmZigbeeStopMutex;
 bool mtmZigbeeStopIssued;
+DBase *mtmZigbeeDBase;
+int32_t mtmZigBeeThreadId;
 
 /*
 Алгоритм работы zigbee модуля для escada2 core:
@@ -30,26 +36,24 @@ escada запускает основную функцию модуля в отд
  */
 
 void *mtmZigbeeDeviceThread(void *pth) {
-//    int16_t id = -1;
     uint16_t speed;
     uint8_t *port;
     auto &currentKernelInstance = Kernel::Instance();
     auto *tInfo = (TypeThread *) pth;
 
-//    id = tInfo->id;
+    mtmZigBeeThreadId = tInfo->id;
     speed = tInfo->speed;
     port = (uint8_t *) tInfo->port;
 
     if (!mtmZigbeeStarted) {
         mtmZigbeeStarted = true;
         currentKernelInstance.log.ulogw(LOG_LEVEL_INFO, "[%s] device thread started", TAG);
-        // TODO: как будет всё отлажено вместо MTM_ZIGBEE_FIFO использовать MTM_ZIGBEE_COM_PORT
-        if (mtmZigbeeInit(MTM_ZIGBEE_FIFO, port, speed) != 0) {
+        if (mtmZigbeeInit(MTM_ZIGBEE_COM_PORT, port, speed) != 0) {
             // завершаем поток
             return nullptr;
         } else {
-            // запускаем цикл разбора паетов
-            mtmZigbeePktListener();
+            // запускаем цикл разбора пакетов
+            mtmZigbeePktListener(mtmZigBeeThreadId);
         }
     } else {
         currentKernelInstance.log.ulogw(LOG_LEVEL_ERROR, "[%s] thread already started", TAG);
@@ -63,7 +67,7 @@ void *mtmZigbeeDeviceThread(void *pth) {
 }
 
 
-void mtmZigbeePktListener() {
+void mtmZigbeePktListener(int32_t threadId) {
     bool run = true;
     int64_t count;
     uint32_t i = 0;
@@ -78,12 +82,12 @@ void mtmZigbeePktListener() {
     bool isFrameData = false;
     uint8_t frameDataByteCount = 0;
     uint8_t fcs;
+    time_t currentTime, lastTime = 0;
 
     struct zb_pkt_item {
 //        zigbee_frame frame;
         void *pkt;
-        SLIST_ENTRY(zb_pkt_item)
-                items;
+        SLIST_ENTRY(zb_pkt_item) items;
     };
     struct zb_queue *zb_queue_ptr;
     SLIST_HEAD(zb_queue, zb_pkt_item)
@@ -97,7 +101,7 @@ void mtmZigbeePktListener() {
     while (run) {
         count = read(coordinatorFd, &data, 1);
         if (count > 0) {
-            printf("data: %02X\n", data);
+//            printf("data: %02X\n", data);
 
             // начинаем разбор
             if (!isSof && data == SOF) {
@@ -156,16 +160,23 @@ void mtmZigbeePktListener() {
                 i = 0;
             }
         } else {
-//            printf("sleep...\n");
-            // есть свободное время, разобираем список полученных пакетов
+            // есть свободное время, разбираем список полученных пакетов
             while (!SLIST_EMPTY(zb_queue_ptr)) {
                 printf("processing zb packet...\n");
                 zb_item = SLIST_FIRST(zb_queue_ptr);
-                // TODO: реализовать обработку пакета
-                // process(zb_item);
+                mtmZigbeeProcessPacket((uint8_t *) zb_item->pkt);
                 SLIST_REMOVE_HEAD(zb_queue_ptr, items);
                 free(zb_item->pkt);
                 free(zb_item);
+            }
+
+            // обновляем значение c_time в таблице thread раз в 5 секунд
+            currentTime = time(nullptr);
+            if (currentTime - lastTime >= 5) {
+                lastTime = currentTime;
+                if (mtmZigbeeDBase->openConnection() == 0) {
+                    UpdateThreads(*mtmZigbeeDBase, threadId, 0, 1);
+                }
             }
 
             run = mtmZigbeeGetRun();
@@ -175,8 +186,62 @@ void mtmZigbeePktListener() {
     }
 }
 
+void mtmZigbeeProcessPacket(uint8_t *pktBuff) {
+
+    uint16_t cmd = *(uint16_t *) (&pktBuff[2]);
+    uint8_t pktType;
+    uint8_t resultBuff[1024] = {};
+    struct base64_encode_ctx b64_ctx = {};
+    int encoded_bytes;
+
+    switch (cmd) {
+        case AF_INCOMING_MSG:
+            printf("[%s] AF_INCOMING_MSG\n", TAG);
+            pktType = pktBuff[21];
+            switch (pktType) {
+                case MTM_CMD_TYPE_STATUS:
+                    printf("[%s] MTM_CMD_TYPE_STATUS\n", TAG);
+                    base64_encode_init(&b64_ctx);
+                    encoded_bytes = base64_encode_update(&b64_ctx, resultBuff, get_mtm_command_size(pktType),
+                                                         &pktBuff[21]);
+                    base64_encode_final(&b64_ctx, resultBuff + encoded_bytes);
+                    printf("%s\n", resultBuff);
+                    if (mtmZigbeeDBase->openConnection() == 0) {
+                        uint8_t query[1024];
+                        MYSQL_RES *res;
+
+                        sprintf((char *) query,
+                                "INSERT INTO light_answer (address, data) value('%02X%02X%02X%02X%02X%02X%02X%02X', '%s')",
+                                pktBuff[30], pktBuff[29], pktBuff[28], pktBuff[27],
+                                pktBuff[26], pktBuff[25], pktBuff[24], pktBuff[23], resultBuff);
+                        printf("%s\n", query);
+                        res = mtmZigbeeDBase->sqlexec((const char *) query);
+                        if (res) {
+                            mysql_free_result(res);
+                        }
+                    }
+                    break;
+                case MTM_CMD_TYPE_CONFIG:
+                case MTM_CMD_TYPE_CONFIG_LIGHT:
+                case MTM_CMD_TYPE_CURRENT_TIME:
+                case MTM_CMD_TYPE_ACTION:
+                default:
+                    break;
+            }
+            break;
+        case AF_INCOMING_MSG_EXT:
+            printf("[%s] AF_INCOMING_MSG_EXT\n", TAG);
+            break;
+        default:
+            break;
+    }
+}
+
 int32_t mtmZigbeeInit(int32_t mode, uint8_t *path, uint32_t speed) {
     struct termios serialPortSettings{};
+
+    // TODO: видимо нужно как-то проверить что всё путём с соединением.
+    mtmZigbeeDBase = new DBase();
 
     if (mode == MTM_ZIGBEE_FIFO) {
         // создаём fifo для тестов

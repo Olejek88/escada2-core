@@ -15,7 +15,8 @@ public:
     char port[15];
     char device_thread[15];
     uint16_t speed;
-    uint16_t deviceType;
+//    uint16_t deviceType;
+    char deviceType[36]; // uuid
     std::time_t lastDate;
     int status;
     int work;
