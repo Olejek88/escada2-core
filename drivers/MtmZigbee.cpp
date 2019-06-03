@@ -64,6 +64,10 @@ void *mtmZigbeeDeviceThread(void *pth) {
     mtmZigbeeStarted = false;
     currentKernelInstance.log.ulogw(LOG_LEVEL_INFO, "[%s] device thread ended", TAG);
 
+    if (coordinatorFd > 0) {
+        close(coordinatorFd);
+    }
+
     return nullptr;
 }
 
@@ -209,7 +213,7 @@ void mtmZigbeeProcessOutPacket() {
     ssize_t rc;
 
     sprintf((char *) query, "SELECT * FROM light_message WHERE dateOut IS NULL;");
-    printf("%s\n", query);
+//    printf("%s\n", query);
     res = mtmZigbeeDBase->sqlexec((char *) query);
     if (res) {
         nRows = mysql_num_rows(res);
