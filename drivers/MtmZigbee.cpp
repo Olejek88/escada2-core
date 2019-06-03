@@ -6,7 +6,8 @@
 #include <sys/queue.h>
 #include <cstring>
 #include <nettle/base64.h>
-#include <stdio.h>
+#include <cstdio>
+#include <zigbeemtm.h>
 #include "dbase.h"
 #include "TypeThread.h"
 #include "MtmZigbee.h"
@@ -164,7 +165,7 @@ void mtmZigbeePktListener(int32_t threadId) {
             while (!SLIST_EMPTY(zb_queue_ptr)) {
                 printf("processing zb packet...\n");
                 zb_item = SLIST_FIRST(zb_queue_ptr);
-                mtmZigbeeProcessPacket((uint8_t *) zb_item->pkt);
+                mtmZigbeeProcessInPacket((uint8_t *) zb_item->pkt);
                 SLIST_REMOVE_HEAD(zb_queue_ptr, items);
                 free(zb_item->pkt);
                 free(zb_item);
@@ -179,6 +180,8 @@ void mtmZigbeePktListener(int32_t threadId) {
                 }
             }
 
+            mtmZigbeeProcessOutPacket();
+
             run = mtmZigbeeGetRun();
 
             usleep(10000);
@@ -186,7 +189,127 @@ void mtmZigbeePktListener(int32_t threadId) {
     }
 }
 
-void mtmZigbeeProcessPacket(uint8_t *pktBuff) {
+void mtmZigbeeProcessOutPacket() {
+    uint8_t query[1024];
+    MYSQL_RES *res;
+    MYSQL_ROW row;
+    MYSQL_FIELD *field;
+    int32_t fieldAddressIdx = -1;
+    const char *fieldAddress = "address";
+    int32_t fieldDataIdx = -1;
+    const char *fieldData = "data";
+    uint32_t nFields;
+    u_long nRows;
+    uint32_t *lengths;
+    int32_t flen;
+    uint8_t tmpAddr[1024];
+    uint8_t tmpData[1024];
+    uint8_t mtmPkt[512];
+    uint64_t dstAddr;
+    ssize_t rc;
+
+    sprintf((char *) query, "SELECT * FROM light_message WHERE dateOut IS NULL;");
+    printf("%s\n", query);
+    res = mtmZigbeeDBase->sqlexec((char *) query);
+    if (res) {
+        nRows = mysql_num_rows(res);
+        nFields = mysql_num_fields(res);
+        char *headers[nFields];
+
+        for (uint32_t i = 0; (field = mysql_fetch_field(res)); i++) {
+            headers[i] = field->name;
+            if (strcmp(fieldAddress, headers[i]) == 0) {
+                fieldAddressIdx = i;
+            } else if (strcmp(fieldData, headers[i]) == 0) {
+                fieldDataIdx = i;
+            }
+        }
+
+        for (uint32_t i = 0; i < nRows; i++) {
+            row = mysql_fetch_row(res);
+            lengths = (uint32_t *) mysql_fetch_lengths(res);
+            if (row) {
+                flen = lengths[fieldAddressIdx];
+                memset(tmpAddr, 0, 1024);
+                strncpy((char *) tmpAddr, row[fieldAddressIdx], flen);
+                printf("Addr: %s, ", tmpAddr);
+                dstAddr = strtoull((char *) tmpAddr, nullptr, 16);
+
+                flen = lengths[fieldDataIdx];
+                memset(tmpData, 0, 1024);
+                strncpy((char *) tmpData, row[fieldDataIdx], flen);
+                printf("Data: %s\n", tmpData);
+
+                struct base64_decode_ctx b64_ctx = {};
+                size_t decoded;
+                base64url_decode_init(&b64_ctx);
+                if (base64_decode_update(&b64_ctx, &decoded, mtmPkt, flen, tmpData)) {
+                    if (base64_decode_final(&b64_ctx)) {
+                        uint8_t pktType = mtmPkt[0];
+                        switch (pktType) {
+                            case MTM_CMD_TYPE_CONFIG:
+                                mtm_cmd_config config;
+                                config.header.type = mtmPkt[0];
+                                config.header.protoVersion = mtmPkt[1];
+                                config.device = mtmPkt[2];
+                                config.min = *(uint16_t *) &mtmPkt[3];
+                                config.max = *(uint16_t *) &mtmPkt[5];
+                                rc = send_mtm_cmd_ext(coordinatorFd, dstAddr, &config);
+                                printf("rc=%d\n", rc);
+                                break;
+                            case MTM_CMD_TYPE_CONFIG_LIGHT:
+                                mtm_cmd_config_light config_light;
+                                config_light.header.type = mtmPkt[0];
+                                config_light.header.protoVersion = mtmPkt[1];
+                                config_light.device = mtmPkt[2];
+                                for (int nCfg = 0; nCfg < MAX_LIGHT_CONFIG; nCfg++) {
+                                    config_light.config[nCfg].time = *(uint16_t *) &mtmPkt[3 + nCfg * 4];
+                                    config_light.config[nCfg].value = *(uint16_t *) &mtmPkt[3 + nCfg * 4 + 2];
+                                }
+                                rc = send_mtm_cmd_ext(coordinatorFd, dstAddr, &config_light);
+                                printf("rc=%d\n", rc);
+                                break;
+                            case MTM_CMD_TYPE_CURRENT_TIME:
+                                mtm_cmd_current_time current_time;
+                                current_time.header.type = mtmPkt[0];
+                                current_time.header.protoVersion = mtmPkt[1];
+                                current_time.time = *(uint16_t *) &mtmPkt[2];
+                                rc = send_mtm_cmd_ext(coordinatorFd, dstAddr, &current_time);
+                                printf("rc=%d\n", rc);
+                                break;
+                            case MTM_CMD_TYPE_ACTION:
+                                mtm_cmd_action action;
+                                action.header.type = mtmPkt[0];
+                                action.header.protoVersion = mtmPkt[1];
+                                action.device = mtmPkt[2];
+                                action.data = *(uint16_t *) &mtmPkt[3];
+                                rc = send_mtm_cmd_ext(coordinatorFd, dstAddr, &action);
+                                printf("rc=%d\n", rc);
+                                break;
+                            default:
+                                rc = -1;
+                                break;
+                        }
+
+                        if (rc > 0) {
+                            sprintf((char *) query, "UPDATE light_message SET dateOut=FROM_UNIXTIME(%lu) WHERE _id=%lu",
+                                    time(nullptr), strtoul(row[0], nullptr, 10));
+                            MYSQL_RES *updRes = mtmZigbeeDBase->sqlexec((char *) query);
+                            if (updRes) {
+                                mysql_free_result(updRes);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        mysql_free_result(res);
+    }
+
+}
+
+void mtmZigbeeProcessInPacket(uint8_t *pktBuff) {
 
     uint16_t cmd = *(uint16_t *) (&pktBuff[2]);
     uint8_t pktType;
