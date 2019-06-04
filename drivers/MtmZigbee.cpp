@@ -49,10 +49,7 @@ void *mtmZigbeeDeviceThread(void *pth) {
     if (!mtmZigbeeStarted) {
         mtmZigbeeStarted = true;
         currentKernelInstance.log.ulogw(LOG_LEVEL_INFO, "[%s] device thread started", TAG);
-        if (mtmZigbeeInit(MTM_ZIGBEE_COM_PORT, port, speed) != 0) {
-            // завершаем поток
-            return nullptr;
-        } else {
+        if (mtmZigbeeInit(MTM_ZIGBEE_COM_PORT, port, speed) == 0) {
             // запускаем цикл разбора пакетов
             mtmZigbeePktListener(mtmZigBeeThreadId);
         }
@@ -87,7 +84,8 @@ void mtmZigbeePktListener(int32_t threadId) {
     bool isFrameData = false;
     uint8_t frameDataByteCount = 0;
     uint8_t fcs;
-    time_t currentTime, lastTime = 0;
+    time_t currentTime, heartBeatTime = 0, syncTimeTime = 0;
+    struct tm *localTime;
 
     struct zb_pkt_item {
 //        zigbee_frame frame;
@@ -177,11 +175,23 @@ void mtmZigbeePktListener(int32_t threadId) {
 
             // обновляем значение c_time в таблице thread раз в 5 секунд
             currentTime = time(nullptr);
-            if (currentTime - lastTime >= 5) {
-                lastTime = currentTime;
+            if (currentTime - heartBeatTime >= 5) {
+                heartBeatTime = currentTime;
                 if (mtmZigbeeDBase->openConnection() == 0) {
                     UpdateThreads(*mtmZigbeeDBase, threadId, 0, 1);
                 }
+            }
+
+            // рассылаем пакет с текущим "временем" раз в 10 секунд
+            currentTime = time(nullptr);
+            if (currentTime - syncTimeTime >= 10) {
+                syncTimeTime = currentTime;
+                mtm_cmd_current_time current_time;
+                current_time.header.type = MTM_CMD_TYPE_CURRENT_TIME;
+                current_time.header.protoVersion = MTM_VERSION_0;
+                localTime = localtime(&currentTime);
+                current_time.time = localTime->tm_hour * 60 + localTime->tm_min;
+                send_mtm_cmd(coordinatorFd, 0x0000, &current_time);
             }
 
             mtmZigbeeProcessOutPacket();
@@ -258,7 +268,12 @@ void mtmZigbeeProcessOutPacket() {
                                 config.device = mtmPkt[2];
                                 config.min = *(uint16_t *) &mtmPkt[3];
                                 config.max = *(uint16_t *) &mtmPkt[5];
-                                rc = send_mtm_cmd_ext(coordinatorFd, dstAddr, &config);
+                                if (dstAddr == 0) {
+                                    rc = send_mtm_cmd(coordinatorFd, dstAddr, &config);
+                                } else {
+                                    rc = send_mtm_cmd_ext(coordinatorFd, dstAddr, &config);
+                                }
+
                                 printf("rc=%d\n", rc);
                                 break;
                             case MTM_CMD_TYPE_CONFIG_LIGHT:
@@ -270,7 +285,13 @@ void mtmZigbeeProcessOutPacket() {
                                     config_light.config[nCfg].time = *(uint16_t *) &mtmPkt[3 + nCfg * 4];
                                     config_light.config[nCfg].value = *(uint16_t *) &mtmPkt[3 + nCfg * 4 + 2];
                                 }
-                                rc = send_mtm_cmd_ext(coordinatorFd, dstAddr, &config_light);
+
+                                if (dstAddr == 0) {
+                                    rc = send_mtm_cmd(coordinatorFd, dstAddr, &config_light);
+                                } else {
+                                    rc = send_mtm_cmd_ext(coordinatorFd, dstAddr, &config_light);
+                                }
+
                                 printf("rc=%d\n", rc);
                                 break;
                             case MTM_CMD_TYPE_CURRENT_TIME:
@@ -278,7 +299,12 @@ void mtmZigbeeProcessOutPacket() {
                                 current_time.header.type = mtmPkt[0];
                                 current_time.header.protoVersion = mtmPkt[1];
                                 current_time.time = *(uint16_t *) &mtmPkt[2];
-                                rc = send_mtm_cmd_ext(coordinatorFd, dstAddr, &current_time);
+                                if (dstAddr == 0) {
+                                    rc = send_mtm_cmd(coordinatorFd, dstAddr, &current_time);
+                                } else {
+                                    rc = send_mtm_cmd_ext(coordinatorFd, dstAddr, &current_time);
+                                }
+
                                 printf("rc=%d\n", rc);
                                 break;
                             case MTM_CMD_TYPE_ACTION:
@@ -287,7 +313,12 @@ void mtmZigbeeProcessOutPacket() {
                                 action.header.protoVersion = mtmPkt[1];
                                 action.device = mtmPkt[2];
                                 action.data = *(uint16_t *) &mtmPkt[3];
-                                rc = send_mtm_cmd_ext(coordinatorFd, dstAddr, &action);
+                                if (dstAddr == 0) {
+                                    rc = send_mtm_cmd(coordinatorFd, dstAddr, &action);
+                                } else {
+                                    rc = send_mtm_cmd_ext(coordinatorFd, dstAddr, &action);
+                                }
+
                                 printf("rc=%d\n", rc);
                                 break;
                             default:
@@ -376,13 +407,13 @@ int32_t mtmZigbeeInit(int32_t mode, uint8_t *path, uint32_t speed) {
         coordinatorFd = open(fifo, O_NONBLOCK | O_RDWR | O_NOCTTY); // NOLINT(hicpp-signed-bitwise)
         if (coordinatorFd == -1) {
             // пробуем создать
-            coordinatorFd = mkfifo((char *) path, 0666);
+            coordinatorFd = mkfifo((char *) fifo, 0666);
             if (coordinatorFd == -1) {
                 printf("FIFO can not make!!!\n");
                 return -1;
             } else {
                 close(coordinatorFd);
-                coordinatorFd = open((char *) path, O_NONBLOCK | O_RDWR | O_NOCTTY); // NOLINT(hicpp-signed-bitwise)
+                coordinatorFd = open((char *) fifo, O_NONBLOCK | O_RDWR | O_NOCTTY); // NOLINT(hicpp-signed-bitwise)
                 if (coordinatorFd == -1) {
                     printf("FIFO can not open!!!\n");
                     return -1;
