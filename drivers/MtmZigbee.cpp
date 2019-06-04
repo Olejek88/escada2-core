@@ -93,7 +93,7 @@ void mtmZigbeePktListener(int32_t threadId) {
     SLIST_HEAD(zb_queue, zb_pkt_item)
             zb_queue_head = SLIST_HEAD_INITIALIZER(zb_queue_head);
     SLIST_INIT(&zb_queue_head);
-    zb_queue_ptr = (struct zb_queue *) (&zb_queue_head);
+    //zb_queue_ptr = (struct zb_queue *) (&zb_queue_head);
     struct zb_pkt_item *zb_item;
 
     mtmZigbeeSetRun(true);
@@ -202,9 +202,9 @@ void mtmZigbeeProcessPacket(uint8_t *pktBuff) {
                 case MTM_CMD_TYPE_STATUS:
                     printf("[%s] MTM_CMD_TYPE_STATUS\n", TAG);
                     base64_encode_init(&b64_ctx);
-                    encoded_bytes = base64_encode_update(&b64_ctx, resultBuff, get_mtm_command_size(pktType),
-                                                         &pktBuff[21]);
-                    base64_encode_final(&b64_ctx, resultBuff + encoded_bytes);
+                    encoded_bytes = base64_encode_update(&b64_ctx, (char *)resultBuff, get_mtm_command_size(pktType),
+                                                         reinterpret_cast<const uint8_t *>((size_t)&pktBuff[21]));
+                    base64_encode_final(&b64_ctx, reinterpret_cast<char *>(resultBuff + encoded_bytes));
                     printf("%s\n", resultBuff);
                     if (mtmZigbeeDBase->openConnection() == 0) {
                         uint8_t query[1024];

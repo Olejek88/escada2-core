@@ -14,15 +14,17 @@ include_directories (/usr/local/Cellar/libgtop/2.38.0_1/include/libgtop-2.0)
 include_directories (/usr/local/include/glib-2.0)
 include_directories (/usr/include/glib-2.0)
 
-set(CMAKE_C_FLAGS "-m32")
-set(CMAKE_CXX_FLAGS "-m32")
+#set(CMAKE_C_FLAGS "-m32")
+#set(CMAKE_CXX_FLAGS "-m32")
 
 # TODO: сделать проверку на то под какую архитектуру собираем, от этого подключать нужную папку
 #include_directories (/usr/lib/x86_64-linux-gnu/glib-2.0/include)
 include_directories (/usr/lib/i386-linux-gnu/glib-2.0/include)
 include_directories (/usr/include/libgtop-2.0)
 
+include_directories (/usr/local/include/nettle)
 include_directories(/usr/local/lib)
+
 set(CMAKE_LIBRARY_PATH ${CMAKE_LIBRARY_PATH} /usr/local/lib)
 
 add_executable(escada_core
