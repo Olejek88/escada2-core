@@ -6,7 +6,8 @@
 #include <sys/queue.h>
 #include <cstring>
 #include <nettle/base64.h>
-#include <stdio.h>
+#include <cstdio>
+#include <zigbeemtm.h>
 #include "dbase.h"
 #include "TypeThread.h"
 #include "MtmZigbee.h"
@@ -48,10 +49,7 @@ void *mtmZigbeeDeviceThread(void *pth) {
     if (!mtmZigbeeStarted) {
         mtmZigbeeStarted = true;
         currentKernelInstance.log.ulogw(LOG_LEVEL_INFO, "[%s] device thread started", TAG);
-        if (mtmZigbeeInit(MTM_ZIGBEE_COM_PORT, port, speed) != 0) {
-            // завершаем поток
-            return nullptr;
-        } else {
+        if (mtmZigbeeInit(MTM_ZIGBEE_COM_PORT, port, speed) == 0) {
             // запускаем цикл разбора пакетов
             mtmZigbeePktListener(mtmZigBeeThreadId);
         }
@@ -62,6 +60,10 @@ void *mtmZigbeeDeviceThread(void *pth) {
 
     mtmZigbeeStarted = false;
     currentKernelInstance.log.ulogw(LOG_LEVEL_INFO, "[%s] device thread ended", TAG);
+
+    if (coordinatorFd > 0) {
+        close(coordinatorFd);
+    }
 
     return nullptr;
 }
@@ -82,7 +84,8 @@ void mtmZigbeePktListener(int32_t threadId) {
     bool isFrameData = false;
     uint8_t frameDataByteCount = 0;
     uint8_t fcs;
-    time_t currentTime, lastTime = 0;
+    time_t currentTime, heartBeatTime = 0, syncTimeTime = 0;
+    struct tm *localTime;
 
     struct zb_pkt_item {
 //        zigbee_frame frame;
@@ -164,7 +167,7 @@ void mtmZigbeePktListener(int32_t threadId) {
             while (!SLIST_EMPTY(zb_queue_ptr)) {
                 printf("processing zb packet...\n");
                 zb_item = SLIST_FIRST(zb_queue_ptr);
-                mtmZigbeeProcessPacket((uint8_t *) zb_item->pkt);
+                mtmZigbeeProcessInPacket((uint8_t *) zb_item->pkt);
                 SLIST_REMOVE_HEAD(zb_queue_ptr, items);
                 free(zb_item->pkt);
                 free(zb_item);
@@ -172,12 +175,26 @@ void mtmZigbeePktListener(int32_t threadId) {
 
             // обновляем значение c_time в таблице thread раз в 5 секунд
             currentTime = time(nullptr);
-            if (currentTime - lastTime >= 5) {
-                lastTime = currentTime;
+            if (currentTime - heartBeatTime >= 5) {
+                heartBeatTime = currentTime;
                 if (mtmZigbeeDBase->openConnection() == 0) {
                     UpdateThreads(*mtmZigbeeDBase, threadId, 0, 1);
                 }
             }
+
+            // рассылаем пакет с текущим "временем" раз в 10 секунд
+            currentTime = time(nullptr);
+            if (currentTime - syncTimeTime >= 10) {
+                syncTimeTime = currentTime;
+                mtm_cmd_current_time current_time;
+                current_time.header.type = MTM_CMD_TYPE_CURRENT_TIME;
+                current_time.header.protoVersion = MTM_VERSION_0;
+                localTime = localtime(&currentTime);
+                current_time.time = localTime->tm_hour * 60 + localTime->tm_min;
+                send_mtm_cmd(coordinatorFd, 0x0000, &current_time);
+            }
+
+            mtmZigbeeProcessOutPacket();
 
             run = mtmZigbeeGetRun();
 
@@ -186,7 +203,148 @@ void mtmZigbeePktListener(int32_t threadId) {
     }
 }
 
-void mtmZigbeeProcessPacket(uint8_t *pktBuff) {
+void mtmZigbeeProcessOutPacket() {
+    uint8_t query[1024];
+    MYSQL_RES *res;
+    MYSQL_ROW row;
+    MYSQL_FIELD *field;
+    int32_t fieldAddressIdx = -1;
+    const char *fieldAddress = "address";
+    int32_t fieldDataIdx = -1;
+    const char *fieldData = "data";
+    uint32_t nFields;
+    u_long nRows;
+    uint32_t *lengths;
+    int32_t flen;
+    uint8_t tmpAddr[1024];
+    uint8_t tmpData[1024];
+    uint8_t mtmPkt[512];
+    uint64_t dstAddr;
+    ssize_t rc;
+
+    sprintf((char *) query, "SELECT * FROM light_message WHERE dateOut IS NULL;");
+//    printf("%s\n", query);
+    res = mtmZigbeeDBase->sqlexec((char *) query);
+    if (res) {
+        nRows = mysql_num_rows(res);
+        nFields = mysql_num_fields(res);
+        char *headers[nFields];
+
+        for (uint32_t i = 0; (field = mysql_fetch_field(res)); i++) {
+            headers[i] = field->name;
+            if (strcmp(fieldAddress, headers[i]) == 0) {
+                fieldAddressIdx = i;
+            } else if (strcmp(fieldData, headers[i]) == 0) {
+                fieldDataIdx = i;
+            }
+        }
+
+        for (uint32_t i = 0; i < nRows; i++) {
+            row = mysql_fetch_row(res);
+            lengths = (uint32_t *) mysql_fetch_lengths(res);
+            if (row) {
+                flen = lengths[fieldAddressIdx];
+                memset(tmpAddr, 0, 1024);
+                strncpy((char *) tmpAddr, row[fieldAddressIdx], flen);
+                printf("Addr: %s, ", tmpAddr);
+                dstAddr = strtoull((char *) tmpAddr, nullptr, 16);
+
+                flen = lengths[fieldDataIdx];
+                memset(tmpData, 0, 1024);
+                strncpy((char *) tmpData, row[fieldDataIdx], flen);
+                printf("Data: %s\n", tmpData);
+
+                struct base64_decode_ctx b64_ctx = {};
+                size_t decoded;
+                base64url_decode_init(&b64_ctx);
+                if (base64_decode_update(&b64_ctx, &decoded, mtmPkt, flen, tmpData)) {
+                    if (base64_decode_final(&b64_ctx)) {
+                        uint8_t pktType = mtmPkt[0];
+                        switch (pktType) {
+                            case MTM_CMD_TYPE_CONFIG:
+                                mtm_cmd_config config;
+                                config.header.type = mtmPkt[0];
+                                config.header.protoVersion = mtmPkt[1];
+                                config.device = mtmPkt[2];
+                                config.min = *(uint16_t *) &mtmPkt[3];
+                                config.max = *(uint16_t *) &mtmPkt[5];
+                                if (dstAddr == 0) {
+                                    rc = send_mtm_cmd(coordinatorFd, dstAddr, &config);
+                                } else {
+                                    rc = send_mtm_cmd_ext(coordinatorFd, dstAddr, &config);
+                                }
+
+                                printf("rc=%d\n", rc);
+                                break;
+                            case MTM_CMD_TYPE_CONFIG_LIGHT:
+                                mtm_cmd_config_light config_light;
+                                config_light.header.type = mtmPkt[0];
+                                config_light.header.protoVersion = mtmPkt[1];
+                                config_light.device = mtmPkt[2];
+                                for (int nCfg = 0; nCfg < MAX_LIGHT_CONFIG; nCfg++) {
+                                    config_light.config[nCfg].time = *(uint16_t *) &mtmPkt[3 + nCfg * 4];
+                                    config_light.config[nCfg].value = *(uint16_t *) &mtmPkt[3 + nCfg * 4 + 2];
+                                }
+
+                                if (dstAddr == 0) {
+                                    rc = send_mtm_cmd(coordinatorFd, dstAddr, &config_light);
+                                } else {
+                                    rc = send_mtm_cmd_ext(coordinatorFd, dstAddr, &config_light);
+                                }
+
+                                printf("rc=%d\n", rc);
+                                break;
+                            case MTM_CMD_TYPE_CURRENT_TIME:
+                                mtm_cmd_current_time current_time;
+                                current_time.header.type = mtmPkt[0];
+                                current_time.header.protoVersion = mtmPkt[1];
+                                current_time.time = *(uint16_t *) &mtmPkt[2];
+                                if (dstAddr == 0) {
+                                    rc = send_mtm_cmd(coordinatorFd, dstAddr, &current_time);
+                                } else {
+                                    rc = send_mtm_cmd_ext(coordinatorFd, dstAddr, &current_time);
+                                }
+
+                                printf("rc=%d\n", rc);
+                                break;
+                            case MTM_CMD_TYPE_ACTION:
+                                mtm_cmd_action action;
+                                action.header.type = mtmPkt[0];
+                                action.header.protoVersion = mtmPkt[1];
+                                action.device = mtmPkt[2];
+                                action.data = *(uint16_t *) &mtmPkt[3];
+                                if (dstAddr == 0) {
+                                    rc = send_mtm_cmd(coordinatorFd, dstAddr, &action);
+                                } else {
+                                    rc = send_mtm_cmd_ext(coordinatorFd, dstAddr, &action);
+                                }
+
+                                printf("rc=%d\n", rc);
+                                break;
+                            default:
+                                rc = -1;
+                                break;
+                        }
+
+                        if (rc > 0) {
+                            sprintf((char *) query, "UPDATE light_message SET dateOut=FROM_UNIXTIME(%lu) WHERE _id=%lu",
+                                    time(nullptr), strtoul(row[0], nullptr, 10));
+                            MYSQL_RES *updRes = mtmZigbeeDBase->sqlexec((char *) query);
+                            if (updRes) {
+                                mysql_free_result(updRes);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        mysql_free_result(res);
+    }
+
+}
+
+void mtmZigbeeProcessInPacket(uint8_t *pktBuff) {
 
     uint16_t cmd = *(uint16_t *) (&pktBuff[2]);
     uint8_t pktType;
@@ -202,9 +360,17 @@ void mtmZigbeeProcessPacket(uint8_t *pktBuff) {
                 case MTM_CMD_TYPE_STATUS:
                     printf("[%s] MTM_CMD_TYPE_STATUS\n", TAG);
                     base64_encode_init(&b64_ctx);
-                    encoded_bytes = base64_encode_update(&b64_ctx, (char *)resultBuff, get_mtm_command_size(pktType),
-                                                         reinterpret_cast<const uint8_t *>((size_t)&pktBuff[21]));
-                    base64_encode_final(&b64_ctx, reinterpret_cast<char *>(resultBuff + encoded_bytes));
+
+#ifdef __APPLE__
+                encoded_bytes = base64_encode_update(&b64_ctx, (char *) resultBuff, get_mtm_command_size(pktType),
+                                                     reinterpret_cast<const uint8_t *>((size_t) &pktBuff[21]));
+                base64_encode_final(&b64_ctx, reinterpret_cast<char *>(resultBuff + encoded_bytes));
+#elif __USE_GNU
+                    encoded_bytes = base64_encode_update(&b64_ctx, resultBuff, get_mtm_command_size(pktType),
+                                                         &pktBuff[21]);
+                    base64_encode_final(&b64_ctx, resultBuff + encoded_bytes);
+#endif
+
                     printf("%s\n", resultBuff);
                     if (mtmZigbeeDBase->openConnection() == 0) {
                         uint8_t query[1024];
@@ -249,13 +415,13 @@ int32_t mtmZigbeeInit(int32_t mode, uint8_t *path, uint32_t speed) {
         coordinatorFd = open(fifo, O_NONBLOCK | O_RDWR | O_NOCTTY); // NOLINT(hicpp-signed-bitwise)
         if (coordinatorFd == -1) {
             // пробуем создать
-            coordinatorFd = mkfifo((char *) path, 0666);
+            coordinatorFd = mkfifo((char *) fifo, 0666);
             if (coordinatorFd == -1) {
                 printf("FIFO can not make!!!\n");
                 return -1;
             } else {
                 close(coordinatorFd);
-                coordinatorFd = open((char *) path, O_NONBLOCK | O_RDWR | O_NOCTTY); // NOLINT(hicpp-signed-bitwise)
+                coordinatorFd = open((char *) fifo, O_NONBLOCK | O_RDWR | O_NOCTTY); // NOLINT(hicpp-signed-bitwise)
                 if (coordinatorFd == -1) {
                     printf("FIFO can not open!!!\n");
                     return -1;
