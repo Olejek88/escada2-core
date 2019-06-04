@@ -92,11 +92,11 @@ void mtmZigbeePktListener(int32_t threadId) {
         void *pkt;
         SLIST_ENTRY(zb_pkt_item) items;
     };
-    struct zb_queue *zb_queue_ptr;
+//    struct zb_queue *zb_queue_ptr;
     SLIST_HEAD(zb_queue, zb_pkt_item)
             zb_queue_head = SLIST_HEAD_INITIALIZER(zb_queue_head);
     SLIST_INIT(&zb_queue_head);
-    //zb_queue_ptr = (struct zb_queue *) (&zb_queue_head);
+//    zb_queue_ptr = (struct zb_queue *) (&zb_queue_head);
     struct zb_pkt_item *zb_item;
 
     mtmZigbeeSetRun(true);
@@ -146,7 +146,7 @@ void mtmZigbeePktListener(int32_t threadId) {
                     zb_item = (struct zb_pkt_item *) malloc(sizeof(struct zb_pkt_item));
                     zb_item->pkt = malloc(i - 1);
                     memcpy(zb_item->pkt, seek, i - 1);
-                    SLIST_INSERT_HEAD(zb_queue_ptr, zb_item, items);
+                    SLIST_INSERT_HEAD(&zb_queue_head, zb_item, items);
                 } else {
                     printf("frame bad\n");
                     // вероятно то что попадает в порт с модуля zigbee уже проверено им самим
@@ -164,11 +164,11 @@ void mtmZigbeePktListener(int32_t threadId) {
             }
         } else {
             // есть свободное время, разбираем список полученных пакетов
-            while (!SLIST_EMPTY(zb_queue_ptr)) {
+            while (!SLIST_EMPTY(&zb_queue_head)) {
                 printf("processing zb packet...\n");
-                zb_item = SLIST_FIRST(zb_queue_ptr);
+                zb_item = SLIST_FIRST(&zb_queue_head);
                 mtmZigbeeProcessInPacket((uint8_t *) zb_item->pkt);
-                SLIST_REMOVE_HEAD(zb_queue_ptr, items);
+                SLIST_REMOVE_HEAD(&zb_queue_head, items);
                 free(zb_item->pkt);
                 free(zb_item);
             }
@@ -274,7 +274,7 @@ void mtmZigbeeProcessOutPacket() {
                                     rc = send_mtm_cmd_ext(coordinatorFd, dstAddr, &config);
                                 }
 
-                                printf("rc=%d\n", rc);
+                                printf("rc=%ld\n", rc);
                                 break;
                             case MTM_CMD_TYPE_CONFIG_LIGHT:
                                 mtm_cmd_config_light config_light;
@@ -292,7 +292,7 @@ void mtmZigbeeProcessOutPacket() {
                                     rc = send_mtm_cmd_ext(coordinatorFd, dstAddr, &config_light);
                                 }
 
-                                printf("rc=%d\n", rc);
+                                printf("rc=%ld\n", rc);
                                 break;
                             case MTM_CMD_TYPE_CURRENT_TIME:
                                 mtm_cmd_current_time current_time;
@@ -305,7 +305,7 @@ void mtmZigbeeProcessOutPacket() {
                                     rc = send_mtm_cmd_ext(coordinatorFd, dstAddr, &current_time);
                                 }
 
-                                printf("rc=%d\n", rc);
+                                printf("rc=%ld\n", rc);
                                 break;
                             case MTM_CMD_TYPE_ACTION:
                                 mtm_cmd_action action;
@@ -319,7 +319,7 @@ void mtmZigbeeProcessOutPacket() {
                                     rc = send_mtm_cmd_ext(coordinatorFd, dstAddr, &action);
                                 }
 
-                                printf("rc=%d\n", rc);
+                                printf("rc=%ld\n", rc);
                                 break;
                             default:
                                 rc = -1;
@@ -494,7 +494,7 @@ int32_t mtmZigbeeInit(int32_t mode, uint8_t *path, uint32_t speed) {
     af_register.app_num_out_clusters = 1;
     af_register.app_out_cluster_list[0] = 0xFC00;
     ssize_t rc = send_zb_cmd(coordinatorFd, AF_REGISTER, &af_register);
-    printf("rc=%i\n", rc);
+    printf("rc=%ld\n", rc);
 
     return 0;
 }
