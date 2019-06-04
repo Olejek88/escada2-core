@@ -191,7 +191,8 @@ void mtmZigbeePktListener(int32_t threadId) {
                 current_time.header.protoVersion = MTM_VERSION_0;
                 localTime = localtime(&currentTime);
                 current_time.time = localTime->tm_hour * 60 + localTime->tm_min;
-                send_mtm_cmd(coordinatorFd, 0x0000, &current_time);
+                ssize_t rc = send_mtm_cmd(coordinatorFd, 0x0000, &current_time);
+                printf("rc=%ld\n", rc);
             }
 
             mtmZigbeeProcessOutPacket();
@@ -214,7 +215,7 @@ void mtmZigbeeProcessOutPacket() {
     const char *fieldData = "data";
     uint32_t nFields;
     u_long nRows;
-    uint32_t *lengths;
+    unsigned long *lengths;
     int32_t flen;
     uint8_t tmpAddr[1024];
     uint8_t tmpData[1024];
@@ -241,7 +242,7 @@ void mtmZigbeeProcessOutPacket() {
 
         for (uint32_t i = 0; i < nRows; i++) {
             row = mysql_fetch_row(res);
-            lengths = (uint32_t *) mysql_fetch_lengths(res);
+            lengths = mysql_fetch_lengths(res);
             if (row) {
                 flen = lengths[fieldAddressIdx];
                 memset(tmpAddr, 0, 1024);

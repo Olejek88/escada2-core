@@ -5,7 +5,7 @@
 #include <string>
 #include <mysql/mysql.h>
 #include <cstring>
-#include <stdlib.h>
+#include <cstdlib>
 #include "TypeThread.h"
 #include "dbase.h"
 #include "errors.h"
@@ -25,9 +25,9 @@ uint32_t TypeThread::getAllThreads(TypeThread **dstPtr) {
             *dstPtr = tThread;
             for (u_long r = 0; r < nRow; r++) {
                 row = mysql_fetch_row(res);
-                uint32_t *lengths;
+                unsigned long *lengths;
                 int32_t flen;
-                lengths = (uint32_t *) mysql_fetch_lengths(res);
+                lengths = mysql_fetch_lengths(res);
                 if (row) {
                     tThread[r].id = strtol(row[0], nullptr, 10);
                     flen = lengths[3];
