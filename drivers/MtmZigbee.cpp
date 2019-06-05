@@ -436,14 +436,14 @@ int32_t mtmZigbeeInit(int32_t mode, uint8_t *path, uint32_t speed) {
             printf("init %s\n", path);
         } else {
             printf("%s path not exists\n", path);
-            exit(-2);
+            return -2;
         }
 
         // открываем порт
         coordinatorFd = open((char *) path, O_NONBLOCK | O_RDWR | O_NOCTTY); // NOLINT(hicpp-signed-bitwise)
         if (coordinatorFd == -1) {
             printf("can not open file\n");
-            exit(-3);
+            return -3;
         }
 
         // инициализируем
@@ -472,7 +472,7 @@ int32_t mtmZigbeeInit(int32_t mode, uint8_t *path, uint32_t speed) {
 
         if ((tcsetattr(coordinatorFd, TCSANOW, &serialPortSettings)) != 0) {
             printf("ERROR ! in Setting attributes\n");
-            exit(-4);
+            return -4;
         } else {
             printf("BaudRate = 38400\nStopBits = 1\nParity = none\n");
         }
