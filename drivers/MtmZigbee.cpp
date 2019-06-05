@@ -257,7 +257,7 @@ void mtmZigbeeProcessOutPacket() {
 
                 struct base64_decode_ctx b64_ctx = {};
                 size_t decoded;
-                base64url_decode_init(&b64_ctx);
+                base64_decode_init(&b64_ctx);
                 if (base64_decode_update(&b64_ctx, &decoded, mtmPkt, flen, tmpData)) {
                     if (base64_decode_final(&b64_ctx)) {
                         uint8_t pktType = mtmPkt[0];
@@ -328,7 +328,7 @@ void mtmZigbeeProcessOutPacket() {
                         }
 
                         if (rc > 0) {
-                            sprintf((char *) query, "UPDATE light_message SET dateOut=FROM_UNIXTIME(%lu) WHERE _id=%lu",
+                            sprintf((char *) query, "UPDATE light_message SET dateOut=FROM_UNIXTIME(%ld) WHERE _id=%ld",
                                     time(nullptr), strtoul(row[0], nullptr, 10));
                             MYSQL_RES *updRes = mtmZigbeeDBase->sqlexec((char *) query);
                             if (updRes) {
@@ -376,11 +376,12 @@ void mtmZigbeeProcessInPacket(uint8_t *pktBuff) {
                     if (mtmZigbeeDBase->openConnection() == 0) {
                         uint8_t query[1024];
                         MYSQL_RES *res;
+                        time_t createTime = time(nullptr);
 
                         sprintf((char *) query,
-                                "INSERT INTO light_answer (address, data) value('%02X%02X%02X%02X%02X%02X%02X%02X', '%s')",
+                                "INSERT INTO light_answer (address, data, createdAt, changedAt) value('%02X%02X%02X%02X%02X%02X%02X%02X', '%s', FROM_UNIXTIME(%ld), FROM_UNIXTIME(%ld))",
                                 pktBuff[30], pktBuff[29], pktBuff[28], pktBuff[27],
-                                pktBuff[26], pktBuff[25], pktBuff[24], pktBuff[23], resultBuff);
+                                pktBuff[26], pktBuff[25], pktBuff[24], pktBuff[23], resultBuff, createTime, createTime);
                         printf("%s\n", query);
                         res = mtmZigbeeDBase->sqlexec((const char *) query);
                         if (res) {
