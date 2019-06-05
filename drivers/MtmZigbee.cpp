@@ -216,7 +216,7 @@ void mtmZigbeeProcessOutPacket() {
     uint32_t nFields;
     u_long nRows;
     unsigned long *lengths;
-    int32_t flen;
+    long flen;
     uint8_t tmpAddr[1024];
     uint8_t tmpData[1024];
     uint8_t mtmPkt[512];
