@@ -379,9 +379,10 @@ void mtmZigbeeProcessInPacket(uint8_t *pktBuff) {
                         time_t createTime = time(nullptr);
 
                         sprintf((char *) query,
-                                "INSERT INTO light_answer (address, data, createdAt, changedAt) value('%02X%02X%02X%02X%02X%02X%02X%02X', '%s', FROM_UNIXTIME(%ld), FROM_UNIXTIME(%ld))",
+                                "INSERT INTO light_answer (address, data, createdAt, changedAt, dateIn) value('%02X%02X%02X%02X%02X%02X%02X%02X', '%s', FROM_UNIXTIME(%ld), FROM_UNIXTIME(%ld), FROM_UNIXTIME(%ld))",
                                 pktBuff[30], pktBuff[29], pktBuff[28], pktBuff[27],
-                                pktBuff[26], pktBuff[25], pktBuff[24], pktBuff[23], resultBuff, createTime, createTime);
+                                pktBuff[26], pktBuff[25], pktBuff[24], pktBuff[23], resultBuff, createTime, createTime,
+                                createTime);
                         printf("%s\n", query);
                         res = mtmZigbeeDBase->sqlexec((const char *) query);
                         if (res) {
