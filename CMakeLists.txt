@@ -19,7 +19,7 @@ include_directories (/usr/include/glib-2.0)
 #set(CMAKE_CXX_FLAGS "-m32")
 
 # TODO: сделать проверку на то под какую архитектуру собираем, от этого подключать нужную папку
-#include_directories (/usr/lib/x86_64-linux-gnu/glib-2.0/include)
+include_directories(/usr/lib/x86_64-linux-gnu/glib-2.0/include)
 include_directories (/usr/lib/i386-linux-gnu/glib-2.0/include)
 include_directories (/usr/include/libgtop-2.0)
 
@@ -47,6 +47,7 @@ target_link_libraries(escada_core mysqlclient)
 target_link_libraries(escada_core pthread)
 target_link_libraries(escada_core gtop-2.0)
 target_link_libraries(escada_core nettle)
+target_link_libraries(escada_core uuid)
 
 include_directories(external/zigbeemtm)
 add_subdirectory(external/zigbeemtm)

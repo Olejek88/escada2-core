@@ -10,6 +10,7 @@
 #include <libgtop-2.0/glibtop/cpu.h>
 #include <sys/resource.h>
 #include <unistd.h>
+#include <uuid/uuid.h>
 #include "dbase.h"
 #include "kernel.h"
 #include "drivers/mercury230.h"
@@ -140,7 +141,12 @@ void *dispatcher(void *thread_arg) {
         ct = 100 * (cpu2.user - cpu1.user + (cpu2.nice - cpu1.nice) + (cpu2.sys - cpu1.sys));
         ct /= (cpu2.total - cpu1.total);
         getrusage(who, &usage);
-        sprintf(query, "INSERT INTO stat(type,cpu,mem) VALUES('1','%f','%ld')", ct, usage.ru_maxrss);
+        uuid_t newUuid;
+        char newUuidString[37] = {0};
+        uuid_generate(newUuid);
+        uuid_unparse_upper(newUuid, newUuidString);
+        sprintf(query, "INSERT INTO stat(uuid, type, cpu, mem) VALUES('%s', '1','%f','%ld')", newUuidString, ct,
+                usage.ru_maxrss);
         dBase->sqlexec(query);
         if (!temp--) {
             break;
