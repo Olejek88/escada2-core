@@ -22,20 +22,6 @@ bool mtmZigbeeStopIssued;
 DBase *mtmZigbeeDBase;
 int32_t mtmZigBeeThreadId;
 
-/*
-Алгоритм работы zigbee модуля для escada2 core:
-
-escada запускает основную функцию модуля в отдельном потоке, передаёт параметры.
-модуль по параметрам открывает порт, если успешно, начинает бесконечный процесс прослушивания порта для получения пакетов.
-Если пакетов нет, проверяет список разобранных пакетов, обрабатывает их согласно их типу.
-Если есть пакет AF_INCOMING_MESSAGE, разбирает его, сохраняет в базу данных со статусом "не отправлено".
-Если пакетов нет, проверяет наличие в таблице базы данных поступивших команд для светильников.
-Если команды есть, рассылает их.
-
-Получением/отправкой пакетов полученных с/на сервер занимается отдельный сервис, который полчает/отправляет сообщения по MQTT.
-
- */
-
 void *mtmZigbeeDeviceThread(void *pth) {
     uint16_t speed;
     uint8_t *port;
@@ -352,10 +338,16 @@ void mtmZigbeeProcessInPacket(uint8_t *pktBuff) {
     uint8_t resultBuff[1024] = {};
     struct base64_encode_ctx b64_ctx = {};
     int encoded_bytes;
+    uint8_t dstEndPoint = pktBuff[11];
+    uint16_t cluster = *(uint16_t *) (&pktBuff[6]);
 
     switch (cmd) {
         case AF_INCOMING_MSG:
             printf("[%s] AF_INCOMING_MSG\n", TAG);
+            if (dstEndPoint != MTM_API_END_POINT || cluster != MTM_API_CLUSTER) {
+                break;
+            }
+
             pktType = pktBuff[21];
             switch (pktType) {
                 case MTM_CMD_TYPE_STATUS:
