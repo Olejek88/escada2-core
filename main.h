@@ -13,7 +13,10 @@
 #define     nc        "\e[0m"
 
 #define    MEASURE_ENERGY_SUM        1
-#define    MEASURE_ENERGY        2
+//#define    MEASURE_ENERGY        2
 #define    MEASURE_CURRENT        3
 #define    MEASURE_VOLTAGE      4
 #define    MEASURE_FREQUENCY    5
+
+#define     MEASURE_ENERGY "7BDB38C7-EF93-49D4-8FE3-89F2A2AEDB48"
+#define     MEASURE_TEMPERATURE "54051538-38F7-44A3-A9B5-C8B5CD4A2936"

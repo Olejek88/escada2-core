@@ -70,6 +70,7 @@ class DeviceMER;
 class DeviceMER {
 public:
     uint16_t id;
+    char uuid[20];
     char address[10];
     char port[20];
     char dev_time[20];
@@ -82,6 +83,7 @@ public:
     // config
     DeviceMER() {
         id = 0;
+        strncpy(uuid, "", 20);
         q_attempt = 0;
         q_error = 0;
         protocol = 1;

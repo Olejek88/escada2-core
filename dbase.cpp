@@ -81,30 +81,30 @@ MYSQL_RES *DBase::sqlexec(const char *query) {
 
 //---------------------------------------------------------------------------------------------------
 // function store archive data to database
-bool DBase::StoreData(uint16_t type, uint16_t status, double value, char  *data, uint16_t channel) {
+bool DBase::StoreData(uint16_t type, uint16_t status, double value, char  *data, char *channelUuid) {
     MYSQL_RES *res;
     char query[500];
     if (type==TYPE_CURRENTS) {
-        sprintf(query, "SELECT * FROM data WHERE sensor_channel=%d AND type=%d", channel, type);
+        sprintf(query, "SELECT * FROM data WHERE sensorChannelUuid='%s' AND type=%d", channelUuid, type);
         res = sqlexec(query);
         if (res && (mysql_fetch_row(res))) {
-            sprintf(query, "UPDATE data SET value=%f, date=date WHERE sensor_channel='%d' AND type='%d'",
-                    value, channel, type);
+            sprintf(query, "UPDATE data SET value=%f, date=date WHERE sensorChannelUuid='%s' AND type='%d'",
+                    value, channelUuid, type);
             res = sqlexec(query);
         } else {
-            sprintf(query, "INSERT INTO data(type,value,sensor_channel,status,measure_type) VALUES('0','%d','%f','%d','%d','%s','%d')",
-                    type, value, channel, status, data, 0);
+            sprintf(query, "INSERT INTO data(type,value,sensorChannelUuid,status,measure_type) VALUES('0','%d','%f','%s','%d','%s','%d')",
+                    type, value, channelUuid, status, data, 0);
             res = sqlexec(query);
         }
         if (res) mysql_free_result(res);
         return true;
     } else {
-        sprintf(query, "SELECT * FROM data WHERE sensor_channel=%d AND type=%d AND date='%s'", channel, type, data);
+        sprintf(query, "SELECT * FROM data WHERE sensorСhannelUuid='%s' AND type=%d AND date='%s'", channelUuid, type, data);
         res = sqlexec(query);
         if (res && (mysql_fetch_row(res))) {
             sprintf(query,
-                    "UPDATE data SET value=%f,status=%d,date=date WHERE type='%d' AND sensor_channel=%d AND date='%s'",
-                    value, status, type, channel, data);
+                    "UPDATE data SET value=%f,date=date WHERE type='%d' AND sensorChannelUuid='%s' AND date='%s'",
+                    value, type, channelUuid, data);
             res = sqlexec(query);
         }
         if (res) mysql_free_result(res);
@@ -113,17 +113,17 @@ bool DBase::StoreData(uint16_t type, uint16_t status, double value, char  *data,
 }
 
 //-----------------------------------------------------------------------------    
-uint16_t DBase::GetChannel(uint16_t measureType, uint16_t channel, uint16_t device) {
+char *DBase::GetChannel(char *measureTypeUuid, uint16_t channel, char *deviceUuid) {
     MYSQL_RES *res;
     MYSQL_ROW row;
     char query[500];
     // TODO если несколько каналов одного типа на устройстве
-    sprintf(query, "SELECT * FROM sensor_channel WHERE measureType=%d AND device=%d", measureType, device);
+    sprintf(query, "SELECT * FROM sensor_channel WHERE measureTypeUuid='%s' AND deviceUuid='%s'", measureTypeUuid, deviceUuid);
     res = sqlexec(query);
     if (res) {
         row = mysql_fetch_row(res);
         if (row)
-            return (uint16_t)atoi(row[0]);
+            return row[1];
     }
     return 0;
 }

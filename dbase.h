@@ -1,3 +1,6 @@
+#ifndef ESCADA_CORE_DBASE_H
+#define ESCADA_CORE_DBASE_H
+
 #define MAX_QUERY_LENGTH    300
 
 #include <mysql/mysql.h>
@@ -22,6 +25,9 @@ public:
     int openConnection(); //connect to the database
     int disconnect(); //disconnect from the database
     MYSQL_RES *sqlexec(const char *query);
-    uint16_t GetChannel(uint16_t measureType, uint16_t channel, uint16_t device);
-    bool StoreData(uint16_t type, uint16_t status, double value, char *data, uint16_t channel);
+
+    char *GetChannel(char *measureTypeUuid, uint16_t channel, char *deviceUuid);
+    bool StoreData(uint16_t type, uint16_t status, double value, char  *data, char *channelUuid);
 };
+
+#endif //ESCADA_CORE_DBASE_H

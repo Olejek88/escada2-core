@@ -10,17 +10,24 @@
 #include <libgtop-2.0/glibtop/cpu.h>
 #include <sys/resource.h>
 #include <unistd.h>
+#include <uuid/uuid.h>
 #include "dbase.h"
 #include "kernel.h"
 #include "drivers/mercury230.h"
 #include "tinyxml2.h"
 #include "version/version.h"
 #include "TypeThread.h"
+#include "drivers/MtmZigbee.h"
 
-
-DBase dBase;
+bool runKernel = true;
+DBase *dBase;
 
 void *dispatcher(void *thread_arg);
+
+void signal_callback_handler(int signum) {
+    printf("Caught signal %d\n", signum);
+    runKernel = false;
+}
 
 //----------------------------------------------------------------------------
 int main(int argc, char *argv[]) {
@@ -29,6 +36,9 @@ int main(int argc, char *argv[]) {
     pthread_t dispatcher_thread;
     time_t tim;
     tim = time(&tim);
+    dBase = new DBase();
+
+    signal(SIGTERM, signal_callback_handler);
 
     currentKernelInstance.current_time = localtime(&tim);
     sprintf(currentKernelInstance.log_name, "logs/kernel-%04d%02d%02d_%02d%02d.log",
@@ -54,10 +64,10 @@ int main(int argc, char *argv[]) {
     }
 
     // TODO здесь читаем конфигурацию пока не словим флаг остановки
-    int cnt = 100;
-    while (cnt) {
+//    int cnt = 100;
+    while (runKernel) {
         sleep(1);
-        cnt--;
+//        cnt--;
     }
     currentKernelInstance.log.ulogw(LOG_LEVEL_INFO, "kernel finished");
     return OK;
@@ -67,7 +77,7 @@ int main(int argc, char *argv[]) {
 int Kernel::init() {
     tinyxml2::XMLDocument doc;
     if (doc.LoadFile("config/escada.conf") == tinyxml2::XML_SUCCESS) {
-        if (dBase.openConnection()) {
+        if (dBase->openConnection()) {
             log.ulogw(LOG_LEVEL_INFO, "database initialisation success");
         }
     } else {
@@ -85,12 +95,13 @@ void *dispatcher(void *thread_arg) {
     glibtop_cpu cpu1;
     glibtop_cpu cpu2;
     int who = RUSAGE_SELF;
-    unsigned temp = 2;
+//    unsigned temp = 2;
     struct rusage usage{};
     char query[300];
     double ct;
+    int32_t pRc;
 
-    while (true) {
+    while (runKernel) {
         // читаем конфигурацию
         TypeThread *typeThreads = nullptr;
         uint32_t numThreads = TypeThread::getAllThreads(&typeThreads);
@@ -102,10 +113,32 @@ void *dispatcher(void *thread_arg) {
             currentKernelInstance.log.ulogw(LOG_LEVEL_ERROR, "thr [%s] %ld %ld", typeThreads[th].title,
                                             typeThreads[th].lastDate, now);
             if ((now - typeThreads[th].lastDate) > 60) {
-                if (pthread_create(&thr, nullptr, mekDeviceThread, (void *) &typeThreads[th]) != 0)
+                if (strncasecmp("0FBACF26-31CA-4B92-BCA3-220E09A6D2D3", typeThreads[th].deviceType, 36) == 0) {
+                    pRc = pthread_create(&thr, nullptr, mekDeviceThread, (void *) &typeThreads[th]);
+                } else if (strncasecmp("CFD3C7CC-170C-4764-9A8D-10047C8B8B1D", typeThreads[th].deviceType, 36) == 0) {
+                    pRc = pthread_create(&thr, nullptr, mtmZigbeeDeviceThread, (void *) &typeThreads[th]);
+                } else {
+                    pRc = 0;
+                }
+
+//                switch (typeThreads[th].deviceType) {
+//                    case 1:
+//                        pRc = pthread_create(&thr, nullptr, mekDeviceThread, (void *) &typeThreads[th]);
+//                        break;
+//                    case 4:
+//                        pRc = pthread_create(&thr, nullptr, mtmZigbeeDeviceThread, (void *) &typeThreads[th]);
+//                        break;
+//                    default:
+//                        pRc = 0;
+//                        break;
+//                }
+
+                if (pRc != 0) {
                     currentKernelInstance.log.ulogw(LOG_LEVEL_ERROR, "error create %s thread", typeThreads[th].title);
+                }
             }
         }
+
         sleep(10);
         // TODO решить как собирать статистику по загрузке и свободному месту с памятью
         glibtop_init();
@@ -115,12 +148,23 @@ void *dispatcher(void *thread_arg) {
         ct = 100 * (cpu2.user - cpu1.user + (cpu2.nice - cpu1.nice) + (cpu2.sys - cpu1.sys));
         ct /= (cpu2.total - cpu1.total);
         getrusage(who, &usage);
-        sprintf(query, "INSERT INTO stat(type,cpu,mem) VALUES('1','%f','%ld')", ct, usage.ru_maxrss);
-        dBase.sqlexec(query);
-        if (!temp--)
-            break;
+        uuid_t newUuid;
+        char newUuidString[37] = {0};
+        uuid_generate(newUuid);
+        uuid_unparse_upper(newUuid, newUuidString);
+        sprintf(query, "INSERT INTO stat(uuid, type, cpu, mem) VALUES('%s', '1','%f','%ld')", newUuidString, ct,
+                usage.ru_maxrss);
+        dBase->sqlexec(query);
+//        if (!temp--) {
+//            break;
+//        }
     }
+
     currentKernelInstance.log.ulogw(LOG_LEVEL_INFO, "dispatcher finished");
+
+    // пример как остановить поток драйвера zigbee
+    mtmZigbeeSetRun(false);
+
     return nullptr;
 }
 
