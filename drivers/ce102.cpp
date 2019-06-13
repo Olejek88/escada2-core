@@ -147,7 +147,7 @@ int DeviceCE::ReadDataCurrentCE() {
         if (rs) {
             fl = static_cast<float>(atof(param));
             currentKernelInstance.log.ulogw(LOG_LEVEL_INFO, "[303][%s] W=[%f]", param, fl);
-            strncpy(chan, dBase.GetChannel(const_cast<char *>(MEASURE_ENERGY), 1, this->uuid), 20);
+            strncpy(chan, dBase.GetChannel(const_cast<char *>(CHANNEL_W), 1, this->uuid), 20);
             dBase.StoreData(TYPE_CURRENTS, 0, fl, nullptr, chan);
         }
     }
@@ -158,7 +158,7 @@ int DeviceCE::ReadDataCurrentCE() {
         if (rs) {
             fl = static_cast<float>(atof(param));
             currentKernelInstance.log.ulogw(LOG_LEVEL_INFO, "[303][%s] V=[%f]", param, fl);
-            strncpy(chan, dBase.GetChannel(const_cast<char *>(MEASURE_ENERGY), 1, this->uuid), 20);
+            strncpy(chan, dBase.GetChannel(const_cast<char *>(CHANNEL_U), 1, this->uuid), 20);
             dBase.StoreData(TYPE_CURRENTS, 0, fl, nullptr, chan);
         }
     }
@@ -169,7 +169,7 @@ int DeviceCE::ReadDataCurrentCE() {
         if (rs) {
             fl = static_cast<float>(atof(param));
             currentKernelInstance.log.ulogw(LOG_LEVEL_INFO, "[303][%s] F=[%f]", param, fl);
-            strncpy(chan, dBase.GetChannel(const_cast<char *>(MEASURE_ENERGY), 1, this->uuid), 20);
+            strncpy(chan, dBase.GetChannel(const_cast<char *>(CHANNEL_F), 1, this->uuid), 20);
             dBase.StoreData(TYPE_CURRENTS, 0, fl, nullptr, chan);
         }
     }
@@ -220,23 +220,21 @@ int DeviceCE::ReadAllArchiveCE(uint16_t tp) {
             sprintf(date, "%04d%02d01000000", tt->tm_year + 1900, tt->tm_mon);
             currentKernelInstance.log.ulogw(LOG_LEVEL_INFO, "[303] [0x%x 0x%x 0x%x 0x%x] [%f] [%s]",
                                             data[0], data[1], data[2], data[3], fl);
-            strncpy(chan, dBase.GetChannel(const_cast<char *>(MEASURE_ENERGY), 1, this->uuid), 20);
+            strncpy(chan, dBase.GetChannel(const_cast<char *>(CHANNEL_W), 1, this->uuid), 20);
             dBase.StoreData(TYPE_MONTH, 0, fl, date, chan);
         }
-/*
 
         sprintf(date, "ENMPE(%d.%d)", tt->tm_mon + 1, tt->tm_year - 100);    // ddMMGGtt
         rs = send_ce(ARCH_MONTH, 0, date, 1);
-        if (rs) rs = this->read_ce(data, 0);
-        if (rs) {
-            rs = sscanf((const char *) data, "ENMPE(%s)", param);
-            fl = atof(param);
-            sprintf(this->lastdate, "%04d%02d01000000", tt->tm_year + 1900, tt->tm_mon);
-            if (debug > 2)
-                ULOGW("[303][0x%x 0x%x 0x%x 0x%x] [%f] [%s]", bright, data[0], data[1], data[2], data[3], fl,
-                      this->lastdate, nc);
-            //UpdateThreads (dbase, TYPE_MERCURY230-1, 1, 1, 14, this->device, 1, 1, this->lastdate);
-            StoreData(dbase, this->device, 14, 2, 4, 0, fl, this->lastdate, 0, chan);
+        if (rs) res = this->read_ce(data, 0);
+        if (res) {
+            res = static_cast<uint16_t>(sscanf((const char *) data, "ENMPE(%s)", param));
+            fl = static_cast<float>(atof(param));
+            sprintf(date, "%04d%02d01000000", tt->tm_year + 1900, tt->tm_mon);
+            currentKernelInstance.log.ulogw(LOG_LEVEL_INFO, "[303] [0x%x 0x%x 0x%x 0x%x] [%f] [%s]",
+                                            data[0], data[1], data[2], data[3], fl);
+            strncpy(chan, dBase.GetChannel(const_cast<char *>(CHANNEL_W), 1, this->uuid), 20);
+            dBase.StoreData(TYPE_MONTH, 0, fl, date, chan);
         }
         tt->tm_mon--;
     }
@@ -247,29 +245,31 @@ int DeviceCE::ReadAllArchiveCE(uint16_t tp) {
 //     sprintf (date,"%02d%02d%02d%02d",tt->tm_mday,tt->tm_mon+1,tt->tm_year,0);	// ddMMGGtt
         sprintf(date, "EADPE(%d.%d.%d)", tt->tm_mday, tt->tm_mon + 1, tt->tm_year - 100);    // ddMMGGtt
         rs = send_ce(ARCH_DAYS, 0, date, 1);
-        if (rs) rs = this->read_ce(data, 0);
-        if (rs) {
+        if (rs) res = this->read_ce(data, 0);
+        if (res) {
             fl = ((float) data[0] + (float) data[1] * 256 + (float) data[2] * 256 * 256) / 100;
-            if (debug > 2) ULOGW("[303][0x%x 0x%x 0x%x 0x%x] [%f]", data[0], data[1], data[2], data[3], fl);
-            sprintf(this->lastdate, "%04d%02d%02d%02d0000", tt->tm_year + 1900, tt->tm_mon + 1, tt->tm_mday,
+            sprintf(date, "%04d%02d%02d%02d0000", tt->tm_year + 1900, tt->tm_mon + 1, tt->tm_mday,
                     tt->tm_hour);
-            if (fl > 0) StoreData(dbase, this->device, 14, 0, 2, 0, fl, this->lastdate, 0, chan);
+            currentKernelInstance.log.ulogw(LOG_LEVEL_INFO, "[303] [0x%x 0x%x 0x%x 0x%x] [%f] [%s]",
+                                            data[0], data[1], data[2], data[3], fl);
+            strncpy(chan, dBase.GetChannel(const_cast<char *>(CHANNEL_W), 1, this->uuid), 20);
+            if (fl > 0) dBase.StoreData(TYPE_DAYS, 0, fl, date, chan);
         }
         sprintf(date, "ENDPE(%d.%d.%d)", tt->tm_mday, tt->tm_mon + 1, tt->tm_year - 100);    // ddMMGGtt
         rs = send_ce(ARCH_DAYS, 0, date, 1);
-        if (rs) rs = this->read_ce(data, 0);
-        if (rs) {
+        if (rs) res = this->read_ce(data, 0);
+        if (res) {
             fl = ((float) data[0] + (float) data[1] * 256 + (float) data[2] * 256 * 256) / 100;
-            if (debug > 2) ULOGW("[303][0x%x 0x%x 0x%x 0x%x] [%f]", data[0], data[1], data[2], data[3], fl);
-            sprintf(this->lastdate, "%04d%02d%02d%02d0000", tt->tm_year + 1900, tt->tm_mon + 1, tt->tm_mday,
+            sprintf(date, "%04d%02d%02d%02d0000", tt->tm_year + 1900, tt->tm_mon + 1, tt->tm_mday,
                     tt->tm_hour);
-            if (fl > 0) StoreData(dbase, this->device, 14, 2, 2, 0, fl, this->lastdate, 0, chan);
+            currentKernelInstance.log.ulogw(LOG_LEVEL_INFO, "[303] [0x%x 0x%x 0x%x 0x%x] [%f] [%s]",
+                                            data[0], data[1], data[2], data[3], fl);
+            strncpy(chan, dBase.GetChannel(const_cast<char *>(CHANNEL_W), 1, this->uuid), 20);
+            if (fl > 0) dBase.StoreData(TYPE_DAYS, 0, fl, date, chan);
         }
 
         tim -= 3600 * i;
         localtime_r(&tim, tt);
-        */
-
     }
     free(tt);
     return 0;
