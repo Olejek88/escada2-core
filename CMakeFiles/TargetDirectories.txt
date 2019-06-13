@@ -1,0 +1,2 @@
+/home/koputo/escada2-core/CMakeFiles/escada_core.dir
+/home/koputo/escada2-core/external/zigbeemtm/CMakeFiles/zigbeemtm.dir

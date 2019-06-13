@@ -46,7 +46,7 @@ EQUALS = =
 CMAKE_SOURCE_DIR = /home/koputo/escada2-core
 
 # The top-level build directory on which CMake was run.
-CMAKE_BINARY_DIR = /home/koputo/escada2-core
+CMAKE_BINARY_DIR = /home/koputo/escada2-core/build
 
 #=============================================================================
 # Targets provided globally by CMake.
@@ -73,9 +73,9 @@ rebuild_cache/fast: rebuild_cache
 
 # The main all target
 all: cmake_check_build_system
-	$(CMAKE_COMMAND) -E cmake_progress_start /home/koputo/escada2-core/CMakeFiles /home/koputo/escada2-core/CMakeFiles/progress.marks
+	$(CMAKE_COMMAND) -E cmake_progress_start /home/koputo/escada2-core/build/CMakeFiles /home/koputo/escada2-core/build/CMakeFiles/progress.marks
 	$(MAKE) -f CMakeFiles/Makefile2 all
-	$(CMAKE_COMMAND) -E cmake_progress_start /home/koputo/escada2-core/CMakeFiles 0
+	$(CMAKE_COMMAND) -E cmake_progress_start /home/koputo/escada2-core/build/CMakeFiles 0
 .PHONY : all
 
 # The main clean target
