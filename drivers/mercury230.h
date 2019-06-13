@@ -108,7 +108,11 @@ public:
 
     uint16_t read_ce(uint8_t *dat, uint8_t type);
 
-    // store it to class members and form sequence to send in device
+    bool ReadInfoCE ();
+    int ReadDataCurrentCE();
+    int ReadAllArchiveCE(uint16_t tp);
+
+        // store it to class members and form sequence to send in device
 /*
     BYTE *ReadConfig();
 

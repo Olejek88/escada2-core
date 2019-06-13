@@ -43,6 +43,10 @@ add_executable(escada_core
         tinyxml2.cpp
         tinyxml2.h TypeThread.cpp TypeThread.h drivers/MtmZigbee.cpp drivers/MtmZigbee.h function.cpp)
 
+target_link_libraries(escada_core /usr/local/lib/libmysqlclient.dylib)
+target_link_libraries(escada_core /usr/local/lib/libmysqlcppconn.dylib)
+
+
 target_link_libraries(escada_core mysqlclient)
 target_link_libraries(escada_core pthread)
 target_link_libraries(escada_core gtop-2.0)
