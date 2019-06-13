@@ -10,6 +10,7 @@
 #include <libgtop-2.0/glibtop/cpu.h>
 #include <sys/resource.h>
 #include <unistd.h>
+#include <uuid/uuid.h>
 #include "dbase.h"
 #include "kernel.h"
 #include "drivers/mercury230.h"
@@ -18,10 +19,15 @@
 #include "TypeThread.h"
 #include "drivers/MtmZigbee.h"
 
-
+bool runKernel = true;
 DBase *dBase;
 
 void *dispatcher(void *thread_arg);
+
+void signal_callback_handler(int signum) {
+    printf("Caught signal %d\n", signum);
+    runKernel = false;
+}
 
 //----------------------------------------------------------------------------
 int main(int argc, char *argv[]) {
@@ -31,6 +37,8 @@ int main(int argc, char *argv[]) {
     time_t tim;
     tim = time(&tim);
     dBase = new DBase();
+
+    signal(SIGTERM, signal_callback_handler);
 
     currentKernelInstance.current_time = localtime(&tim);
     sprintf(currentKernelInstance.log_name, "logs/kernel-%04d%02d%02d_%02d%02d.log",
@@ -56,10 +64,10 @@ int main(int argc, char *argv[]) {
     }
 
     // TODO здесь читаем конфигурацию пока не словим флаг остановки
-    int cnt = 100;
-    while (cnt) {
+//    int cnt = 100;
+    while (runKernel) {
         sleep(1);
-        cnt--;
+//        cnt--;
     }
     currentKernelInstance.log.ulogw(LOG_LEVEL_INFO, "kernel finished");
     return OK;
@@ -87,13 +95,13 @@ void *dispatcher(void *thread_arg) {
     glibtop_cpu cpu1;
     glibtop_cpu cpu2;
     int who = RUSAGE_SELF;
-    unsigned temp = 2;
+//    unsigned temp = 2;
     struct rusage usage{};
     char query[300];
     double ct;
     int32_t pRc;
 
-    while (true) {
+    while (runKernel) {
         // читаем конфигурацию
         TypeThread *typeThreads = nullptr;
         uint32_t numThreads = TypeThread::getAllThreads(&typeThreads);
@@ -140,11 +148,16 @@ void *dispatcher(void *thread_arg) {
         ct = 100 * (cpu2.user - cpu1.user + (cpu2.nice - cpu1.nice) + (cpu2.sys - cpu1.sys));
         ct /= (cpu2.total - cpu1.total);
         getrusage(who, &usage);
-        sprintf(query, "INSERT INTO stat(type,cpu,mem) VALUES('1','%f','%ld')", ct, usage.ru_maxrss);
+        uuid_t newUuid;
+        char newUuidString[37] = {0};
+        uuid_generate(newUuid);
+        uuid_unparse_upper(newUuid, newUuidString);
+        sprintf(query, "INSERT INTO stat(uuid, type, cpu, mem) VALUES('%s', '1','%f','%ld')", newUuidString, ct,
+                usage.ru_maxrss);
         dBase->sqlexec(query);
-        if (!temp--) {
-            break;
-        }
+//        if (!temp--) {
+//            break;
+//        }
     }
 
     currentKernelInstance.log.ulogw(LOG_LEVEL_INFO, "dispatcher finished");

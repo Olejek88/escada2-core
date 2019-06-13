@@ -20,6 +20,8 @@ bool mtmZigbeeGetRun();
 
 void mtmZigbeeSetRun(bool val);
 
-void mtmZigbeeProcessPacket(uint8_t *pktBuff);
+void mtmZigbeeProcessInPacket(uint8_t *pktBuff);
+
+void mtmZigbeeProcessOutPacket();
 
 #endif //ESCADA_CORE_MTMZIGBEE_H
