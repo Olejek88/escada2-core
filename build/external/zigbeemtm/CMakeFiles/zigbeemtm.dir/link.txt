@@ -1,2 +1,0 @@
-/usr/bin/ar cr libzigbeemtm.a  CMakeFiles/zigbeemtm.dir/zigbeemtm.c.o
-/usr/bin/ranlib libzigbeemtm.a
