@@ -70,7 +70,7 @@ void *mekDeviceThread(void *pth) {
                             }
                             if (thread.work == 0) {
                                 currentKernelInstance.log.ulogw(LOG_LEVEL_INFO,
-                                                                "[m230] mercury 230 & set 4TM & CE303 threads stopped");
+                                                                "[303] mercury 230 & set 4TM & CE303 threads stopped");
                                 pthread_exit(nullptr);
                             }
                         }
@@ -628,6 +628,9 @@ int DeviceMER::ReadAllArchive(uint16_t tp) {
 
 //-----------------------------------------------------------------------------
 bool DeviceMER::send_mercury(u_int8_t op, u_int8_t prm, u_int8_t frame, u_int8_t index) {
+    if (this->deviceType==TYPE_INPUT_CE)
+        return this->send_mercury(op, prm, frame, index);
+
     uint32_t crc = 0;          //(* CRC checksum *)
     uint32_t nbytes = 0;     //(* number of bytes in send packet *)
     char data[100];      //(* send sequence *)
@@ -895,6 +898,9 @@ bool DeviceMER::send_mercury(u_int8_t op, u_int8_t prm, u_int8_t frame, u_int8_t
 
 //-----------------------------------------------------------------------------
 u_int16_t DeviceMER::read_mercury(u_int8_t *dat, u_int8_t type) {
+    if (this->deviceType==TYPE_INPUT_CE)
+        return this->read_ce(dat, type);
+
     unsigned crc = 0;        //(* CRC checksum *)
     int nbytes = 0;     //(* number of bytes in recieve packet *)
     int bytes = 0;      //(* number of bytes in packet *)

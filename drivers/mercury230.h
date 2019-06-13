@@ -2,7 +2,7 @@
 #include <cstring>
 #include <stdint.h>
 
-#define TYPE_INPUTCE		0xE	    // CE102 type
+#define TYPE_INPUT_CE		0xE	    // CE102 type
 #define TYPE_MERCURY230		0x10	// Mercury 230 type
 #define TYPE_SET_4TM		0x11	// Set 4TM type
 
@@ -89,7 +89,7 @@ public:
         protocol = 1;
         adr = 0;
         strncpy(dev_time, "", 20);
-        deviceType = TYPE_MERCURY230;
+        deviceType = TYPE_INPUT_CE;
         strncpy(address, "1", 10);
         strncpy(port, "/dev/ttyS0", 20);
     }
