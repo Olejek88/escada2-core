@@ -1152,6 +1152,8 @@ bool DeviceMER::send_ce(uint16_t op, u_int16_t prm, char *request, u_int8_t fram
         }
         // true password
         //memcpy (data+ht+5,this->pass,6); !!!!!
+
+
         data[ht + 11] = 0x29;
         data[ht + 12] = ETX;
         data[ht + 13] = CRC_CE(data + ht + 1, 12, 1);
