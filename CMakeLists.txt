@@ -39,6 +39,8 @@ add_executable(escada_core
         logs.h
         drivers/mercury230.cpp
         drivers/mercury230.h
+        drivers/ce303.cpp
+        drivers/ce303.h
         tinyxml2.cpp
         tinyxml2.h TypeThread.cpp TypeThread.h drivers/MtmZigbee.cpp drivers/MtmZigbee.h function.cpp)
 
