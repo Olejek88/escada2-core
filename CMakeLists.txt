@@ -43,8 +43,8 @@ add_executable(escada_core
         tinyxml2.cpp
         tinyxml2.h TypeThread.cpp TypeThread.h drivers/MtmZigbee.cpp drivers/MtmZigbee.h function.cpp)
 
-#target_link_libraries(escada_core /usr/local/lib/libmysqlclient.dylib)
-#target_link_libraries(escada_core /usr/local/lib/libmysqlcppconn.dylib)
+target_link_libraries(escada_core /usr/local/lib/libmysqlclient.dylib)
+target_link_libraries(escada_core /usr/local/lib/libmysqlcppconn.dylib)
 
 target_link_libraries(escada_core mysqlclient)
 target_link_libraries(escada_core pthread)
@@ -56,4 +56,4 @@ include_directories(external/zigbeemtm)
 add_subdirectory(external/zigbeemtm)
 target_link_libraries(escada_core zigbeemtm)
 
-set_target_properties(escada_core PROPERTIES RUNTIME_OUTPUT_DIRECTORY ./)
+set_target_properties(escada_core PROPERTIES RUNTIME_OUTPUT_DIRECTORY ./build)

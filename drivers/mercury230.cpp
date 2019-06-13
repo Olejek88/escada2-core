@@ -351,8 +351,7 @@ bool DeviceMER::ReadInfo() {
         }
         return true;
     } else {
-        if (rec > 10) sprintf(query, "UPDATE device SET last_date=NULL WHERE id=%d", this->id);
-        else sprintf(query, "UPDATE device SET last_date=NULL WHERE id=%d", this->id);
+        sprintf(query, "UPDATE device SET last_date=NULL WHERE id=%d", this->id);
         currentKernelInstance.log.ulogw(LOG_LEVEL_INFO, "[mer] [%s]", query);
         this->q_error++;
         if (this->q_error > 10) {
@@ -600,30 +599,26 @@ int DeviceMER::ReadAllArchive(uint16_t tp) {
                                             chan, data[0], data[1], data[2], data[3], fl, date);
         }
 
-        if (true)
-//     if (this->deviceType!=TYPE_SET_4TM)
-        {
-            rs = send_mercury(READ_DATA_230, static_cast<u_int8_t>(0x00 + tt.tm_mon), 0x0, 0);
-            if (rs) rec = this->read_mercury(data, 0);
-            if (rec) {
-                if (this->deviceType == TYPE_SET_4TM)
-                    fl = ((float) (data[0] * 256 * 256 * 256) + (float) (data[1] * 256 * 256) +
-                          (float) (data[2] * 256) + (float) (data[3]));
-                else
-                    fl = ((float) (data[1] * 256 * 256 * 256) + (float) (data[0] * 256 * 256) +
-                          (float) (data[3] * 256) + (float) (data[2]));
-                //fl=fl/1000;
-                if (knt > 0) {
-                    fl *= knt;
-                    if (A > 0) fl = fl / (2 * A);
-                    if (knt) fl *= knt;
-                }
-                sprintf(date, "%04d%02d01000000", tt.tm_year + 1900, tt.tm_mon + 1);
-                strncpy(chan, dBase.GetChannel(const_cast<char *>(MEASURE_ENERGY), 1, this->uuid), 20);
-                dBase.StoreData(TYPE_DAYS, 0, fl, date, chan);
-                currentKernelInstance.log.ulogw(LOG_LEVEL_INFO, "[mer][4][%d][0x%x 0x%x 0x%x 0x%x] [%f] [%s]",
-                                                chan, data[0], data[1], data[2], data[3], fl, date);
+        rs = send_mercury(READ_DATA_230, static_cast<u_int8_t>(0x00 + tt.tm_mon), 0x0, 0);
+        if (rs) rec = this->read_mercury(data, 0);
+        if (rec) {
+            if (this->deviceType == TYPE_SET_4TM)
+                fl = ((float) (data[0] * 256 * 256 * 256) + (float) (data[1] * 256 * 256) +
+                      (float) (data[2] * 256) + (float) (data[3]));
+            else
+                fl = ((float) (data[1] * 256 * 256 * 256) + (float) (data[0] * 256 * 256) +
+                      (float) (data[3] * 256) + (float) (data[2]));
+            //fl=fl/1000;
+            if (knt > 0) {
+                fl *= knt;
+                if (A > 0) fl = fl / (2 * A);
+                if (knt) fl *= knt;
             }
+            sprintf(date, "%04d%02d01000000", tt.tm_year + 1900, tt.tm_mon + 1);
+            strncpy(chan, dBase.GetChannel(const_cast<char *>(MEASURE_ENERGY), 1, this->uuid), 20);
+            dBase.StoreData(TYPE_DAYS, 0, fl, date, chan);
+            currentKernelInstance.log.ulogw(LOG_LEVEL_INFO, "[mer][4][%d][0x%x 0x%x 0x%x 0x%x] [%f] [%s]",
+                                            chan, data[0], data[1], data[2], data[3], fl, date);
         }
         tt.tm_mon--;
     }
@@ -705,7 +700,7 @@ bool DeviceMER::send_mercury(u_int8_t op, u_int8_t prm, u_int8_t frame, u_int8_t
                 data[ht + 7] = 1;
                 data[ht + 8] = 1;
             }
-            crc = CRC((uint8_t *) (data + ht), 9, 0);
+            crc = CRC((uint8_t *)(data + ht), 9, 0);
             data[ht + 9] = static_cast<uint8_t>(crc / 256);
             data[ht + 10] = static_cast<uint8_t>(crc % 256);
             currentKernelInstance.log.ulogw(LOG_LEVEL_INFO,
@@ -715,7 +710,7 @@ bool DeviceMER::send_mercury(u_int8_t op, u_int8_t prm, u_int8_t frame, u_int8_t
                                             data[ht + 8], data[ht + 9], data[ht + 10]);
 
             if (this->protocol == 13) {
-                crc = Crc16((uint8_t *) (data + 1), static_cast<const uint8_t>(ht + 10));
+                crc = Crc16((uint8_t * )(data + 1), static_cast<const uint8_t>(ht + 10));
                 data[ht + 11] = static_cast<uint8_t>(crc % 256);
                 data[ht + 12] = static_cast<uint8_t>(crc / 256);
                 //for (len=0; len<=ht+12;len++) currentKernelInstance.log.ulogw(LOG_LEVEL_INFO,"[mer] %d=%x(%d)",len,data[len],data[len]);
@@ -732,7 +727,7 @@ bool DeviceMER::send_mercury(u_int8_t op, u_int8_t prm, u_int8_t frame, u_int8_t
             data[ht + 5] = 0x30;
             data[ht + 6] = 0x30;
             data[ht + 7] = 0x30;
-            crc = CRC((uint8_t *) (data + ht), 8, 0);
+            crc = CRC((uint8_t * )(data + ht), 8, 0);
             data[ht + 8] = static_cast<uint8_t>(crc / 256);
             data[ht + 9] = static_cast<uint8_t>(crc % 256);
             currentKernelInstance.log.ulogw(LOG_LEVEL_INFO,
@@ -741,7 +736,7 @@ bool DeviceMER::send_mercury(u_int8_t op, u_int8_t prm, u_int8_t frame, u_int8_t
                                             data[ht + 4], data[ht + 5], data[ht + 6], data[ht + 7], data[ht + 8],
                                             data[ht + 9], data[ht + 10]);
             if (this->protocol == 13) {
-                crc = Crc16((uint8_t *) (data + 1), static_cast<const uint8_t>(9 + ht));
+                crc = Crc16((uint8_t * )(data + 1), static_cast<const uint8_t>(9 + ht));
                 data[ht + 10] = static_cast<uint8_t>(crc % 256);
                 data[ht + 11] = static_cast<uint8_t>(crc / 256);
                 //for (len=0; len<=ht+11;len++)   currentKernelInstance.log.ulogw(LOG_LEVEL_INFO,"[set] %d=%x",len,data[len]);
@@ -755,13 +750,13 @@ bool DeviceMER::send_mercury(u_int8_t op, u_int8_t prm, u_int8_t frame, u_int8_t
     if (op == 0x4) // time
     {
         data[ht + 2] = 0x0;
-        crc = CRC((uint8_t *) (data + ht), 3, 0);
+        crc = CRC((uint8_t * )(data + ht), 3, 0);
         data[ht + 3] = static_cast<uint8_t>(crc / 256);
         data[ht + 4] = static_cast<uint8_t>(crc % 256);
         currentKernelInstance.log.ulogw(LOG_LEVEL_INFO, "[mer] read time [%d][%d] wr[0x%x,0x%x,0x%x,0x%x,0x%x]", op,
                                         prm, data[ht + 0], data[ht + 1], data[ht + 2], data[ht + 3], data[ht + 4]);
         if (this->protocol == 13) {
-            crc = Crc16((uint8_t *) (data + 1), static_cast<const uint8_t>(4 + ht));
+            crc = Crc16((uint8_t * )(data + 1), static_cast<const uint8_t>(4 + ht));
             data[ht + 5] = static_cast<uint8_t>(crc % 256);
             data[ht + 6] = static_cast<uint8_t>(crc / 256);
             //if (debug>3) currentKernelInstance.log.ulogw(LOG_LEVEL_INFO,"[mer] wr crc [0x%x,0x%x]",data[ht+5],data[ht+6]);
@@ -777,7 +772,7 @@ bool DeviceMER::send_mercury(u_int8_t op, u_int8_t prm, u_int8_t frame, u_int8_t
             data[ht + 2] = prm;
             if (index < 0xff) {
                 data[ht + 3] = index;
-                crc = CRC((uint8_t *) (data + ht), 4, 0);
+                crc = CRC((uint8_t * )(data + ht), 4, 0);
                 data[ht + 4] = static_cast<uint8_t>(crc / 256);
                 data[ht + 5] = static_cast<uint8_t>(crc % 256);
                 currentKernelInstance.log.ulogw(LOG_LEVEL_INFO,
@@ -785,7 +780,7 @@ bool DeviceMER::send_mercury(u_int8_t op, u_int8_t prm, u_int8_t frame, u_int8_t
                                                 op, prm, data[ht + 0], data[ht + 1], data[ht + 2], data[ht + 3],
                                                 data[ht + 4], data[ht + 5]);
                 if (this->protocol == 13) {
-                    crc = Crc16((uint8_t *) (data + 1), static_cast<const uint8_t>(5 + ht));
+                    crc = Crc16((uint8_t * )(data + 1), static_cast<const uint8_t>(5 + ht));
                     data[ht + 6] = static_cast<uint8_t>(crc % 256);
                     data[ht + 7] = static_cast<uint8_t>(crc / 256);
                     //if (debug>3) currentKernelInstance.log.ulogw(LOG_LEVEL_INFO,"[mer] wr crc [0x%x,0x%x]",data[ht+6],data[ht+7]);
@@ -795,7 +790,7 @@ bool DeviceMER::send_mercury(u_int8_t op, u_int8_t prm, u_int8_t frame, u_int8_t
                 write(fd, &data, 6 + ht);
             } else {
                 data[ht + 2] = prm;
-                crc = CRC((uint8_t *) (data + ht), 3, 0);
+                crc = CRC((uint8_t * )(data + ht), 3, 0);
                 data[ht + 3] = static_cast<uint8_t>(crc / 256);
                 data[ht + 4] = static_cast<uint8_t>(crc % 256);
                 currentKernelInstance.log.ulogw(LOG_LEVEL_INFO,
@@ -803,7 +798,7 @@ bool DeviceMER::send_mercury(u_int8_t op, u_int8_t prm, u_int8_t frame, u_int8_t
                                                 prm, data[ht + 0], data[ht + 1], data[ht + 2], data[ht + 3],
                                                 data[ht + 4]);
                 if (this->protocol == 13) {
-                    crc = Crc16((uint8_t *) (data + 1), static_cast<const uint8_t>(4 + ht));
+                    crc = Crc16((uint8_t * )(data + 1), static_cast<const uint8_t>(4 + ht));
                     data[ht + 5] = static_cast<uint8_t>(crc % 256);
                     data[ht + 6] = static_cast<uint8_t>(crc / 256);
                     //for (len=0; len<=ht+6;len++)		    currentKernelInstance.log.ulogw(LOG_LEVEL_INFO,"[mer] %d=%x(%d)",len,data[len],data[len]);
@@ -819,7 +814,7 @@ bool DeviceMER::send_mercury(u_int8_t op, u_int8_t prm, u_int8_t frame, u_int8_t
         data[ht + 3] = static_cast<uint8_t>(index / 256);
         data[ht + 4] = static_cast<uint8_t>(index % 256);
         data[ht + 5] = frame;
-        crc = CRC((uint8_t *) (data + ht), 6, 0);
+        crc = CRC((uint8_t * )(data + ht), 6, 0);
         data[ht + 6] = static_cast<uint8_t>(crc / 256);
         data[ht + 7] = static_cast<uint8_t>(crc % 256);
         currentKernelInstance.log.ulogw(LOG_LEVEL_INFO,
@@ -827,7 +822,7 @@ bool DeviceMER::send_mercury(u_int8_t op, u_int8_t prm, u_int8_t frame, u_int8_t
                                         prm, data[ht + 0], data[ht + 1], data[ht + 2], data[ht + 3], data[ht + 4],
                                         data[ht + 5]);
         if (this->protocol == 13) {
-            crc = Crc16((uint8_t *) (data + 1), static_cast<const uint8_t>(7 + ht));
+            crc = Crc16((uint8_t * )(data + 1), static_cast<const uint8_t>(7 + ht));
             data[ht + 8] = static_cast<uint8_t>(crc % 256);
             data[ht + 9] = static_cast<uint8_t>(crc / 256);
             //if (debug>3) currentKernelInstance.log.ulogw(LOG_LEVEL_INFO,"[mer] wr crc [0x%x,0x%x]",data[ht+6],data[ht+7]);
@@ -843,7 +838,7 @@ bool DeviceMER::send_mercury(u_int8_t op, u_int8_t prm, u_int8_t frame, u_int8_t
         data[ht + 4] = 0;
         data[ht + 5] = 1;
         data[ht + 6] = 0;
-        crc = CRC((uint8_t *) (data + ht), 7, 0);
+        crc = CRC((uint8_t * )(data + ht), 7, 0);
         data[ht + 7] = static_cast<uint8_t>(crc / 256);
         data[ht + 8] = static_cast<uint8_t>(crc % 256);
         currentKernelInstance.log.ulogw(LOG_LEVEL_INFO,
@@ -851,7 +846,7 @@ bool DeviceMER::send_mercury(u_int8_t op, u_int8_t prm, u_int8_t frame, u_int8_t
                                         op, prm, data[ht + 0], data[ht + 1], data[ht + 2], data[ht + 3],
                                         data[ht + 4], data[ht + 5], data[ht + 6], data[ht + 7], data[ht + 8]);
         if (this->protocol == 13) {
-            crc = Crc16((uint8_t *) (data + 1), static_cast<const uint8_t>(8 + ht));
+            crc = Crc16((uint8_t * )(data + 1), static_cast<const uint8_t>(8 + ht));
             data[ht + 9] = static_cast<uint8_t>(crc % 256);
             data[ht + 10] = static_cast<uint8_t>(crc / 256);
             //if (debug>3) currentKernelInstance.log.ulogw(LOG_LEVEL_INFO,"[mer] wr crc [0x%x,0x%x]",data[ht+6],data[ht+7]);
@@ -867,7 +862,7 @@ bool DeviceMER::send_mercury(u_int8_t op, u_int8_t prm, u_int8_t frame, u_int8_t
             data[ht + 2] = prm;
             data[ht + 3] = 1;
             data[ht + 4] = index;
-            crc = CRC((uint8_t *) (data + ht), 5, 0);
+            crc = CRC((uint8_t * )(data + ht), 5, 0);
             data[ht + 5] = static_cast<uint8_t>(crc / 256);
             data[ht + 6] = static_cast<uint8_t>(crc % 256);
             currentKernelInstance.log.ulogw(LOG_LEVEL_INFO,
@@ -875,7 +870,7 @@ bool DeviceMER::send_mercury(u_int8_t op, u_int8_t prm, u_int8_t frame, u_int8_t
                                             op, prm, data[ht + 0], data[ht + 1], data[ht + 2], data[ht + 3],
                                             data[ht + 4], data[ht + 5], data[ht + 6]);
             if (this->protocol == 13) {
-                crc = Crc16((uint8_t *) (data + 1), static_cast<const uint8_t>(6 + ht));
+                crc = Crc16((uint8_t * )(data + 1), static_cast<const uint8_t>(6 + ht));
                 data[ht + 7] = static_cast<uint8_t>(crc % 256);
                 data[ht + 8] = static_cast<uint8_t>(crc / 256);
                 //for (len=0; len<=ht+8;len++)		    currentKernelInstance.log.ulogw(LOG_LEVEL_INFO,"[mer] %d=%x(%d)",len,data[len],data[len]);
@@ -930,7 +925,7 @@ u_int16_t DeviceMER::read_mercury(u_int8_t *dat, u_int8_t type) {
 
     if (nbytes >= 4) {
         if (this->protocol == 14)
-            crc = CRC((uint8_t *) (data + 1), static_cast<const uint8_t>(nbytes - 3), 0);
+            crc = CRC((uint8_t * )(data + 1), static_cast<const uint8_t>(nbytes - 3), 0);
         else crc = Crc16(data + 1, static_cast<const uint8_t>(nbytes - 3));
         currentKernelInstance.log.ulogw(LOG_LEVEL_INFO,
                                         "[mer] READ [%d][0x%x,0x%x,0x%x,0x%x,0x%x,0x%x,0x%x,0x%x,0x%x,0x%x,0x%x,0x%x,0x%x,0x%x,0x%x,0x%x,0x%x,0x%x,0x%x][crc][0x%x,0x%x]",
@@ -1353,7 +1348,7 @@ bool DeviceMER::ReadInfoCE() {
         if (rs) {
             memcpy(time, data + 6, 8);
             sprintf((char *) data, "%s %s", date, time);
-            currentKernelInstance.log.ulogw(LOG_LEVEL_INFO, "[303] [date=%s]",data);
+            currentKernelInstance.log.ulogw(LOG_LEVEL_INFO, "[303] [date=%s]", data);
             sprintf(this->dev_time, "20%c%c%c%c%c%c%c%c%c%c%c%c", data[6], data[7], data[3], data[4], data[0], data[1],
                     data[9], data[10], data[12], data[13], data[15], data[16]);
             //sprintf(query, "UPDATE device SET lastdate=NULL,conn=1,devtim=%s WHERE id=%d", this->dev_time, this->id);
@@ -1639,6 +1634,7 @@ uint16_t CRC(uint8_t *Data, uint8_t DataSize, uint8_t type) {
     _CRC = static_cast<uint16_t>(arrCRC[0] + arrCRC[1] * 256);
     return _CRC;
 }
+
 uint8_t Ct(const uint8_t Data) {
     uint8_t i, p = 0;
     for (i = 1; i < 127; i *= 2)
@@ -1647,6 +1643,7 @@ uint8_t Ct(const uint8_t Data) {
     if (p % 2 == 1) return static_cast<uint8_t>(Data + 128);
     else return Data;
 }
+
 uint16_t Crc16(uint8_t *Data, uint8_t DataSize) {
     uint8_t p = 0, w = 0, d = 0, q = 0;
     uint8_t sl = 0, sh = 0;
@@ -1669,6 +1666,7 @@ uint16_t Crc16(uint8_t *Data, uint8_t DataSize) {
 //    sh|=128;
     return static_cast<uint16_t>(sl + sh * 256);
 }
+
 uint8_t CRC_CE(const uint8_t *Data, const uint8_t DataSize, uint8_t type) {
     uint8_t _CRC = 0;
     for (int i = 0; i < DataSize; i++) {
@@ -1705,3 +1703,230 @@ uint8_t CRC_CE(const uint8_t *Data, const uint8_t DataSize, uint8_t type) {
     return _CRC;
 }
 
+BOOL DeviceCEM::send_ce(UINT op, UINT prm, CHAR *request, UINT frame) {
+    UINT crc = 0;          //(* CRC checksum *)
+    UINT ht = 0, nr = 0, len = 0, nbytes = 0;     //(* number of bytes in send packet *)
+    BYTE data[100];      //(* send sequence *)
+    CHAR path[100] = {0};
+
+    if (op == SN) // open/close session
+        len = 5;
+    if (op == 0x4) // time
+        len = 13;
+    if (op == OPEN_PREV)
+        len = 6;
+    if (op == OPEN_CHANNEL_CE)
+        len = 14;
+    if (op == READ_DATE || op == READ_TIME || op == READ_PARAMETERS)
+        len = 13;
+    if (op == ARCH_MONTH || op == ARCH_DAYS)
+        len = strlen(request) + 6;
+
+    if (this->protocol == 13) {
+        for (ht = 0; ht < 8; ht++)
+            if (!this->adrr[ht]) break;
+            else nr++;
+
+        data[0] = 1;    // redunancy
+        data[1] = 6 + 3 * nr + len;
+        data[2] = 16 + (nr - 1);
+        data[3] = 0;
+        data[4] = 0;
+        data[5] = 0;    // comp address
+        for (ht = 0; ht < nr; ht++) {
+            data[6 + ht * 3] = this->adrr[ht] / 0x10000;
+            data[7 + ht * 3] = (this->adrr[ht] & 0xff00) / 0x100;
+            data[8 + ht * 3] = this->adrr[ht] & 0xff;    // PPL-N address
+            sprintf(path, "%s[%d.%d.%d]", path, data[6 + ht * 3], data[7 + ht * 3], data[8 + ht * 3]);
+        }
+        data[6 + nr * 3] = 0x40;
+        //data[6+nr*3]=0xf0;			// commands
+        ht = 7 + nr * 3;
+        if (debug > 2)
+            ULOGW("[303] [ht] open channel [%s] wr[0x%x 0x%x 0x%x, 0x%x 0x%x 0x%x, 0x%x 0x%x 0x%x, 0x%x 0x%x 0x%x, 0x%x]",
+                  path, data[0], data[1], data[2], data[3], data[4], data[5], data[6], data[7], data[8], data[9],
+                  data[10], data[11], data[12]);
+    }
+
+    data[ht + 0] = this->adr & 0xff;
+    data[ht + 1] = op;
+
+    if (op == SN) {
+        data[ht + 0] = START;
+        data[ht + 1] = REQUEST;
+        data[ht + 2] = 0x21;
+        data[ht + 3] = CR;
+        data[ht + 4] = LF;
+        if (debug > 2)
+            ULOGW("[303][SN] wr[0x%x,0x%x,0x%x,0x%x,0x%x]", data[ht + 0], data[ht + 1], data[ht + 2], data[ht + 3],
+                  data[ht + 4]);
+
+        crc = Crc16(data + 1, 4 + ht);
+        data[ht + 5] = crc % 256;
+        data[ht + 6] = crc / 256;
+        if (debug > 2) ULOGW("[303] wr crc [0x%x,0x%x]", data[ht + 5], data[ht + 6]);
+        ht += 2;
+        for (len = 0; len < ht + 5; len++) ULOGW("[303] %d=%x(%d)", len, data[len], data[len]);
+        write(fd, &data, 5 + ht);
+    }
+
+    if (op == OPEN_PREV) {
+        data[ht + 0] = 0x6;
+        data[ht + 1] = 0x30;
+        data[ht + 2] = 0x35;
+        data[ht + 3] = 0x31;
+        data[ht + 4] = CR;
+        data[ht + 5] = LF;
+        if (debug > 2)
+            ULOGW("[303][OC] wr[0x%x,0x%x,0x%x,0x%x,0x%x,0x%x]", data[ht + 0], data[ht + 1], data[ht + 2], data[ht + 3],
+                  data[ht + 4], data[ht + 5]);
+        write(fd, &data, 6 + ht);
+    }
+
+    if (op == OPEN_CHANNEL_CE) {
+        data[ht + 0] = 0x1;
+        data[ht + 1] = 0x50;
+        data[ht + 2] = 0x31;
+        data[ht + 3] = STX;
+        data[ht + 4] = 0x28;
+        // default password
+        data[ht + 5] = 0x37;
+        data[ht + 6] = 0x37;
+        data[ht + 7] = 0x37;
+        data[ht + 8] = 0x37;
+        data[ht + 9] = 0x37;
+        data[ht + 10] = 0x37;
+        // true password
+        memcpy(data + 5, this->pass, 6);
+        data[ht + 11] = 0x29;
+        data[ht + 12] = ETX;
+        data[ht + 13] = CRC(data + ht, 13, 1);
+        if (debug > 2)
+            ULOGW("[303][OPEN] wr[0x%x,0x%x,0x%x,0x%x,0x%x,0x%x,0x%x,0x%x,0x%x,0x%x,0x%x,0x%x,0x%x,0x%x]", data[ht + 0],
+                  data[ht + 1], data[ht + 2], data[ht + 3], data[ht + 4], data[ht + 5], data[ht + 6], data[ht + 7],
+                  data[ht + 8], data[ht + 9], data[ht + 10], data[ht + 11], data[ht + 12], data[ht + 13]);
+
+        crc = Crc16(data + 1, 13 + ht);
+        data[ht + 14] = crc % 256;
+        data[ht + 15] = crc / 256;
+        ht += 2;
+        write(fd, &data, ht + 14);
+    }
+    if (op == READ_DATE || op == READ_TIME) {
+        data[ht + 0] = 0x1;
+        data[ht + 1] = 0x52;
+        data[ht + 2] = 0x31;
+        data[ht + 3] = STX;
+        if (op == READ_DATE) sprintf((char *) data + 4, "DATE_()");
+        if (op == READ_TIME) sprintf((char *) data + 4, "TIME_()");
+        data[ht + 11] = ETX;
+        data[ht + 12] = CRC(data + ht, 12, 1);
+        if (debug > 2)
+            ULOGW("[303][DATE|TIME] wr[0x%x,0x%x,0x%x,0x%x,0x%x,0x%x,0x%x,0x%x,0x%x,0x%x,0x%x,0x%x,0x%x]", data[ht + 0],
+                  data[ht + 1], data[ht + 2], data[ht + 3], data[ht + 4], data[ht + 5], data[ht + 6], data[ht + 7],
+                  data[ht + 8], data[ht + 9], data[ht + 10], data[ht + 11], data[ht + 12]);
+        write(fd, &data, 13);
+    }
+    if (frame == READ_PARAMETERS) {
+        data[ht + 0] = 0x1;
+        data[ht + 1] = 0x52;
+        data[ht + 2] = 0x31;
+        data[ht + 3] = STX;
+        if (op == CURRENT_W) sprintf((char *) data + 4, "POWEP()");
+        //if (op==CURRENT_I) sprintf (data+4,"CURRE()");
+        if (op == CURRENT_I) sprintf((char *) data + 4, "ET0PE()");
+        if (op == CURRENT_F) sprintf((char *) data + 4, "FREQU()");
+        if (op == CURRENT_U) sprintf((char *) data + 4, "VOLTA()");
+        data[11] = ETX;
+        data[12] = CRC(data + ht, 12, 1);
+        if (debug > 2)
+            ULOGW("[303][CURR] wr[%d][0x%x,0x%x,0x%x,0x%x,0x%x,0x%x,0x%x,0x%x,0x%x,0x%x,0x%x,0x%x,0x%x]", 13,
+                  data[ht + 0], data[ht + 1], data[ht + 2], data[ht + 3], data[ht + 4], data[ht + 5], data[ht + 6],
+                  data[ht + 7], data[ht + 8], data[ht + 9], data[ht + 10], data[ht + 11], data[ht + 12]);
+        write(fd, &data, 13);
+    }
+    if (op == ARCH_MONTH || op == ARCH_DAYS) {
+        data[ht + 0] = 0x1;
+        data[ht + 1] = 0x52;
+        data[ht + 2] = 0x31;
+        data[ht + 3] = STX;
+        sprintf((char *) data + ht + 4, "%s", request);
+        len = strlen(request) + 3;
+        data[ht + len + 1] = ETX;
+        data[ht + len + 2] = CRC(data + ht, len + 2, 1);
+        //crc=CRC (data+ht, 7, 0);
+        if (debug > 2)
+            ULOGW("[303][ARCH] wr[0x%x,0x%x,0x%x,0x%x,0x%x,0x%x,0x%x,0x%x,0x%x,0x%x,0x%x,0x%x,0x%x,0x%x,0x%x,0x%x,0x%x,0x%x]",
+                  data[ht + 0], data[ht + 1], data[ht + 2], data[ht + 3], data[ht + 4], data[ht + 5], data[ht + 6],
+                  data[ht + 7], data[ht + 8], data[ht + 9], data[ht + 10], data[ht + 11], data[ht + 12], data[ht + 13],
+                  data[ht + 14], data[ht + 15], data[ht + 16], data[ht + 17]);
+        write(fd, &data, len + 3);
+    }
+
+    return true;
+}
+
+//-----------------------------------------------------------------------------
+UINT DeviceCEM::read_ce(BYTE *dat, BYTE type) {
+    UINT crc = 0;        //(* CRC checksum *)
+    INT nbytes = 0;     //(* number of bytes in recieve packet *)
+    INT bytes = 0;      //(* number of bytes in packet *)
+    BYTE data[500];      //(* recieve sequence *)
+    UINT i = 0;            //(* current position *)
+    UCHAR ok = 0xFF;        //(* flajochek *)
+    CHAR op = 0;           //(* operation *)
+
+    usleep(250000);
+    //sleep(1);
+    ioctl(fd, FIONREAD, &nbytes);
+    if (debug > 2) ULOGW("[303] nbytes=%d", nbytes);
+    nbytes = read(fd, &data, 75);
+    //data[0]=0x2;
+    //sprintf (data+1,"POWEP(%.5f)",8.14561);
+    //data[13]=0x3; data[14]=CRC (data+1,13,1); nbytes=15;
+    //if (debug>2) ULOGW("[303] nbytes=%d %x",nbytes,data[0]);
+    usleep(200000);
+    ioctl(fd, FIONREAD, &bytes);
+
+    if (bytes > 0 && nbytes > 0 && nbytes < 50) {
+        if (debug > 2) ULOGW("[ce] bytes=%d fd=%d adr=%d", bytes, fd, &data + nbytes);
+        bytes = read(fd, &data + nbytes, bytes);
+        if (debug > 2) ULOGW("[ce] bytes=%d", bytes);
+        nbytes += bytes;
+    }
+    if (nbytes == 1) {
+        if (debug > 2) ULOGW("[ce] [%d][0x%x]", nbytes, data[0]);
+        dat[0] = data[0];
+        return nbytes;
+    }
+    if (nbytes > 5) {
+        crc = CRC(data + 1, nbytes - 2, 1);
+        if (debug > 2)
+            ULOGW("[ce] [%d][0x%x,0x%x,0x%x,0x%x,0x%x,0x%x,0x%x,0x%x,0x%x,0x%x,0x%x,0x%x,0x%x,0x%x,0x%x,0x%x,0x%x,0x%x][crc][0x%x,0x%x]",
+                  nbytes, data[0], data[1], data[2], data[3], data[4], data[5], data[6], data[7], data[8], data[9],
+                  data[10], data[11], data[12], data[13], data[14], data[15], data[16], data[17], data[nbytes - 1],
+                  crc);
+        //for (UINT rr=0; rr<nbytes;rr++) if (debug>2) ULOGW("[ce] [%d][0x%x]",rr,data[rr]);
+        if (data[nbytes - 1] != 0xa && data[nbytes - 2] != 0xd)
+            if (crc != data[nbytes - 1] || nbytes < 8) nbytes = 0;
+
+        if (nbytes < 100 && nbytes > 7) {
+            if (nbytes > 16)
+                memcpy(dat, data + 11, nbytes - 11);
+            else {
+                if (nbytes == 12 && (data[9] == 0xf0 || data[9] == 0x40)) {
+                    ULOGW("[303] HTC answer: no counter answer present [%d]", data[9]);
+                    Events(dbase, 2, this->device, 2, 0, 2, 0);
+                }
+                if (nbytes == 16 && (data[11] & 0xf == 0x5))
+                    ULOGW("[303] channel not open correctly [%d]", data[11]);
+                memcpy(dat, data + 11, nbytes - 11);
+            }
+
+            memcpy(dat, data + 1, nbytes - 3);
+            dat[nbytes - 3] = 0;
+        } else dat[0] = 0;
+        return nbytes;
+    }
+    return 0;
+}
