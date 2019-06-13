@@ -245,7 +245,7 @@ void mtmZigbeeProcessOutPacket() {
                 struct base64_decode_ctx b64_ctx = {};
                 size_t decoded = 512;
                 base64_decode_init(&b64_ctx);
-                if (base64_decode_update(&b64_ctx, &decoded, mtmPkt, flen, tmpData)) {
+                if (base64_decode_update(&b64_ctx, &decoded, mtmPkt, flen, (char *)tmpData)) {
                     if (base64_decode_final(&b64_ctx)) {
                         uint8_t pktType = mtmPkt[0];
                         switch (pktType) {
