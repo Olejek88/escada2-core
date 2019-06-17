@@ -148,6 +148,7 @@ int DeviceCE::ReadDataCurrentCE() {
             fl = static_cast<float>(atof(param));
             currentKernelInstance.log.ulogw(LOG_LEVEL_INFO, "[303][%s] W=[%f]", param, fl);
             strncpy(chan, dBase.GetChannel(const_cast<char *>(CHANNEL_W), 1, this->uuid), 20);
+            if (strlen(chan))
             dBase.StoreData(TYPE_CURRENTS, 0, fl, nullptr, chan);
         }
     }
