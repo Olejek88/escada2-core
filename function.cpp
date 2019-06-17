@@ -1,7 +1,6 @@
 #include <stdio.h>
 #include <termios.h>
 #include <time.h>
-#include <mach/std_types.h>
 #include <uuid/uuid.h>
 #include "function.h"
 
