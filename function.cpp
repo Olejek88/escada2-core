@@ -1,6 +1,8 @@
 #include <stdio.h>
 #include <termios.h>
 #include <time.h>
+#include <mach/std_types.h>
+#include <uuid/uuid.h>
 #include "function.h"
 
 uint32_t baudrate(uint32_t baud) {
@@ -77,6 +79,26 @@ bool UpdateThreads(DBase dBase, int thread_id, uint8_t type, uint8_t status) {
         mysql_free_result(res);
     }
 
+    return true;
+}
+
+//---------------------------------------------------------------------------------------------------
+bool AddDeviceRegister(DBase dBase, char* device, char* description) {
+    MYSQL_RES *res;
+    MYSQL_ROW row;
+    char query[500];
+    time_t current_time = time(nullptr);
+    uuid_t newUuid;
+    char newUuidString[37] = {0};
+    uuid_generate(newUuid);
+    uuid_unparse_upper(newUuid, newUuidString);
+
+    sprintf(query, "INSERT INTO device_register(uuid, deviceUuid,description,date) VALUES('%s','%s','%s',CURRENT_TIMESTAMP)",
+            newUuidString, device,description);
+    res = dBase.sqlexec(query);
+    if (res) {
+        mysql_free_result(res);
+    }
     return true;
 }
 

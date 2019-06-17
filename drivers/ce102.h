@@ -1,7 +1,8 @@
 //-----------------------------------------------------------------------------
 #include <cstring>
-#include <stdint.h>
+#include <cstdint>
 
+/*
 #define    CHECK        0x0
 #define    OPEN_CHANNEL    0x1
 #define    CLOSE_CHANNEL    0x2
@@ -25,6 +26,7 @@
 #define P_SUM        0x00
 #define Q_SUM        0x04
 #define S_SUM        0x08
+*/
 //-----------------------------------------------------------------------------
 #define START		0x2f
 #define STOP		0x21
