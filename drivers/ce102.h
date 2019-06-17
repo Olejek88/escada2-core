@@ -58,6 +58,8 @@
 #define	OPEN_CHANNEL_CE	0x50
 #define	OPEN_PREV	0x51
 
+#define	WATCH	0x87
+
 #define	CHANNEL_U "29A52371-E9EC-4D1F-8BCB-80F489A96DD3"
 #define	CHANNEL_I "E38C561F-9E88-407E-A465-83803A625627"
 #define	CHANNEL_W "7BDB38C7-EF93-49D4-8FE3-89F2A2AEDB48"
@@ -70,7 +72,7 @@ class DeviceCE;
 class DeviceCE {
 public:
     uint16_t id;
-    char uuid[20];
+    char uuid[45];
     char address[10];
     char port[20];
     char dev_time[20];
@@ -83,7 +85,7 @@ public:
     // config
     DeviceCE() {
         id = 0;
-        strncpy(uuid, "", 20);
+        strncpy(uuid, "", 40);
         q_attempt = 0;
         q_error = 0;
         protocol = 1;
