@@ -84,9 +84,7 @@ bool UpdateThreads(DBase dBase, int thread_id, uint8_t type, uint8_t status) {
 //---------------------------------------------------------------------------------------------------
 bool AddDeviceRegister(DBase dBase, char* device, char* description) {
     MYSQL_RES *res;
-    MYSQL_ROW row;
     char query[500];
-    time_t current_time = time(nullptr);
     uuid_t newUuid;
     char newUuidString[37] = {0};
     uuid_generate(newUuid);
