@@ -313,7 +313,7 @@ bool OpenCom(char *block, uint16_t speed, uint16_t parity) {
     Kernel &currentKernelInstance = Kernel::Instance();
     char dev_pointer[50];
     static termios tio;
-    sprintf(dev_pointer, "%s", "/dev/ttyS1");
+    sprintf(dev_pointer, "%s", block);
     currentKernelInstance.log.ulogw(LOG_LEVEL_ERROR, "[303] attempt open com-port %s on speed %d", dev_pointer, speed);
     fd = open(dev_pointer, O_RDWR | O_NOCTTY | O_NDELAY);
     if (fd < 0) {
@@ -331,12 +331,12 @@ bool OpenCom(char *block, uint16_t speed, uint16_t parity) {
     tio.c_lflag &= ~(ICANON | ECHO | ECHOE | ISIG);
 
     //tio.c_iflag = 0;
-    //tio.c_iflag |= IGNPAR|ISTRIP;
+    tio.c_iflag |= IGNPAR|ISTRIP;
 
     //tio.c_iflag &= ~(INLCR | IGNCR | ICRNL);
     //tio.c_iflag &= ~(IXON | IXOFF | IXANY);
 
-    //tio.c_oflag &= ~(ONLCR);
+    tio.c_oflag &= ~(ONLCR);
 
     tio.c_cc[VMIN] = 0;
     tio.c_cc[VTIME] = 10; //Time out in 10e-1 sec
