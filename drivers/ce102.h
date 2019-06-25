@@ -1,11 +1,8 @@
 //-----------------------------------------------------------------------------
 #include <cstring>
-#include <stdint.h>
+#include <cstdint>
 
-#define TYPE_INPUT_CE		0xE	    // CE102 type
-#define TYPE_MERCURY230		0x10	// Mercury 230 type
-#define TYPE_SET_4TM		0x11	// Set 4TM type
-
+/*
 #define    CHECK        0x0
 #define    OPEN_CHANNEL    0x1
 #define    CLOSE_CHANNEL    0x2
@@ -29,6 +26,7 @@
 #define P_SUM        0x00
 #define Q_SUM        0x04
 #define S_SUM        0x08
+*/
 //-----------------------------------------------------------------------------
 #define START		0x2f
 #define STOP		0x21
@@ -62,15 +60,22 @@
 #define	OPEN_CHANNEL_CE	0x50
 #define	OPEN_PREV	0x51
 
+#define	WATCH	0x87
 
-void *mekDeviceThread(void *device);
+#define	CHANNEL_U "29A52371-E9EC-4D1F-8BCB-80F489A96DD3"
+#define	CHANNEL_I "E38C561F-9E88-407E-A465-83803A625627"
+#define	CHANNEL_W "7BDB38C7-EF93-49D4-8FE3-89F2A2AEDB48"
+#define	CHANNEL_F "041DED21-D211-4C0B-BCD6-02E392654332"
+#define    CHANNEL_T "54051538-38F7-44A3-A9B5-C8B5CD4A2936"
 
-class DeviceMER;
+void *ceDeviceThread(void *device);
 
-class DeviceMER {
+class DeviceCE;
+
+class DeviceCE {
 public:
     uint16_t id;
-    char uuid[20];
+    char uuid[45];
     char address[10];
     char port[20];
     char dev_time[20];
@@ -81,47 +86,23 @@ public:
     uint8_t adr;
 
     // config
-    DeviceMER() {
+    DeviceCE() {
         id = 0;
-        strncpy(uuid, "", 20);
+        strncpy(uuid, "", 40);
         q_attempt = 0;
         q_error = 0;
         protocol = 1;
         adr = 0;
         strncpy(dev_time, "", 20);
-        deviceType = TYPE_INPUT_CE;
+        deviceType = 0x1;
         strncpy(address, "1", 10);
         strncpy(port, "/dev/ttyS0", 20);
     }
 
-    bool ReadInfo();
-    // ReadDataCurrent - read single device connected to concentrator
-    int ReadDataCurrent();
-
-    int ReadAllArchive(uint16_t tp);
-
-    bool send_mercury(uint8_t op, uint8_t prm, uint8_t frame, uint8_t index);
-
-    uint16_t read_mercury(uint8_t *dat, uint8_t type);
-
     bool send_ce(uint16_t op, uint16_t prm, char *request, uint8_t frame);
-
     uint16_t read_ce(uint8_t *dat, uint8_t type);
 
     bool ReadInfoCE ();
     int ReadDataCurrentCE();
     int ReadAllArchiveCE(uint16_t tp);
-
-        // store it to class members and form sequence to send in device
-/*
-    BYTE *ReadConfig();
-
-    // source data will take from db or class member fields
-    bool send_mercury(UINT op);
-
-    // function read data from 2IP
-    // reading data will be store to DB and temp data class member fields
-    int read_mercury(BYTE *dat);
-
-*/
 };

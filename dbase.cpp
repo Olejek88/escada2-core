@@ -3,6 +3,7 @@
 #include <cstring>
 #include <cstddef>
 #include "errors.h"
+#include <uuid/uuid.h>
 
 #define MODULE_NAME    "[dbase]"
 
@@ -58,6 +59,8 @@ int DBase::openConnection() {
     mysql_real_query(mysql, query, strlen(query));
     snprintf(query, MAX_QUERY_LENGTH, "SET CHARSET 'UTF8'");
     mysql_real_query(mysql, query, strlen(query));
+    snprintf(query, MAX_QUERY_LENGTH, "SET CHARACTER_SET_CONNECTION = 'UTF8'");
+    mysql_real_query(mysql, query, strlen(query));
 
     //successfully connected to the database
     return OK;
@@ -87,26 +90,41 @@ bool DBase::StoreData(uint16_t type, uint16_t status, double value, char  *data,
     if (type==TYPE_CURRENTS) {
         sprintf(query, "SELECT * FROM data WHERE sensorChannelUuid='%s' AND type=%d", channelUuid, type);
         res = sqlexec(query);
-        if (res && (mysql_fetch_row(res))) {
-            sprintf(query, "UPDATE data SET value=%f, date=date WHERE sensorChannelUuid='%s' AND type='%d'",
+        if (res && (row = mysql_fetch_row(res)))  {
+            sprintf(query, "UPDATE data SET value=%f, date=CURRENT_TIMESTAMP() WHERE sensorChannelUuid='%s' AND type='%d'",
                     value, channelUuid, type);
             res = sqlexec(query);
         } else {
-            sprintf(query, "INSERT INTO data(type,value,sensorChannelUuid,status,measure_type) VALUES('0','%d','%f','%s','%d','%s','%d')",
-                    type, value, channelUuid, status, data, 0);
+            uuid_t newUuid;
+	    char newUuidString[37] = {0};
+            uuid_generate(newUuid);
+	    uuid_unparse_upper(newUuid, newUuidString);
+            sprintf(query, "INSERT INTO data(uuid, type,value,sensorChannelUuid, date) VALUES('%s', '0','%f','%s', CURRENT_TIMESTAMP())",
+                    newUuidString, value, channelUuid);
             res = sqlexec(query);
-        }
+	}
         if (res) mysql_free_result(res);
         return true;
     } else {
-        sprintf(query, "SELECT * FROM data WHERE sensorСhannelUuid='%s' AND type=%d AND date='%s'", channelUuid, type, data);
+        sprintf(query, "SELECT * FROM data WHERE sensorChannelUuid='%s' AND type=%d AND date='%s'", channelUuid, type, data);
         res = sqlexec(query);
-        if (res && (mysql_fetch_row(res))) {
+	printf ("%s = %ld\n",query,res);
+	if (res && (row = mysql_fetch_row(res))) {
+	    printf ("U row=%ld\n",row);
             sprintf(query,
                     "UPDATE data SET value=%f,date=date WHERE type='%d' AND sensorChannelUuid='%s' AND date='%s'",
                     value, type, channelUuid, data);
             res = sqlexec(query);
-        }
+        } else {
+	    printf ("I row=%ld %s\n",row,mysql_error(mysql));
+            uuid_t newUuid;
+	    char newUuidString[37] = {0};
+            uuid_generate(newUuid);
+	    uuid_unparse_upper(newUuid, newUuidString);
+            sprintf(query, "INSERT INTO data(uuid, type,value,sensorChannelUuid, date) VALUES('%s', '%d','%f','%s','%s')",
+                    newUuidString, type, value, channelUuid, data);
+            res = sqlexec(query);
+	}
         if (res) mysql_free_result(res);
     }
     return true;
@@ -122,9 +140,10 @@ char *DBase::GetChannel(char *measureTypeUuid, uint16_t channel, char *deviceUui
     res = sqlexec(query);
     if (res) {
         row = mysql_fetch_row(res);
-        if (row)
+        if (row) {
             return row[1];
+	}
     }
-    return 0;
+    return (char *)"";
 }
 
