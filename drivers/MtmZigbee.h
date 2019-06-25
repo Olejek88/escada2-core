@@ -20,8 +20,12 @@ bool mtmZigbeeGetRun();
 
 void mtmZigbeeSetRun(bool val);
 
-void mtmZigbeeProcessInPacket(uint8_t *pktBuff);
+void mtmZigbeeProcessInPacket(uint8_t *pktBuff, uint32_t len);
 
 void mtmZigbeeProcessOutPacket();
+
+bool findDevice(uint8_t *addr, uint8_t *uuid);
+
+bool findSChannel(uint8_t *deviceUuid, uint8_t regIdx, uint8_t *sChannelUuid);
 
 #endif //ESCADA_CORE_MTMZIGBEE_H
