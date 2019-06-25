@@ -260,7 +260,7 @@ void mtmZigbeeProcessOutPacket() {
                                 config.device = mtmPkt[2];
                                 config.min = *(uint16_t *) &mtmPkt[3];
                                 config.max = *(uint16_t *) &mtmPkt[5];
-                                if (dstAddr == 0) {
+                                if (dstAddr == 0xffff) {
                                     rc = send_mtm_cmd(coordinatorFd, dstAddr, &config);
                                 } else {
                                     rc = send_mtm_cmd_ext(coordinatorFd, dstAddr, &config);
@@ -278,7 +278,7 @@ void mtmZigbeeProcessOutPacket() {
                                     config_light.config[nCfg].value = *(uint16_t *) &mtmPkt[3 + nCfg * 4 + 2];
                                 }
 
-                                if (dstAddr == 0) {
+                                if (dstAddr == 0xFFFF) {
                                     rc = send_mtm_cmd(coordinatorFd, dstAddr, &config_light);
                                 } else {
                                     rc = send_mtm_cmd_ext(coordinatorFd, dstAddr, &config_light);
@@ -291,7 +291,7 @@ void mtmZigbeeProcessOutPacket() {
                                 current_time.header.type = mtmPkt[0];
                                 current_time.header.protoVersion = mtmPkt[1];
                                 current_time.time = *(uint16_t *) &mtmPkt[2];
-                                if (dstAddr == 0) {
+                                if (dstAddr == 0xFFFF) {
                                     rc = send_mtm_cmd(coordinatorFd, dstAddr, &current_time);
                                 } else {
                                     rc = send_mtm_cmd_ext(coordinatorFd, dstAddr, &current_time);
@@ -305,7 +305,7 @@ void mtmZigbeeProcessOutPacket() {
                                 action.header.protoVersion = mtmPkt[1];
                                 action.device = mtmPkt[2];
                                 action.data = *(uint16_t *) &mtmPkt[3];
-                                if (dstAddr == 0) {
+                                if (dstAddr == 0xFFFF) {
                                     rc = send_mtm_cmd(coordinatorFd, dstAddr, &action);
                                 } else {
                                     rc = send_mtm_cmd_ext(coordinatorFd, dstAddr, &action);
@@ -377,9 +377,8 @@ void mtmZigbeeProcessInPacket(uint8_t *pktBuff, uint32_t len) {
                                                      reinterpret_cast<const uint8_t *>((size_t) &pktBuff[21]));
                 base64_encode_final(&b64_ctx, reinterpret_cast<char *>(resultBuff + encoded_bytes));
 #elif __USE_GNU
-                    encoded_bytes = base64_encode_update(&b64_ctx, resultBuff, get_mtm_command_size(pktType),
-                                                         &pktBuff[21]);
-                    base64_encode_final(&b64_ctx, resultBuff + encoded_bytes);
+                encoded_bytes = base64_encode_update(&b64_ctx, resultBuff, len + 12, &pktBuff[21]);
+                base64_encode_final(&b64_ctx, resultBuff + encoded_bytes);
 #endif
 
                     sprintf((char *) query,
