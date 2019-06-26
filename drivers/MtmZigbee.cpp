@@ -377,8 +377,8 @@ void mtmZigbeeProcessInPacket(uint8_t *pktBuff, uint32_t len) {
                                                      reinterpret_cast<const uint8_t *>((size_t) &pktBuff[21]));
                 base64_encode_final(&b64_ctx, reinterpret_cast<char *>(resultBuff + encoded_bytes));
 #elif __USE_GNU
-                encoded_bytes = base64_encode_update(&b64_ctx, resultBuff, len + 12, &pktBuff[21]);
-                base64_encode_final(&b64_ctx, resultBuff + encoded_bytes);
+                    encoded_bytes = base64_encode_update(&b64_ctx, resultBuff, len + 12, &pktBuff[21]);
+                    base64_encode_final(&b64_ctx, resultBuff + encoded_bytes);
 #endif
 
                     sprintf((char *) query,
@@ -456,6 +456,38 @@ void mtmZigbeeProcessInPacket(uint8_t *pktBuff, uint32_t len) {
                                     sprintf((char *) query,
                                             "INSERT INTO data (uuid, sensorChannelUuid, value, date, createdAt) value('%s', '%s', %d, FROM_UNIXTIME(%ld), FROM_UNIXTIME(%ld))",
                                             newMeasureUuid, sChannelUuid, pktBuff[33], createTime, createTime);
+                                    printf("%s\n", query);
+                                    res = mtmZigbeeDBase->sqlexec((const char *) query);
+                                    if (res) {
+                                        mysql_free_result(res);
+                                    }
+
+                                    // найти по устройству sensor_channel и regIdx=2 (Состояние светильника)
+                                    sensorIndex = 2;
+                                    memset(sChannelUuid, 0, 64);
+                                    if (!findSChannel(deviceUuid, sensorIndex, sChannelUuid)) {
+                                        // если нет, создать
+                                        uuid_generate(newUuid);
+                                        uuid_unparse_upper(newUuid, (char *) sChannelUuid);
+                                        sprintf((char *) query,
+                                                "INSERT INTO sensor_channel (uuid, title, register, deviceUuid, measureTypeUuid, createdAt) value('%s', 'Авария', '%d', '%s', '%s', FROM_UNIXTIME(%ld))",
+                                                sChannelUuid, sensorIndex, deviceUuid, CHANNEL_STATUS, createTime);
+                                        printf("%s\n", query);
+                                        res = mtmZigbeeDBase->sqlexec((const char *) query);
+                                        if (res) {
+                                            mysql_free_result(res);
+                                        }
+                                    }
+
+                                    // создать новое измерение
+                                    uuid_generate(newUuid);
+                                    memset(newMeasureUuid, 0, 37);
+                                    uuid_unparse_upper(newUuid, newMeasureUuid);
+                                    uint16_t alerts = *(uint16_t *) &pktBuff[31];
+                                    uint8_t alert = alerts & 0x0001u;
+                                    sprintf((char *) query,
+                                            "INSERT INTO data (uuid, sensorChannelUuid, value, date, createdAt) value('%s', '%s', %d, FROM_UNIXTIME(%ld), FROM_UNIXTIME(%ld))",
+                                            newMeasureUuid, sChannelUuid, alert, createTime, createTime);
                                     printf("%s\n", query);
                                     res = mtmZigbeeDBase->sqlexec((const char *) query);
                                     if (res) {
