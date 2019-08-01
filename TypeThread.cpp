@@ -54,8 +54,9 @@ uint32_t TypeThread::getAllThreads(TypeThread **dstPtr) {
             dBase.disconnect();
             return nRow;
         }
-        dBase.disconnect();
     }
+
+    dBase.disconnect();
     return 0;
 }
 

@@ -90,8 +90,9 @@ bool AddDeviceRegister(DBase dBase, char* device, char* description) {
     uuid_generate(newUuid);
     uuid_unparse_upper(newUuid, newUuidString);
 
-    sprintf(query, "INSERT INTO device_register(uuid, deviceUuid,description,date) VALUES('%s','%s','%s',CURRENT_TIMESTAMP)",
-            newUuidString, device,description);
+    sprintf(query,
+            "INSERT INTO device_register(uuid, deviceUuid, description, date, createdAt) VALUES('%s','%s','%s',CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)",
+            newUuidString, device, description);
     res = dBase.sqlexec(query);
     if (res) {
         mysql_free_result(res);

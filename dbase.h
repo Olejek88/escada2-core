@@ -5,14 +5,13 @@
 
 #include <mysql/mysql.h>
 #include <stdint.h>
-#include <mysql/mysql.h>
 #include "const.h"
 
 class DBase {
 private:
-    MYSQL *mysql;
-    MYSQL_ROW row;
-    MYSQL_RES *res;
+    MYSQL *mysql = nullptr;
+    MYSQL_ROW row = nullptr;
+    MYSQL_RES *res = nullptr;
 public:
     char driver[MAX_STR];
     char host[MAX_STR];
@@ -20,7 +19,13 @@ public:
     char pass[MAX_STR];
     char database[MAX_STR];
 
-    DBase();
+    DBase() {
+        memset(driver, 0, MAX_STR);
+        memset(host, 0, MAX_STR);
+        memset(user, 0, MAX_STR);
+        memset(pass, 0, MAX_STR);
+        memset(database, 0, MAX_STR);
+    }
 
     int openConnection(); //connect to the database
     int disconnect(); //disconnect from the database

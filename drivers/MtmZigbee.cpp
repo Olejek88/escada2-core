@@ -16,6 +16,7 @@
 #include "function.h"
 #include "ce102.h"
 #include <uuid/uuid.h>
+#include <string.h>
 
 int coordinatorFd;
 bool mtmZigbeeStarted = false;
@@ -34,7 +35,10 @@ void *mtmZigbeeDeviceThread(void *pth) {
 
     mtmZigBeeThreadId = tInfo->id;
     speed = tInfo->speed;
-    port = (uint8_t *) tInfo->port;
+    int portStrLen = strlen(tInfo->port);
+    port = (uint8_t *) malloc(portStrLen + 1);
+    memset((void *) port, 0, portStrLen + 1);
+    strcpy((char *) port, tInfo->port);
 
     if (!mtmZigbeeStarted) {
         mtmZigbeeStarted = true;
@@ -45,6 +49,7 @@ void *mtmZigbeeDeviceThread(void *pth) {
         }
     } else {
         kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] thread already started", TAG);
+        free(port);
         return nullptr;
     }
 
@@ -54,6 +59,10 @@ void *mtmZigbeeDeviceThread(void *pth) {
     if (coordinatorFd > 0) {
         close(coordinatorFd);
     }
+
+    mtmZigbeeDBase->disconnect();
+    delete mtmZigbeeDBase;
+    free(port);
 
     return nullptr;
 }
