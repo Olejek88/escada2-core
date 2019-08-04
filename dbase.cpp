@@ -11,6 +11,7 @@
 #include "main.h"
 #include "kernel.h"
 #include "tinyxml2.h"
+#include <string.h>
 
 int DBase::openConnection() {
     Kernel &currentKernelInstance = Kernel::Instance();
@@ -85,15 +86,18 @@ MYSQL_RES *DBase::sqlexec(const char *query) {
 // function store archive data to database
 bool DBase::StoreData(uint16_t type, uint16_t status, double value, char *data, char *channelUuid) {
     MYSQL_RES *pRes;
+    MYSQL_ROW row;
     char query[500];
     if (type == TYPE_CURRENTS) {
         sprintf(query, "SELECT * FROM data WHERE sensorChannelUuid='%s' AND type=%d", channelUuid, type);
         pRes = sqlexec(query);
         if (pRes && (row = mysql_fetch_row(pRes))) {
+            mysql_free_result(pRes);
             sprintf(query,
                     "UPDATE data SET value=%f, date=CURRENT_TIMESTAMP() WHERE sensorChannelUuid='%s' AND type='%d'",
                     value, channelUuid, type);
             pRes = sqlexec(query);
+            mysql_free_result(pRes);
         } else {
             uuid_t newUuid;
             char newUuidString[37] = {0};
@@ -103,22 +107,25 @@ bool DBase::StoreData(uint16_t type, uint16_t status, double value, char *data, 
                     "INSERT INTO data(uuid, type,value,sensorChannelUuid, date) VALUES('%s', '0','%f','%s', CURRENT_TIMESTAMP())",
                     newUuidString, value, channelUuid);
             pRes = sqlexec(query);
+            mysql_free_result(pRes);
         }
-        if (pRes) mysql_free_result(pRes);
+
         return true;
     } else {
         sprintf(query, "SELECT * FROM data WHERE sensorChannelUuid='%s' AND type=%d AND date='%s'", channelUuid, type,
                 data);
         pRes = sqlexec(query);
-        printf("%s = %ld\n", query, pRes);
+        printf("%s = %p\n", query, pRes);
         if (pRes && (row = mysql_fetch_row(pRes))) {
-            printf("U row=%ld\n", row);
+            mysql_free_result(pRes);
+            printf("U row=%p\n", row);
             sprintf(query,
                     "UPDATE data SET value=%f,date=date WHERE type='%d' AND sensorChannelUuid='%s' AND date='%s'",
                     value, type, channelUuid, data);
             pRes = sqlexec(query);
+            mysql_free_result(pRes);
         } else {
-            printf("I row=%ld %s\n", row, mysql_error(mysql));
+            printf("I row=%p %s\n", row, mysql_error(mysql));
             uuid_t newUuid;
             char newUuidString[37] = {0};
             uuid_generate(newUuid);
@@ -127,9 +134,8 @@ bool DBase::StoreData(uint16_t type, uint16_t status, double value, char *data, 
                     "INSERT INTO data(uuid, type,value,sensorChannelUuid, date) VALUES('%s', '%d','%f','%s','%s')",
                     newUuidString, type, value, channelUuid, data);
             pRes = sqlexec(query);
+            mysql_free_result(pRes);
         }
-
-        if (pRes) mysql_free_result(pRes);
     }
     return true;
 }
@@ -138,6 +144,7 @@ bool DBase::StoreData(uint16_t type, uint16_t status, double value, char *data, 
 char *DBase::GetChannel(char *measureTypeUuid, uint16_t channel, char *deviceUuid) {
     MYSQL_RES *pRes;
     MYSQL_ROW mysqlRow;
+    MYSQL_ROW firstRow = nullptr;
     char query[500];
     // TODO если несколько каналов одного типа на устройстве
     sprintf(query, "SELECT * FROM sensor_channel WHERE measureTypeUuid='%s' AND deviceUuid='%s'", measureTypeUuid,
@@ -146,10 +153,20 @@ char *DBase::GetChannel(char *measureTypeUuid, uint16_t channel, char *deviceUui
     if (pRes) {
         mysqlRow = mysql_fetch_row(pRes);
         if (mysqlRow) {
-            return mysqlRow[1];
+            // тупо указываем второе поле, которое как предполагается будет uuid
+            firstRow = &mysqlRow[1];
         }
     }
-    return (char *) "";
+
+    if (firstRow != nullptr) {
+        char *uuid = (char *) malloc(37);
+        strncpy(uuid, (const char *) *firstRow, 36);
+        uuid[36] = 0;
+        mysql_free_result(pRes);
+        return uuid;
+    } else {
+        return nullptr;
+    }
 }
 
 

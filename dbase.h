@@ -11,7 +11,6 @@
 class DBase {
 private:
     MYSQL *mysql = nullptr;
-    MYSQL_ROW row = nullptr;
 public:
     char driver[MAX_STR];
     char host[MAX_STR];
