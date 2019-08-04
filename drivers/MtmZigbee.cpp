@@ -203,8 +203,6 @@ void mtmZigbeePktListener(int32_t threadId) {
             usleep(10000);
         }
     }
-
-    mtmZigbeeDBase->disconnect();
 }
 
 void mtmZigbeeProcessOutPacket() {
@@ -233,6 +231,11 @@ void mtmZigbeeProcessOutPacket() {
         nRows = mysql_num_rows(res);
         nFields = mysql_num_fields(res);
         char *headers[nFields];
+
+        if (nRows == 0) {
+            mysql_free_result(res);
+            return;
+        }
 
         for (uint32_t i = 0; (field = mysql_fetch_field(res)); i++) {
             headers[i] = field->name;
@@ -366,8 +369,8 @@ void mtmZigbeeProcessInPacket(uint8_t *pktBuff, uint32_t len) {
     uint8_t resultBuff[1024] = {};
     struct base64_encode_ctx b64_ctx = {};
     int encoded_bytes;
-    uint8_t dstEndPoint = pktBuff[11];
-    uint16_t cluster = *(uint16_t *) (&pktBuff[6]);
+    uint8_t dstEndPoint;
+    uint16_t cluster;
 
     uint8_t deviceUuid[64];
     uint8_t sChannelUuid[64];
@@ -384,6 +387,8 @@ void mtmZigbeeProcessInPacket(uint8_t *pktBuff, uint32_t len) {
         case AF_INCOMING_MSG:
             kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] AF_INCOMING_MSG\n", TAG);
 
+            dstEndPoint = pktBuff[11];
+            cluster = *(uint16_t *) (&pktBuff[6]);
             if (dstEndPoint != MTM_API_END_POINT || cluster != MTM_API_CLUSTER) {
                 break;
             }

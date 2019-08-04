@@ -63,6 +63,7 @@ bool UpdateThreads(DBase dBase, int thread_id, uint8_t type, uint8_t status) {
     printf("%s\n", query);
     res = dBase.sqlexec(query);
     if (res && (row = mysql_fetch_row(res))) {
+        mysql_free_result(res);
         sprintf(query,
                 "UPDATE threads SET status=%d, message='%s', c_time=FROM_UNIXTIME(%lu) WHERE _id=%d", status, types, current_time, thread_id);
         res = dBase.sqlexec(query);

@@ -51,6 +51,7 @@ uint32_t TypeThread::getAllThreads(TypeThread **dstPtr) {
                 }
             }
 
+            mysql_free_result(res);
             dBase.disconnect();
             return nRow;
         }

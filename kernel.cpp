@@ -59,7 +59,7 @@ int main(int argc, char *argv[]) {
 
     currentKernelInstance.log.ulogw(LOG_LEVEL_INFO, "escada kernel v.%s started", version);
     if (currentKernelInstance.init() == OK) {
-        if (pthread_create(&dispatcher_thread, &attr, dispatcher, nullptr) != 0)
+        if (pthread_create(&dispatcher_thread, nullptr, dispatcher, nullptr) != 0)
             currentKernelInstance.log.ulogw(LOG_LEVEL_ERROR, "error create dispatcher thread");
     } else {
         currentKernelInstance.log.ulogw(LOG_LEVEL_ERROR, "%skernel finished, because initialization failed%s",
@@ -72,6 +72,9 @@ int main(int argc, char *argv[]) {
     while (runKernel) {
         sleep(1);
 //        cnt--;
+//        if (cnt == 0) {
+//            runKernel = false;
+//        }
     }
 
     // ждём пока завершится dispatcher
@@ -104,6 +107,7 @@ int Kernel::init() {
 void *dispatcher(void *thread_arg) {
     Kernel &currentKernelInstance = Kernel::Instance();
     pthread_t thr;
+    pthread_t zb_thr = 0;
     glibtop_cpu cpu1;
     glibtop_cpu cpu2;
     int who = RUSAGE_SELF;
@@ -135,22 +139,10 @@ void *dispatcher(void *thread_arg) {
                         pRc = pthread_create(&thr, &attr, ceDeviceThread, (void *) &typeThreads[th]);
                 } else if (strncasecmp("CFD3C7CC-170C-4764-9A8D-10047C8B8B1D", typeThreads[th].deviceType, 36) == 0) {
                     if (typeThreads[th].work > 0)
-                        pRc = pthread_create(&thr, &attr, mtmZigbeeDeviceThread, (void *) &typeThreads[th]);
+                        pRc = pthread_create(&zb_thr, nullptr, mtmZigbeeDeviceThread, (void *) &typeThreads[th]);
                 } else {
                     pRc = 0;
                 }
-
-//                switch (typeThreads[th].deviceType) {
-//                    case 1:
-//                        pRc = pthread_create(&thr, nullptr, mekDeviceThread, (void *) &typeThreads[th]);
-//                        break;
-//                    case 4:
-//                        pRc = pthread_create(&thr, nullptr, mtmZigbeeDeviceThread, (void *) &typeThreads[th]);
-//                        break;
-//                    default:
-//                        pRc = 0;
-//                        break;
-//                }
 
                 if (pRc != 0) {
                     currentKernelInstance.log.ulogw(LOG_LEVEL_ERROR, "error create %s thread", typeThreads[th].title);
@@ -186,10 +178,13 @@ void *dispatcher(void *thread_arg) {
 
     pthread_attr_destroy(&attr);
 
-    currentKernelInstance.log.ulogw(LOG_LEVEL_INFO, "dispatcher finished");
-
     // пример как остановить поток драйвера zigbee
     mtmZigbeeSetRun(false);
+    if (zb_thr != 0) {
+        pthread_join(zb_thr, nullptr);
+    }
+
+    currentKernelInstance.log.ulogw(LOG_LEVEL_INFO, "dispatcher finished");
 
     return nullptr;
 }

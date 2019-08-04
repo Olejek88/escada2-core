@@ -64,7 +64,6 @@ int DBase::openConnection() {
 }
 
 int DBase::disconnect() {
-    if (res) mysql_free_result(res);
     if (mysql) mysql_close(mysql);
     mysql_library_end();
     return OK;
@@ -72,12 +71,14 @@ int DBase::disconnect() {
 
 
 MYSQL_RES *DBase::sqlexec(const char *query) {
+    MYSQL_RES *result = nullptr;
     if (mysql) {
         mysql_query(mysql, query);
         //store the results
-        res = mysql_store_result(mysql);
+        result = mysql_store_result(mysql);
     }
-    return res;
+
+    return result;
 }
 
 //---------------------------------------------------------------------------------------------------

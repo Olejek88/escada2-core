@@ -6,12 +6,12 @@
 #include <mysql/mysql.h>
 #include <stdint.h>
 #include "const.h"
+#include <string.h>
 
 class DBase {
 private:
     MYSQL *mysql = nullptr;
     MYSQL_ROW row = nullptr;
-    MYSQL_RES *res = nullptr;
 public:
     char driver[MAX_STR];
     char host[MAX_STR];
