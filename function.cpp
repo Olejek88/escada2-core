@@ -65,7 +65,8 @@ bool UpdateThreads(DBase dBase, int thread_id, uint8_t type, uint8_t status) {
     if (res && (row = mysql_fetch_row(res))) {
         mysql_free_result(res);
         sprintf(query,
-                "UPDATE threads SET status=%d, message='%s', c_time=FROM_UNIXTIME(%lu) WHERE _id=%d", status, types, current_time, thread_id);
+                "UPDATE threads SET status=%d, message='%s', c_time=FROM_UNIXTIME(%lu), changedAt=FROM_UNIXTIME(%lu) WHERE _id=%d",
+                status, types, current_time, current_time, thread_id);
         res = dBase.sqlexec(query);
         printf("%s\n", query);
     }
@@ -92,7 +93,7 @@ bool AddDeviceRegister(DBase dBase, char* device, char* description) {
     uuid_unparse_upper(newUuid, newUuidString);
 
     sprintf(query,
-            "INSERT INTO device_register(uuid, deviceUuid, description, date, createdAt) VALUES('%s','%s','%s',CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)",
+            "INSERT INTO device_register(uuid, deviceUuid, description, date, createdAt, changedAt) VALUES('%s','%s','%s', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)",
             newUuidString, device, description);
     res = dBase.sqlexec(query);
     if (res) {

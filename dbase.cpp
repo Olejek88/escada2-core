@@ -104,7 +104,7 @@ bool DBase::StoreData(uint16_t type, uint16_t status, double value, char *data, 
             uuid_generate(newUuid);
             uuid_unparse_upper(newUuid, newUuidString);
             sprintf(query,
-                    "INSERT INTO data(uuid, type,value,sensorChannelUuid, date) VALUES('%s', '0','%f','%s', CURRENT_TIMESTAMP())",
+                    "INSERT INTO data(uuid, type, value, sensorChannelUuid, date) VALUES('%s', '0','%f','%s', CURRENT_TIMESTAMP())",
                     newUuidString, value, channelUuid);
             pRes = sqlexec(query);
             mysql_free_result(pRes);
@@ -120,7 +120,7 @@ bool DBase::StoreData(uint16_t type, uint16_t status, double value, char *data, 
             mysql_free_result(pRes);
             printf("U row=%p\n", row);
             sprintf(query,
-                    "UPDATE data SET value=%f,date=date WHERE type='%d' AND sensorChannelUuid='%s' AND date='%s'",
+                    "UPDATE data SET value=%f, date=date WHERE type='%d' AND sensorChannelUuid='%s' AND date='%s'",
                     value, type, channelUuid, data);
             pRes = sqlexec(query);
             mysql_free_result(pRes);
@@ -131,7 +131,7 @@ bool DBase::StoreData(uint16_t type, uint16_t status, double value, char *data, 
             uuid_generate(newUuid);
             uuid_unparse_upper(newUuid, newUuidString);
             sprintf(query,
-                    "INSERT INTO data(uuid, type,value,sensorChannelUuid, date) VALUES('%s', '%d','%f','%s','%s')",
+                    "INSERT INTO data(uuid, type, value, sensorChannelUuid, date) VALUES('%s', '%d','%f','%s','%s')",
                     newUuidString, type, value, channelUuid, data);
             pRes = sqlexec(query);
             mysql_free_result(pRes);

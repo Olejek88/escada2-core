@@ -68,13 +68,13 @@ int main(int argc, char *argv[]) {
     }
 
     // TODO здесь читаем конфигурацию пока не словим флаг остановки
-//    int cnt = 30;
+    int cnt = 30;
     while (runKernel) {
         sleep(1);
-//        cnt--;
-//        if (cnt == 0) {
-//            runKernel = false;
-//        }
+        cnt--;
+        if (cnt == 0) {
+            runKernel = false;
+        }
     }
 
     // ждём пока завершится dispatcher
