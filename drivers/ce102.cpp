@@ -38,7 +38,7 @@ void *ceDeviceThread(void *pth) {
     currentKernelInstance.log.ulogw(LOG_LEVEL_INFO, "[303] mercury device thread started");
     if (dBase.openConnection() == OK) {
         while (true) {
-            sprintf(query, "SELECT * FROM device WHERE thread=%d", thread.id);
+            sprintf(query, "SELECT * FROM device WHERE uuid=%s", thread.device_uuid);
             currentKernelInstance.log.ulogw(LOG_LEVEL_INFO, "[303] (%s)", query);
             res = dBase.sqlexec(query);
             u_long nRow = mysql_num_rows(res);

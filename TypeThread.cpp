@@ -36,6 +36,8 @@ uint32_t TypeThread::getAllThreads(TypeThread **dstPtr) {
                     flen = lengths[5];
                     memset(tThread[r].title, 0, 100);
                     strncpy(tThread[r].title, row[5], flen);
+                    memset(tThread[r].device_uuid, 0, 37);
+                    strncpy(tThread[r].device_uuid, row[2], 36);
                     tThread[r].speed = static_cast<uint16_t>(strtol(row[4], nullptr, 10));
                     tThread[r].status = strtol(row[6], nullptr, 10);
                     tThread[r].work = strtol(row[7], nullptr, 10);
