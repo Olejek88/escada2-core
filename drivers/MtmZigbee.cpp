@@ -743,10 +743,13 @@ bool findSChannel(uint8_t *deviceUuid, uint8_t regIdx, uint8_t *sChannelUuid) {
             if (row) {
                 flen = lengths[fieldUuidIdx];
                 strncpy((char *) sChannelUuid, row[fieldUuidIdx], flen);
+                mysql_free_result(res);
             } else {
+                mysql_free_result(res);
                 return false;
             }
         } else {
+            mysql_free_result(res);
             return false;
         }
     } else {
@@ -788,10 +791,13 @@ bool findDevice(uint8_t *addr, uint8_t *uuid) {
             if (row) {
                 flen = lengths[fieldUuidIdx];
                 strncpy((char *) uuid, row[fieldUuidIdx], flen);
+                mysql_free_result(res);
             } else {
+                mysql_free_result(res);
                 return false;
             }
         } else {
+            mysql_free_result(res);
             return false;
         }
     } else {
