@@ -17,6 +17,7 @@
 #include "ce102.h"
 #include <uuid/uuid.h>
 #include <string.h>
+#include <sys/ioctl.h>
 
 int coordinatorFd;
 bool mtmZigbeeStarted = false;
@@ -339,6 +340,21 @@ void mtmZigbeeProcessOutPacket() {
                                 log_buffer_hex(mtmPkt, decoded);
                                 kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] Written %ld bytes.\n", TAG, rc);
                                 break;
+                            case MTM_CMD_TYPE_CONTACTOR:
+                                kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] send MTM_CMD_TYPE_CONTACTOR\n", TAG);
+                                zigbee_mt_cmd_af_data_request request;
+                                request.dst_addr = 0x0000; // пока тупо локальному координатору отправляем
+                                request.dep = MBEE_API_END_POINT;
+                                request.sep = MBEE_API_END_POINT;
+                                request.cid = mtmPkt[3] == 0 ? mtmPkt[2] | 0x80u : mtmPkt[2];
+                                request.tid = 0x00;
+                                request.opt = ZB_O_APS_ACKNOWLEDGE; // флаг для получения подтверждения с конечного устройства а не с первого хопа.
+                                request.rad = MAX_PACKET_HOPS;
+                                request.adl = 0x00;
+                                rc = send_zb_cmd(coordinatorFd, AF_DATA_REQUEST, &request);
+                                log_buffer_hex(mtmPkt, decoded);
+                                kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] Written %ld bytes.\n", TAG, rc);
+                                break;
                             default:
                                 rc = -1;
                                 break;
@@ -614,6 +630,7 @@ int32_t mtmZigbeeInit(int32_t mode, uint8_t *path, uint32_t speed) {
 
         /* 8N1 Mode */
         serialPortSettings.c_cflag &= ~PARENB;   /* Disables the Parity Enable bit(PARENB),So No Parity   */ // NOLINT(hicpp-signed-bitwise)
+        serialPortSettings.c_cflag &= HUPCL;     /* принудительно выключаем DTR так как через него мы управляем сбросом модуля zigbee */ // NOLINT(hicpp-signed-bitwise)
         serialPortSettings.c_cflag &= ~CSTOPB;   /* CSTOPB = 2 Stop bits,here it is cleared so 1 Stop bit */ // NOLINT(hicpp-signed-bitwise)
         serialPortSettings.c_cflag &= ~CSIZE;    /* Clears the mask for setting the data size             */ // NOLINT(hicpp-signed-bitwise)
         serialPortSettings.c_cflag |= CS8; // NOLINT(hicpp-signed-bitwise)
