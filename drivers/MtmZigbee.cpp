@@ -84,7 +84,7 @@ void mtmZigbeePktListener(int32_t threadId) {
     bool isFrameData = false;
     uint8_t frameDataByteCount = 0;
     uint8_t fcs;
-    time_t currentTime, heartBeatTime = 0, syncTimeTime = 0;
+    time_t currentTime, heartBeatTime = 0, syncTimeTime = 0, checkSensorTime = 0;
     struct tm *localTime;
 
     struct zb_pkt_item {
@@ -195,6 +195,24 @@ void mtmZigbeePktListener(int32_t threadId) {
                 ssize_t rc = send_mtm_cmd(coordinatorFd, 0xFFFF, &current_time);
                 // TODO: отправить в лог дамп mtm пакета
 //                kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] Written %ld bytes.\n", TAG, rc);
+            }
+
+            // опрашиваем датчики
+            currentTime = time(nullptr);
+            if (currentTime - checkSensorTime >= 10) {
+                checkSensorTime = currentTime;
+                zigbee_mt_cmd_af_data_request req;
+                req.dst_addr = 0x0000;
+                req.sep = 0xE8;
+                req.dep = 0xE8;
+                req.cid = 0x0103;
+                req.tid = 0;
+                req.opt = 0;
+                req.rad = 0;
+                req.adl = 0;
+                req.mt_cmd = nullptr;
+                ssize_t rc = send_zb_cmd(coordinatorFd, AF_DATA_REQUEST, &req);
+//                kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] rc=%ld\n", TAG, rc);
             }
 
             mtmZigbeeProcessOutPacket();
@@ -400,6 +418,129 @@ void mtmZigbeeProcessInPacket(uint8_t *pktBuff, uint32_t len) {
     time_t createTime = time(nullptr);
 
     switch (cmd) {
+        case AF_DATA_RESPONSE:
+            kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] AF_DATA_RESPONSE\n", TAG);
+
+            dstEndPoint = pktBuff[6];
+            cluster = *(uint16_t *) (&pktBuff[4]);
+            if (dstEndPoint != MBEE_API_END_POINT) {
+                return;
+            }
+
+            switch (cluster) {
+                case 0x0103 :
+                    uint8_t sensorIndex;
+
+                    memset(addr, 0, 32);
+                    sprintf((char *) addr, "%02X%02X%02X%02X%02X%02X%02X%02X",
+                            pktBuff[17], pktBuff[16], pktBuff[15], pktBuff[14],
+                            pktBuff[13], pktBuff[12], pktBuff[11], pktBuff[10]);
+
+                    printf("get sensor data packet!!!!!\n");
+                    memset(deviceUuid, 0, 64);
+                    if (findDevice(addr, deviceUuid)) {
+                        // найти по устройству sensor_channel и regIdx=0 (первый датчик)
+                        memset(sChannelUuid, 0, 64);
+                        sensorIndex = 0;
+                        if (!findSChannel(deviceUuid, sensorIndex, sChannelUuid)) {
+                            // если нет, создать
+                            uuid_generate(newUuid);
+                            uuid_unparse_upper(newUuid, (char *) sChannelUuid);
+                            sprintf((char *) query,
+                                    "INSERT INTO sensor_channel (uuid, title, register, deviceUuid, measureTypeUuid, createdAt) value('%s', 'IN1', '%d', '%s', '%s', FROM_UNIXTIME(%ld))",
+                                    sChannelUuid, sensorIndex, deviceUuid, CHANNEL_IN1, createTime);
+                            kernel->log.ulogw(LOG_LEVEL_INFO, (char *) query, TAG);
+                            res = mtmZigbeeDBase->sqlexec((const char *) query);
+                            if (res) {
+                                mysql_free_result(res);
+                            }
+                        }
+
+                        // создать новое измерение
+                        uuid_generate(newUuid);
+                        memset(newMeasureUuid, 0, 37);
+                        uuid_unparse_upper(newUuid, newMeasureUuid);
+                        uint16_t value = *(uint16_t *) (&pktBuff[34]);
+                        sprintf((char *) query,
+                                "INSERT INTO data (uuid, sensorChannelUuid, value, date, createdAt) value('%s', '%s', %d, FROM_UNIXTIME(%ld), FROM_UNIXTIME(%ld))",
+                                newMeasureUuid, sChannelUuid, value, createTime, createTime);
+                        kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] %s\n", TAG, query);
+                        res = mtmZigbeeDBase->sqlexec((const char *) query);
+                        if (res) {
+                            mysql_free_result(res);
+                        }
+
+                        // найти по устройству sensor_channel и regIdx=0 (второй датчик)
+                        memset(sChannelUuid, 0, 64);
+                        sensorIndex = 1;
+                        if (!findSChannel(deviceUuid, sensorIndex, sChannelUuid)) {
+                            // если нет, создать
+                            uuid_generate(newUuid);
+                            uuid_unparse_upper(newUuid, (char *) sChannelUuid);
+                            sprintf((char *) query,
+                                    "INSERT INTO sensor_channel (uuid, title, register, deviceUuid, measureTypeUuid, createdAt) value('%s', 'IN2', '%d', '%s', '%s', FROM_UNIXTIME(%ld))",
+                                    sChannelUuid, sensorIndex, deviceUuid, CHANNEL_IN2, createTime);
+                            kernel->log.ulogw(LOG_LEVEL_INFO, (char *) query, TAG);
+                            res = mtmZigbeeDBase->sqlexec((const char *) query);
+                            if (res) {
+                                mysql_free_result(res);
+                            }
+                        }
+
+                        // создать новое измерение
+                        uuid_generate(newUuid);
+                        memset(newMeasureUuid, 0, 37);
+                        uuid_unparse_upper(newUuid, newMeasureUuid);
+                        value = *(uint16_t *) (&pktBuff[36]);
+                        sprintf((char *) query,
+                                "INSERT INTO data (uuid, sensorChannelUuid, value, date, createdAt) value('%s', '%s', %d, FROM_UNIXTIME(%ld), FROM_UNIXTIME(%ld))",
+                                newMeasureUuid, sChannelUuid, value, createTime, createTime);
+                        kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] %s\n", TAG, query);
+                        res = mtmZigbeeDBase->sqlexec((const char *) query);
+                        if (res) {
+                            mysql_free_result(res);
+                        }
+
+                        // найти по устройству sensor_channel и regIdx=0 (цифровой пин управления контактором)
+                        memset(sChannelUuid, 0, 64);
+                        sensorIndex = 2;
+                        if (!findSChannel(deviceUuid, sensorIndex, sChannelUuid)) {
+                            // если нет, создать
+                            uuid_generate(newUuid);
+                            uuid_unparse_upper(newUuid, (char *) sChannelUuid);
+                            sprintf((char *) query,
+                                    "INSERT INTO sensor_channel (uuid, title, register, deviceUuid, measureTypeUuid, createdAt) value('%s', 'DIGI1', '%d', '%s', '%s', FROM_UNIXTIME(%ld))",
+                                    sChannelUuid, sensorIndex, deviceUuid, CHANNEL_DIGI1, createTime);
+                            kernel->log.ulogw(LOG_LEVEL_INFO, (char *) query, TAG);
+                            res = mtmZigbeeDBase->sqlexec((const char *) query);
+                            if (res) {
+                                mysql_free_result(res);
+                            }
+                        }
+
+                        // создать новое измерение
+                        uuid_generate(newUuid);
+                        memset(newMeasureUuid, 0, 37);
+                        uuid_unparse_upper(newUuid, newMeasureUuid);
+                        value = *(uint16_t *) (&pktBuff[32]);
+                        value &= 0x0040u;
+                        value = value >> 6;
+                        sprintf((char *) query,
+                                "INSERT INTO data (uuid, sensorChannelUuid, value, date, createdAt) value('%s', '%s', %d, FROM_UNIXTIME(%ld), FROM_UNIXTIME(%ld))",
+                                newMeasureUuid, sChannelUuid, value, createTime, createTime);
+                        kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] %s\n", TAG, query);
+                        res = mtmZigbeeDBase->sqlexec((const char *) query);
+                        if (res) {
+                            mysql_free_result(res);
+                        }
+                    }
+
+                    break;
+                default:
+                    break;
+            }
+
+            break;
         case AF_INCOMING_MSG:
             kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] AF_INCOMING_MSG\n", TAG);
 
