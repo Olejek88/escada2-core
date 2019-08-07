@@ -59,6 +59,8 @@ int DBase::openConnection() {
     mysql_real_query(mysql, query, strlen(query));
     snprintf(query, MAX_QUERY_LENGTH, "SET CHARSET 'UTF8'");
     mysql_real_query(mysql, query, strlen(query));
+    snprintf(query, MAX_QUERY_LENGTH, "SET CHARACTER_SET_CONNECTION = 'UTF8'");
+    mysql_real_query(mysql, query, strlen(query));
 
     //successfully connected to the database
     return OK;

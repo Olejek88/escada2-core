@@ -50,6 +50,8 @@ uint32_t TypeThread::getAllThreads(TypeThread **dstPtr) {
                         tThread[r].lastDate = mktime(nullptr);
                 }
             }
+
+            dBase.disconnect();
             return nRow;
         }
         dBase.disconnect();
