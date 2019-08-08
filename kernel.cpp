@@ -114,6 +114,7 @@ void *dispatcher(void *thread_arg) {
                                             typeThreads[th].lastDate, now);
             if ((now - typeThreads[th].lastDate) > 60) {
                 if (strncasecmp("0FBACF26-31CA-4B92-BCA3-220E09A6D2D3", typeThreads[th].deviceType, 36) == 0) {
+		    printf("%d\n",typeThreads[th].work);
                     if (typeThreads[th].work > 0)
                         pRc = pthread_create(&thr, nullptr, ceDeviceThread, (void *) &typeThreads[th]);
                 } else if (strncasecmp("CFD3C7CC-170C-4764-9A8D-10047C8B8B1D", typeThreads[th].deviceType, 36) == 0) {

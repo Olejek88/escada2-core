@@ -84,11 +84,11 @@ MYSQL_RES *DBase::sqlexec(const char *query) {
 
 //---------------------------------------------------------------------------------------------------
 // function store archive data to database
-bool DBase::StoreData(uint16_t type, uint16_t status, double value, char  *data, char *channelUuid) {
+bool DBase::StoreData(uint16_t type, uint16_t parameter, double value, char  *data, char *channelUuid) {
     MYSQL_RES *res;
     char query[500];
     if (type==TYPE_CURRENTS) {
-        sprintf(query, "SELECT * FROM data WHERE sensorChannelUuid='%s' AND type=%d", channelUuid, type);
+        sprintf(query, "SELECT * FROM data WHERE sensorChannelUuid='%s' AND type=%d AND parameter=%d", channelUuid, type, parameter);
         res = sqlexec(query);
         if (res && (row = mysql_fetch_row(res)))  {
             sprintf(query, "UPDATE data SET value=%f, date=CURRENT_TIMESTAMP() WHERE sensorChannelUuid='%s' AND type='%d'",
@@ -99,14 +99,14 @@ bool DBase::StoreData(uint16_t type, uint16_t status, double value, char  *data,
 	    char newUuidString[37] = {0};
             uuid_generate(newUuid);
 	    uuid_unparse_upper(newUuid, newUuidString);
-            sprintf(query, "INSERT INTO data(uuid, type,value,sensorChannelUuid, date) VALUES('%s', '0','%f','%s', CURRENT_TIMESTAMP())",
+            sprintf(query, "INSERT INTO data(uuid, type,value,sensorChannelUuid, date, parameter) VALUES('%s', '0','%f','%s', CURRENT_TIMESTAMP(),'%d')",
                     newUuidString, value, channelUuid);
             res = sqlexec(query);
 	}
         if (res) mysql_free_result(res);
         return true;
     } else {
-        sprintf(query, "SELECT * FROM data WHERE sensorChannelUuid='%s' AND type=%d AND date='%s'", channelUuid, type, data);
+        sprintf(query, "SELECT * FROM data WHERE sensorChannelUuid='%s' AND type=%d AND date='%s' AND parameter=%d", channelUuid, type, data, parameter);
         res = sqlexec(query);
 	printf ("%s = %ld\n",query,res);
 	if (res && (row = mysql_fetch_row(res))) {
@@ -121,7 +121,7 @@ bool DBase::StoreData(uint16_t type, uint16_t status, double value, char  *data,
 	    char newUuidString[37] = {0};
             uuid_generate(newUuid);
 	    uuid_unparse_upper(newUuid, newUuidString);
-            sprintf(query, "INSERT INTO data(uuid, type,value,sensorChannelUuid, date) VALUES('%s', '%d','%f','%s','%s')",
+            sprintf(query, "INSERT INTO data(uuid, type,value,sensorChannelUuid, date, parameter) VALUES('%s', '%d','%f','%s','%s','%d')",
                     newUuidString, type, value, channelUuid, data);
             res = sqlexec(query);
 	}

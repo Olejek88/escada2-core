@@ -164,6 +164,7 @@ int DeviceCE::ReadDataCurrentCE() {
     if (rs) res = this->read_ce(data, 0);
     if (rs) {
         res = static_cast<uint16_t>(sscanf((const char *) data, "POWEP(%s)", param));
+	// TODO 3 phases
         currentKernelInstance.log.ulogw(LOG_LEVEL_INFO, "[303][%s] %d", data, rs);
         if (res) {
             fl = static_cast<float>(atof(param));
@@ -224,7 +225,7 @@ int DeviceCE::ReadAllArchiveCE(uint16_t tp) {
     bool rs;
     char chan[40];
     uint16_t res=0;
-    uint8_t data[400];
+    uint8_t data[400], count=0;
     char date[20], param[20];
     //uint16_t month, year, index;
     float fl;
@@ -243,31 +244,40 @@ int DeviceCE::ReadAllArchiveCE(uint16_t tp) {
             tt->tm_year--;
         }
         sprintf(date, "EAMPE(%02d.%02d)", tt->tm_mon + 1, tt->tm_year - 100);        // ddMMGGtt
+        strncpy(chan, dBase.GetChannel(const_cast<char *>(CHANNEL_W), 1, this->uuid), 40);
         rs = send_ce(ARCH_MONTH, 0, date, 1);
         if (rs) res = this->read_ce(data, 0);
         if (res) {
-            rs = static_cast<bool>(sscanf((const char *) data, "EAMPE(%s)", param));
-            fl = static_cast<float>(atof(param));
-            sprintf(date, "%04d%02d01000000", tt->tm_year + 1900, tt->tm_mon);
-            strncpy(chan, dBase.GetChannel(const_cast<char *>(CHANNEL_W), 1, this->uuid), 40);
-            currentKernelInstance.log.ulogw(LOG_LEVEL_INFO, "[303][%s] [0x%x 0x%x 0x%x 0x%x] [%f] [%s]", 
-	    chan, data[0], data[1], data[2], data[3], fl, date);
-	    if (strlen(chan)>0)
-    	        dBase.StoreData(TYPE_MONTH, 0, fl, date, chan);
+	    count=0;
+	    for (int r=0; r<40;r++) {
+		if (data[r]==0x28 && count<5) {
+	            rs = static_cast<bool>(sscanf((const char *) data+r, "(%s)", param));
+	            fl = static_cast<float>(atof(param));
+	            sprintf(date, "%04d%02d01000000", tt->tm_year + 1900, tt->tm_mon);
+	            currentKernelInstance.log.ulogw(LOG_LEVEL_INFO, "[303][%s] [%f] [%s]", chan, fl, date);
+		    if (strlen(chan)>0)
+	    	        dBase.StoreData(TYPE_MONTH, count, fl, date, chan);
+		    count++;
+		}
+	    }
         }
 
         sprintf(date, "ENMPE(%02d.%02d)", tt->tm_mon + 1, tt->tm_year - 100);    // ddMMGGtt
         rs = send_ce(ARCH_MONTH, 0, date, 1);
         if (rs) res = this->read_ce(data, 0);
         if (res) {
-            res = static_cast<uint16_t>(sscanf((const char *) data, "ENMPE(%s)", param));
-            fl = static_cast<float>(atof(param));
-            sprintf(date, "%04d%02d01000000", tt->tm_year + 1900, tt->tm_mon);
-            strncpy(chan, dBase.GetChannel(const_cast<char *>(CHANNEL_W), 1, this->uuid), 40);
-            currentKernelInstance.log.ulogw(LOG_LEVEL_INFO, "[303][%s] [0x%x 0x%x 0x%x 0x%x] [%f] [%s]",
-                                            chan, data[0], data[1], data[2], data[3], fl, date);
-	    if (strlen(chan)>0)
-            dBase.StoreData(TYPE_MONTH, 0, fl, date, chan);
+	    count=0;
+	    for (int r=0; r<40;r++) {
+		if (data[r]==0x28 && count<5) {
+	            rs = static_cast<bool>(sscanf((const char *) data+r, "(%s)", param));
+	            fl = static_cast<float>(atof(param));
+	            sprintf(date, "%04d%02d01000000", tt->tm_year + 1900, tt->tm_mon);
+	            currentKernelInstance.log.ulogw(LOG_LEVEL_INFO, "[303][%s] [%f] [%s]", chan, fl, date);
+		    if (strlen(chan)>0)
+	    	        dBase.StoreData(TYPE_INCREMENTS, count, fl, date, chan);
+		    count++;
+		}
+	    }
         }
         tt->tm_mon--;
     }
@@ -279,27 +289,35 @@ int DeviceCE::ReadAllArchiveCE(uint16_t tp) {
         rs = send_ce(ARCH_DAYS, 0, date, 1);
         if (rs) res = this->read_ce(data, 0);
         if (res) {
-            rs = static_cast<bool>(sscanf((const char *) data, "EADPE(%s)", param));
-            fl = static_cast<float>(atof(param));
-            sprintf(date, "%04d%02d%02d000000", tt->tm_year + 1900, tt->tm_mon + 1, tt->tm_mday);
-            strncpy(chan, dBase.GetChannel(const_cast<char *>(CHANNEL_W), 1, this->uuid), 40);
-            currentKernelInstance.log.ulogw(LOG_LEVEL_INFO, "[303][%s] [0x%x 0x%x 0x%x 0x%x] [%f] [%s]",
-                                            chan, data[0], data[1], data[2], data[3], fl, date);
-	    if (strlen(chan)>0)
-            if (fl >= 0) dBase.StoreData(TYPE_DAYS, 0, fl, date, chan);
+	    count=0;
+	    for (int r=0; r<40;r++) {
+		if (data[r]==0x28 && count<5) {
+	            rs = static_cast<bool>(sscanf((const char *) data+r, "(%s)", param));
+	            fl = static_cast<float>(atof(param));
+	            sprintf(date, "%04d%02d%02d000000", tt->tm_year + 1900, tt->tm_mon + 1, tt->tm_mday);
+	            currentKernelInstance.log.ulogw(LOG_LEVEL_INFO, "[303][%s] [%f] [%s]", chan, fl, date);
+		    if (strlen(chan)>0)
+	    	        dBase.StoreData(TYPE_DAYS, count, fl, date, chan);
+		    count++;
+		}
+	    }
         }
         sprintf(date, "ENDPE(%02d.%02d.%02d)", tt->tm_mday, tt->tm_mon + 1, tt->tm_year - 100);    // ddMMGGtt
         rs = send_ce(ARCH_DAYS, 0, date, 1);
         if (rs) res = this->read_ce(data, 0);
         if (res) {
-            rs = static_cast<bool>(sscanf((const char *) data, "ENDPE(%s)", param));
-            fl = static_cast<float>(atof(param));
-            sprintf(date, "%04d%02d%02d000000", tt->tm_year + 1900, tt->tm_mon + 1, tt->tm_mday);
-            currentKernelInstance.log.ulogw(LOG_LEVEL_INFO, "[303] [0x%x 0x%x 0x%x 0x%x] [%f] [%s]",
-                                            data[0], data[1], data[2], data[3], fl, date);
-            strncpy(chan, dBase.GetChannel(const_cast<char *>(CHANNEL_W), 1, this->uuid), 40);
-	    if (strlen(chan)>0)
-            if (fl >= 0) dBase.StoreData(TYPE_DAYS, 0, fl, date, chan);
+	    count=0;
+	    for (int r=0; r<40;r++) {
+		if (data[r]==0x28 && count<5) {
+	            rs = static_cast<bool>(sscanf((const char *) data+r, "(%s)", param));
+	            fl = static_cast<float>(atof(param));
+	            sprintf(date, "%04d%02d%02d000000", tt->tm_year + 1900, tt->tm_mon + 1, tt->tm_mday);
+	            currentKernelInstance.log.ulogw(LOG_LEVEL_INFO, "[303][%s] [%f] [%s]", chan, fl, date);
+		    if (strlen(chan)>0)
+	    	        dBase.StoreData(TYPE_INCREMENTS, count, fl, date, chan);
+		    count++;
+		}
+	    }
         }
         tim -= 3600 * 24;
         localtime_r(&tim, tt);
