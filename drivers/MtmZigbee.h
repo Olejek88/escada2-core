@@ -30,4 +30,8 @@ bool findSChannel(uint8_t *deviceUuid, uint8_t regIdx, uint8_t *sChannelUuid);
 
 void log_buffer_hex(uint8_t *buffer, size_t buffer_size);
 
+void switchContactor(bool enable, uint8_t line);
+
+void switchAllLight(uint16_t level);
+
 #endif //ESCADA_CORE_MTMZIGBEE_H

@@ -18,6 +18,9 @@
 #include <uuid/uuid.h>
 #include <string.h>
 #include <sys/ioctl.h>
+#include <time.h>
+#include "suninfo.h"
+#include <stdlib.h>
 
 int coordinatorFd;
 bool mtmZigbeeStarted = false;
@@ -27,6 +30,9 @@ bool mtmZigbeeStopIssued;
 DBase *mtmZigbeeDBase;
 int32_t mtmZigBeeThreadId;
 Kernel *kernel;
+bool isSunInit;
+bool isLightEnabled;
+bool isLightDisabled;
 
 void *mtmZigbeeDeviceThread(void *pth) {
     uint16_t speed;
@@ -42,6 +48,10 @@ void *mtmZigbeeDeviceThread(void *pth) {
     strcpy((char *) port, tInfo->port);
 
     if (!mtmZigbeeStarted) {
+        isSunInit = false;
+        isLightEnabled = false;
+        isLightDisabled = false;
+
         mtmZigbeeStarted = true;
         kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] device thread started", TAG);
         if (mtmZigbeeInit(MTM_ZIGBEE_COM_PORT, port, speed) == 0) {
@@ -84,7 +94,7 @@ void mtmZigbeePktListener(int32_t threadId) {
     bool isFrameData = false;
     uint8_t frameDataByteCount = 0;
     uint8_t fcs;
-    time_t currentTime, heartBeatTime = 0, syncTimeTime = 0, checkSensorTime = 0;
+    time_t currentTime, heartBeatTime = 0, syncTimeTime = 0, checkSensorTime = 0, checkAstroTime = 0;
     struct tm *localTime;
 
     struct zb_pkt_item {
@@ -197,22 +207,97 @@ void mtmZigbeePktListener(int32_t threadId) {
 //                kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] Written %ld bytes.\n", TAG, rc);
             }
 
-            // опрашиваем датчики
+            // опрашиваем датчики на локальном координаторе
             currentTime = time(nullptr);
             if (currentTime - checkSensorTime >= 10) {
                 checkSensorTime = currentTime;
-                zigbee_mt_cmd_af_data_request req;
+                zigbee_mt_cmd_af_data_request req = {0};
                 req.dst_addr = 0x0000;
                 req.sep = 0xE8;
                 req.dep = 0xE8;
                 req.cid = 0x0103;
-                req.tid = 0;
-                req.opt = 0;
-                req.rad = 0;
-                req.adl = 0;
-                req.mt_cmd = nullptr;
                 ssize_t rc = send_zb_cmd(coordinatorFd, AF_DATA_REQUEST, &req);
 //                kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] rc=%ld\n", TAG, rc);
+            }
+
+            // проверка на наступление астрономических событий
+            currentTime = time(nullptr);
+            if (currentTime - checkAstroTime > 60) {
+                checkAstroTime = currentTime;
+                struct tm *ctm = localtime(&currentTime);
+                double lon = 0, lat = 0;
+                double rise, set;
+                int rs;
+                uint64_t currentTimeInSec;
+                uint64_t riseTimeInSec;
+                uint64_t setTimeInSec;
+                mtm_cmd_action action = {0};
+
+                MYSQL_RES *res = mtmZigbeeDBase->sqlexec("SELECT * FROM node LIMIT 1");
+                if (res) {
+                    MYSQL_ROW row = mysql_fetch_row(res);
+                    if (row) {
+                        lon = strtod(row[7], nullptr);
+                        lat = strtod(row[8], nullptr);
+                    }
+
+                    mysql_free_result(res);
+                }
+
+                rs = sun_rise_set(ctm->tm_year + 1900, ctm->tm_mon + 1, ctm->tm_mday, lon, lat, &rise, &set);
+                switch (rs) {
+                    case 0:
+                        currentTimeInSec = ctm->tm_hour * 3600 + ctm->tm_min * 60 + ctm->tm_sec;
+                        riseTimeInSec = (uint64_t) rise * 3600 + ctm->tm_gmtoff;
+                        setTimeInSec = (uint64_t) set * 3600 + ctm->tm_gmtoff;
+
+                        action.header.type = MTM_CMD_TYPE_ACTION;
+                        action.header.protoVersion = MTM_VERSION_0;
+                        action.device = MTM_DEVICE_LIGHT;
+
+                        if (currentTimeInSec < riseTimeInSec && currentTimeInSec > setTimeInSec &&
+                            (isLightDisabled || !isSunInit)) {
+                            isSunInit = true;
+                            isLightDisabled = false;
+                            isLightEnabled = true;
+                            // включаем контактор, зажигаем светильники, отправляем команду "закат"
+                            switchContactor(true, MBEE_API_DIGITAL_LINE7);
+                            // даём задержку для того чтоб стартанули модули в светильниках
+                            // т.к. неизвестно, питаются они через контактор или всё время под напряжением
+                            sleep(5);
+                            switchAllLight(100);
+                            // передаём команду "астро событие" "закат"
+                            action.data = (0x02 << 8 | 0x01);
+                            ssize_t rc = send_mtm_cmd(coordinatorFd, 0xFFFF, &action);
+//                            kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] rc=%ld\n", TAG, rc);
+                        } else if (currentTimeInSec > riseTimeInSec && currentTimeInSec < setTimeInSec &&
+                                   (isLightEnabled || !isSunInit)) {
+                            isSunInit = true;
+                            isLightEnabled = false;
+                            isLightDisabled = true;
+                            // выключаем контактор, гасим светильники, отправляем команду "восход"
+                            switchContactor(false, MBEE_API_DIGITAL_LINE7);
+                            // на всякий случай, если светильники всегда под напряжением
+                            switchAllLight(0);
+                            // передаём команду "астро событие" "восход"
+                            action.data = (0x02 << 8 | 0x00);
+                            ssize_t rc = send_mtm_cmd(coordinatorFd, 0xFFFF, &action);
+//                            kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] rc=%ld\n", TAG, rc);
+                        } else {
+                            // ситуация когда мы не достигли условий переключения состояния светильников
+                        }
+
+                        break;
+                    case 1:
+                        // солнце всегда над горизонтом - принудительно отключаем контактор, гасим все светильники?
+                        break;
+                    case -1:
+                        // солнце всегда за горизонтом - принудительно включаем контактор, зажигаем все светильники?
+                        break;
+                    default:
+                        break;
+                }
+
             }
 
             mtmZigbeeProcessOutPacket();
@@ -222,6 +307,30 @@ void mtmZigbeePktListener(int32_t threadId) {
             usleep(10000);
         }
     }
+}
+
+void switchAllLight(uint16_t level) {
+    mtm_cmd_action action = {0};
+    action.header.type = MTM_CMD_TYPE_ACTION;
+    action.header.protoVersion = MTM_VERSION_0;
+    action.device = MTM_DEVICE_LIGHT;
+    action.data = level;
+    ssize_t rc = send_mtm_cmd(coordinatorFd, 0xFFFF, &action);
+//    kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] Written %ld bytes.\n", TAG, rc);
+}
+
+void switchContactor(bool enable, uint8_t line) {
+    zigbee_mt_cmd_af_data_request request = {0};
+    request.dst_addr = 0x0000; // пока тупо локальному координатору отправляем
+    request.dep = MBEE_API_END_POINT;
+    request.sep = MBEE_API_END_POINT;
+    request.cid = enable ? line : line | 0x80u;
+    request.tid = 0x00;
+    request.opt = ZB_O_APS_ACKNOWLEDGE; // флаг для получения подтверждения с конечного устройства а не с первого хопа.
+    request.rad = MAX_PACKET_HOPS;
+    request.adl = 0x00;
+    ssize_t rc = send_zb_cmd(coordinatorFd, AF_DATA_REQUEST, &request);
+//    kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] Written %ld bytes.\n", TAG, rc);
 }
 
 void mtmZigbeeProcessOutPacket() {
@@ -360,18 +469,8 @@ void mtmZigbeeProcessOutPacket() {
                                 break;
                             case MTM_CMD_TYPE_CONTACTOR:
                                 kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] send MTM_CMD_TYPE_CONTACTOR\n", TAG);
-                                zigbee_mt_cmd_af_data_request request;
-                                request.dst_addr = 0x0000; // пока тупо локальному координатору отправляем
-                                request.dep = MBEE_API_END_POINT;
-                                request.sep = MBEE_API_END_POINT;
-                                request.cid = mtmPkt[3] == 0 ? mtmPkt[2] | 0x80u : mtmPkt[2];
-                                request.tid = 0x00;
-                                request.opt = ZB_O_APS_ACKNOWLEDGE; // флаг для получения подтверждения с конечного устройства а не с первого хопа.
-                                request.rad = MAX_PACKET_HOPS;
-                                request.adl = 0x00;
-                                rc = send_zb_cmd(coordinatorFd, AF_DATA_REQUEST, &request);
+                                switchContactor(mtmPkt[3], mtmPkt[2]);
                                 log_buffer_hex(mtmPkt, decoded);
-                                kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] Written %ld bytes.\n", TAG, rc);
                                 break;
                             default:
                                 rc = -1;
