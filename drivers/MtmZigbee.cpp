@@ -597,7 +597,8 @@ void mtmZigbeeProcessInPacket(uint8_t *pktBuff, uint32_t len) {
                             uuid_unparse_upper(newUuid, (char *) sChannelUuid);
                             if (!createSChannel(sChannelUuid, MTM_ZB_CHANNEL_COORD_IN1_TITLE,
                                                 MTM_ZB_CHANNEL_COORD_IN1_IDX, deviceUuid, CHANNEL_IN1, createTime)) {
-                                kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] %s\n", TAG, "Неудалось канал измерение IN1");
+                                kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] %s %s\n", TAG, "Неудалось канал измерение",
+                                                  MTM_ZB_CHANNEL_COORD_IN1_TITLE);
                             }
                         }
 
@@ -607,8 +608,8 @@ void mtmZigbeeProcessInPacket(uint8_t *pktBuff, uint32_t len) {
                         uuid_unparse_upper(newUuid, (char *) newMeasureUuid);
                         value = *(uint16_t *) (&pktBuff[34]);
                         if (!storeMeasureValue(newMeasureUuid, sChannelUuid, (double) value, createTime, createTime)) {
-                            kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] %s\n", TAG,
-                                              "Не удалось сохранить измерение IN1");
+                            kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] %s %s\n", TAG,
+                                              "Не удалось сохранить измерение", MTM_ZB_CHANNEL_COORD_IN1_TITLE);
                         }
 
                         // найти канал по устройству sensor_channel и regIdx
@@ -619,7 +620,8 @@ void mtmZigbeeProcessInPacket(uint8_t *pktBuff, uint32_t len) {
                             uuid_unparse_upper(newUuid, (char *) sChannelUuid);
                             if (!createSChannel(sChannelUuid, MTM_ZB_CHANNEL_COORD_IN2_TITLE,
                                                 MTM_ZB_CHANNEL_COORD_IN2_IDX, deviceUuid, CHANNEL_IN2, createTime)) {
-                                kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] %s\n", TAG, "Неудалось канал измерение IN2");
+                                kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] %s %s\n", TAG, "Неудалось канал измерение",
+                                                  MTM_ZB_CHANNEL_COORD_IN2_TITLE);
                             }
                         }
 
@@ -629,8 +631,8 @@ void mtmZigbeeProcessInPacket(uint8_t *pktBuff, uint32_t len) {
                         uuid_unparse_upper(newUuid, (char *) newMeasureUuid);
                         value = *(uint16_t *) (&pktBuff[36]);
                         if (!storeMeasureValue(newMeasureUuid, sChannelUuid, (double) value, createTime, createTime)) {
-                            kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] %s\n", TAG,
-                                              "Не удалось сохранить измерение IN2");
+                            kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] %s %s\n", TAG,
+                                              "Не удалось сохранить измерение", MTM_ZB_CHANNEL_COORD_IN2_TITLE);
                         }
 
                         // найти канал по устройству sensor_channel и regIdx (цифровой пин управления контактором)
@@ -639,10 +641,11 @@ void mtmZigbeeProcessInPacket(uint8_t *pktBuff, uint32_t len) {
                             // если нет, создать
                             uuid_generate(newUuid);
                             uuid_unparse_upper(newUuid, (char *) sChannelUuid);
-                            if (!createSChannel(sChannelUuid, MTM_ZB_CHANNEL_COORD_DIGI7_TITLE,
+                            if (!createSChannel(sChannelUuid, MTM_ZB_CHANNEL_COORD_DIGI1_TITLE,
                                                 MTM_ZB_CHANNEL_COORD_DIGI1_IDX, deviceUuid, CHANNEL_DIGI1,
                                                 createTime)) {
-                                kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] %s\n", TAG, "Неудалось канал измерение DIGI1");
+                                kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] %s %s\n", TAG, "Неудалось канал измерение",
+                                                  MTM_ZB_CHANNEL_COORD_DIGI1_TITLE);
                             }
                         }
 
@@ -654,8 +657,8 @@ void mtmZigbeeProcessInPacket(uint8_t *pktBuff, uint32_t len) {
                         value &= 0x0040u;
                         value = value >> 6; // NOLINT(hicpp-signed-bitwise)
                         if (!storeMeasureValue(newMeasureUuid, sChannelUuid, (double) value, createTime, createTime)) {
-                            kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] %s\n", TAG,
-                                              "Не удалось сохранить измерение DIGI1");
+                            kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] %s %s\n", TAG,
+                                              "Не удалось сохранить измерение", MTM_ZB_CHANNEL_COORD_DIGI1_TITLE);
                         }
                     }
 
@@ -741,7 +744,7 @@ void mtmZigbeeProcessInPacket(uint8_t *pktBuff, uint32_t len) {
                                     int8_t value = pktBuff[34];
                                     if (!storeMeasureValue(newMeasureUuid, sChannelUuid, (double) value, createTime,
                                                            createTime)) {
-                                        kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] %s %s\n", TAG,
+                                        kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] %s %s\n", TAG,
                                                           "Не удалось сохранить измерение",
                                                           MTM_ZB_CHANNEL_LIGHT_TEMPERATURE_TITLE);
                                     }
@@ -768,7 +771,7 @@ void mtmZigbeeProcessInPacket(uint8_t *pktBuff, uint32_t len) {
                                     value = pktBuff[33];
                                     if (!storeMeasureValue(newMeasureUuid, sChannelUuid, (double) value, createTime,
                                                            createTime)) {
-                                        kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] %s %s\n", TAG,
+                                        kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] %s %s\n", TAG,
                                                           "Не удалось сохранить измерение",
                                                           MTM_ZB_CHANNEL_LIGHT_CURRENT_TITLE);
                                     }
@@ -796,7 +799,7 @@ void mtmZigbeeProcessInPacket(uint8_t *pktBuff, uint32_t len) {
                                     value = alerts & 0x0001u;
                                     if (!storeMeasureValue(newMeasureUuid, sChannelUuid, (double) value, createTime,
                                                            createTime)) {
-                                        kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] %s %s\n", TAG,
+                                        kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] %s %s\n", TAG,
                                                           "Не удалось сохранить измерение",
                                                           MTM_ZB_CHANNEL_LIGHT_STATUS_TITLE);
                                     }
