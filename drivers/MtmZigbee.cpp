@@ -32,7 +32,6 @@ int32_t mtmZigBeeThreadId;
 Kernel *kernel;
 bool isSunInit;
 bool isLightEnabled;
-bool isLightDisabled;
 
 void *mtmZigbeeDeviceThread(void *pth) { // NOLINT
     uint16_t speed;
@@ -50,7 +49,6 @@ void *mtmZigbeeDeviceThread(void *pth) { // NOLINT
     if (!mtmZigbeeStarted) {
         isSunInit = false;
         isLightEnabled = false;
-        isLightDisabled = false;
 
         mtmZigbeeStarted = true;
         kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] device thread started", TAG);
@@ -249,9 +247,9 @@ void mtmZigbeePktListener(int32_t threadId) {
                 double lon = 0, lat = 0;
                 double rise, set;
                 int rs;
-                uint64_t currentTimeInSec;
-                uint64_t riseTimeInSec;
-                uint64_t setTimeInSec;
+                uint64_t checkTime;
+                uint64_t sunRiseTime;
+                uint64_t sunSetTime;
                 mtm_cmd_action action = {0};
 
                 MYSQL_RES *res = mtmZigbeeDBase->sqlexec("SELECT * FROM node LIMIT 1");
@@ -267,20 +265,27 @@ void mtmZigbeePktListener(int32_t threadId) {
                 }
 
                 rs = sun_rise_set(ctm->tm_year + 1900, ctm->tm_mon + 1, ctm->tm_mday, lon, lat, &rise, &set);
+                bool isCheckTimeAboveSunSet;
+                bool isCheckTimeLessSunSet;
+                bool isCheckTimeAboveSunRise;
+                bool isCheckTimeLessSunRise;
                 switch (rs) {
                     case 0:
-                        currentTimeInSec = ctm->tm_hour * 3600 + ctm->tm_min * 60 + ctm->tm_sec;
-                        riseTimeInSec = (uint64_t) rise * 3600 + ctm->tm_gmtoff;
-                        setTimeInSec = (uint64_t) set * 3600 + ctm->tm_gmtoff;
+                        checkTime = ctm->tm_hour * 3600 + ctm->tm_min * 60 + ctm->tm_sec;
+                        sunRiseTime = (uint64_t) (rise * 3600 + ctm->tm_gmtoff);
+                        sunSetTime = (uint64_t) (set * 3600 + ctm->tm_gmtoff);
 
                         action.header.type = MTM_CMD_TYPE_ACTION;
                         action.header.protoVersion = MTM_VERSION_0;
                         action.device = MTM_DEVICE_LIGHT;
 
-                        if (currentTimeInSec < riseTimeInSec && currentTimeInSec > setTimeInSec &&
-                            (isLightDisabled || !isSunInit)) {
+                        isCheckTimeAboveSunSet = checkTime > sunSetTime;
+                        isCheckTimeLessSunSet = checkTime < sunSetTime;
+                        isCheckTimeAboveSunRise = checkTime > sunRiseTime;
+                        isCheckTimeLessSunRise = checkTime < sunRiseTime;
+
+                        if ((isCheckTimeAboveSunSet || isCheckTimeLessSunRise) && (!isLightEnabled || !isSunInit)) {
                             isSunInit = true;
-                            isLightDisabled = false;
                             isLightEnabled = true;
                             // включаем контактор, зажигаем светильники, отправляем команду "закат"
                             switchContactor(true, MBEE_API_DIGITAL_LINE7);
@@ -294,11 +299,10 @@ void mtmZigbeePktListener(int32_t threadId) {
                             if (DEBUG) {
                                 kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] rc=%ld\n", TAG, rc);
                             }
-                        } else if (currentTimeInSec > riseTimeInSec && currentTimeInSec < setTimeInSec &&
+                        } else if ((isCheckTimeAboveSunRise && isCheckTimeLessSunSet) &&
                                    (isLightEnabled || !isSunInit)) {
                             isSunInit = true;
                             isLightEnabled = false;
-                            isLightDisabled = true;
                             // выключаем контактор, гасим светильники, отправляем команду "восход"
                             switchContactor(false, MBEE_API_DIGITAL_LINE7);
                             // на всякий случай, если светильники всегда под напряжением
