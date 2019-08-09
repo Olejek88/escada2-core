@@ -38,6 +38,10 @@ public:
     int8_t makeFieldsList(MYSQL_RES *res);
 
     int8_t getFieldIndex(const char *fieldName);
+
+    bool isError();
+
+    const char *getErrorString();
 };
 
 #endif //ESCADA_CORE_DBASE_H

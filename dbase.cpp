@@ -190,6 +190,15 @@ int8_t DBase::getFieldIndex(const char *fieldName) {
     return -1;
 }
 
+bool DBase::isError() {
+    return *mysql_error(mysql) == 0;
+}
+
+const char *DBase::getErrorString() {
+    return mysql_error(mysql);
+}
+
+
 
 
 
