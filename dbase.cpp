@@ -169,6 +169,27 @@ char *DBase::GetChannel(char *measureTypeUuid, uint16_t channel, char *deviceUui
     }
 }
 
+int8_t DBase::makeFieldsList(MYSQL_RES *res) {
+    MYSQL_FIELD *field;
+    int8_t i;
+    for (i = 0; (field = mysql_fetch_field(res)); i++) {
+        strcpy(fields[i], field->name);
+    }
+
+    nFields = i;
+    return i;
+}
+
+int8_t DBase::getFieldIndex(const char *fieldName) {
+    for (uint32_t i = 0; i < nFields; i++) {
+        if (strcmp(fieldName, fields[i]) == 0) {
+            return i;
+        }
+    }
+
+    return -1;
+}
+
 
 
 

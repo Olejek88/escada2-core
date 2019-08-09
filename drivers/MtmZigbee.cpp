@@ -34,7 +34,7 @@ bool isSunInit;
 bool isLightEnabled;
 bool isLightDisabled;
 
-void *mtmZigbeeDeviceThread(void *pth) {
+void *mtmZigbeeDeviceThread(void *pth) { // NOLINT
     uint16_t speed;
     uint8_t *port;
     kernel = &Kernel::Instance();
@@ -123,18 +123,24 @@ void mtmZigbeePktListener(int32_t threadId) {
                 i = 0;
                 isSof = true;
                 seek[i++] = data;
-                kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] found SOF\n", TAG);
+                if (DEBUG) {
+                    kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] found SOF\n", TAG);
+                }
             } else if (!isFrameLen) {
                 isFrameLen = true;
                 seek[i++] = frameLen = data;
-                kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] found frame len\n", TAG);
+                if (DEBUG) {
+                    kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] found frame len\n", TAG);
+                }
             } else if (!isCommand) {
                 commandByteCount++;
                 seek[i++] = data;
                 if (commandByteCount == 2) {
                     commandByteCount = 0;
                     isCommand = true;
-                    kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] found command\n", TAG);
+                    if (DEBUG) {
+                        kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] found command\n", TAG);
+                    }
                 }
             } else if (!isFrameData && frameDataByteCount < frameLen) {
                 seek[i++] = data;
@@ -142,18 +148,25 @@ void mtmZigbeePktListener(int32_t threadId) {
                 if (frameDataByteCount == frameLen) {
                     isFrameData = true;
                     frameDataByteCount = 0;
-                    kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] found frame data\n", TAG);
+                    if (DEBUG) {
+                        kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] found frame data\n", TAG);
+                    }
                 }
             } else {
                 // нашли контрольную сумму
                 seek[i++] = data;
-                kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] found FCS\n", TAG);
+                if (DEBUG) {
+                    kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] found FCS\n", TAG);
+                }
 
                 // пакет вроде как разобран
                 // нужно проверить контрольную сумму фрейма
                 fcs = compute_fcs(seek, i);
                 if (fcs == seek[i - 1]) {
-                    kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] frame good\n", TAG);
+                    if (DEBUG) {
+                        kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] frame good\n", TAG);
+                    }
+
                     // складываем полученный пакет в список
                     zb_item = (struct zb_pkt_item *) malloc(sizeof(struct zb_pkt_item));
                     zb_item->len = i - 1;
@@ -161,7 +174,9 @@ void mtmZigbeePktListener(int32_t threadId) {
                     memcpy(zb_item->pkt, seek, zb_item->len);
                     SLIST_INSERT_HEAD(&zb_queue_head, zb_item, items);
                 } else {
-                    kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] frame bad\n", TAG);
+                    if (DEBUG) {
+                        kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] frame bad\n", TAG);
+                    }
                     // вероятно то что попадает в порт с модуля zigbee уже проверено им самим
                     // как проверить это предположение? попробовать послать порченый пакет.
                     // либо он не будет отправлен, либо не попадёт в порт т.к. порченый, либо попадёт в порт мне на обработку
@@ -178,7 +193,10 @@ void mtmZigbeePktListener(int32_t threadId) {
         } else {
             // есть свободное время, разбираем список полученных пакетов
             while (!SLIST_EMPTY(&zb_queue_head)) {
-                kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] processing zb packet...\n", TAG);
+                if (DEBUG) {
+                    kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] processing zb packet...\n", TAG);
+                }
+
                 zb_item = SLIST_FIRST(&zb_queue_head);
                 mtmZigbeeProcessInPacket((uint8_t *) zb_item->pkt, zb_item->len);
                 SLIST_REMOVE_HEAD(&zb_queue_head, items);
@@ -203,8 +221,9 @@ void mtmZigbeePktListener(int32_t threadId) {
                 localTime = localtime(&currentTime);
                 current_time.time = localTime->tm_hour * 60 + localTime->tm_min;
                 ssize_t rc = send_mtm_cmd(coordinatorFd, 0xFFFF, &current_time);
-                // TODO: отправить в лог дамп mtm пакета
-//                kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] Written %ld bytes.\n", TAG, rc);
+                if (DEBUG) {
+                    kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] Written %ld bytes.\n", TAG, rc);
+                }
             }
 
             // опрашиваем датчики на локальном координаторе
@@ -217,7 +236,9 @@ void mtmZigbeePktListener(int32_t threadId) {
                 req.dep = 0xE8;
                 req.cid = 0x0103;
                 ssize_t rc = send_zb_cmd(coordinatorFd, AF_DATA_REQUEST, &req);
-//                kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] rc=%ld\n", TAG, rc);
+                if (DEBUG) {
+                    kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] rc=%ld\n", TAG, rc);
+                }
             }
 
             // проверка на наступление астрономических событий
@@ -236,9 +257,10 @@ void mtmZigbeePktListener(int32_t threadId) {
                 MYSQL_RES *res = mtmZigbeeDBase->sqlexec("SELECT * FROM node LIMIT 1");
                 if (res) {
                     MYSQL_ROW row = mysql_fetch_row(res);
+                    mtmZigbeeDBase->makeFieldsList(res);
                     if (row) {
-                        lon = strtod(row[7], nullptr);
-                        lat = strtod(row[8], nullptr);
+                        lon = strtod(row[mtmZigbeeDBase->getFieldIndex("longitude")], nullptr);
+                        lat = strtod(row[mtmZigbeeDBase->getFieldIndex("latitude")], nullptr);
                     }
 
                     mysql_free_result(res);
@@ -267,9 +289,11 @@ void mtmZigbeePktListener(int32_t threadId) {
                             sleep(5);
                             switchAllLight(100);
                             // передаём команду "астро событие" "закат"
-                            action.data = (0x02 << 8 | 0x01);
+                            action.data = (0x02 << 8 | 0x01); // NOLINT(hicpp-signed-bitwise)
                             ssize_t rc = send_mtm_cmd(coordinatorFd, 0xFFFF, &action);
-//                            kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] rc=%ld\n", TAG, rc);
+                            if (DEBUG) {
+                                kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] rc=%ld\n", TAG, rc);
+                            }
                         } else if (currentTimeInSec > riseTimeInSec && currentTimeInSec < setTimeInSec &&
                                    (isLightEnabled || !isSunInit)) {
                             isSunInit = true;
@@ -280,9 +304,11 @@ void mtmZigbeePktListener(int32_t threadId) {
                             // на всякий случай, если светильники всегда под напряжением
                             switchAllLight(0);
                             // передаём команду "астро событие" "восход"
-                            action.data = (0x02 << 8 | 0x00);
+                            action.data = (0x02 << 8 | 0x00); // NOLINT(hicpp-signed-bitwise)
                             ssize_t rc = send_mtm_cmd(coordinatorFd, 0xFFFF, &action);
-//                            kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] rc=%ld\n", TAG, rc);
+                            if (DEBUG) {
+                                kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] rc=%ld\n", TAG, rc);
+                            }
                         } else {
                             // ситуация когда мы не достигли условий переключения состояния светильников
                         }
@@ -309,17 +335,17 @@ void mtmZigbeePktListener(int32_t threadId) {
     }
 }
 
-void switchAllLight(uint16_t level) {
+ssize_t switchAllLight(uint16_t level) {
     mtm_cmd_action action = {0};
     action.header.type = MTM_CMD_TYPE_ACTION;
     action.header.protoVersion = MTM_VERSION_0;
     action.device = MTM_DEVICE_LIGHT;
     action.data = level;
     ssize_t rc = send_mtm_cmd(coordinatorFd, 0xFFFF, &action);
-//    kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] Written %ld bytes.\n", TAG, rc);
+    return rc;
 }
 
-void switchContactor(bool enable, uint8_t line) {
+ssize_t switchContactor(bool enable, uint8_t line) {
     zigbee_mt_cmd_af_data_request request = {0};
     request.dst_addr = 0x0000; // пока тупо локальному координатору отправляем
     request.dep = MBEE_API_END_POINT;
@@ -330,19 +356,14 @@ void switchContactor(bool enable, uint8_t line) {
     request.rad = MAX_PACKET_HOPS;
     request.adl = 0x00;
     ssize_t rc = send_zb_cmd(coordinatorFd, AF_DATA_REQUEST, &request);
-//    kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] Written %ld bytes.\n", TAG, rc);
+    return rc;
 }
 
 void mtmZigbeeProcessOutPacket() {
     uint8_t query[1024];
     MYSQL_RES *res;
     MYSQL_ROW row;
-    MYSQL_FIELD *field;
-    int32_t fieldAddressIdx = -1;
-    const char *fieldAddress = "address";
-    int32_t fieldDataIdx = -1;
-    const char *fieldData = "data";
-    uint32_t nFields;
+    uint8_t fieldIdx;
     u_long nRows;
     unsigned long *lengths;
     long flen;
@@ -353,41 +374,40 @@ void mtmZigbeeProcessOutPacket() {
     ssize_t rc;
 
     sprintf((char *) query, "SELECT * FROM light_message WHERE dateOut IS NULL;");
-//    kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] %s\n", TAG,  query);
+    if (DEBUG) {
+        kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] %s\n", TAG, query);
+    }
+
     res = mtmZigbeeDBase->sqlexec((char *) query);
     if (res) {
         nRows = mysql_num_rows(res);
-        nFields = mysql_num_fields(res);
-        char *headers[nFields];
-
         if (nRows == 0) {
             mysql_free_result(res);
             return;
         }
 
-        for (uint32_t i = 0; (field = mysql_fetch_field(res)); i++) {
-            headers[i] = field->name;
-            if (strcmp(fieldAddress, headers[i]) == 0) {
-                fieldAddressIdx = i;
-            } else if (strcmp(fieldData, headers[i]) == 0) {
-                fieldDataIdx = i;
-            }
-        }
-
         for (uint32_t i = 0; i < nRows; i++) {
             row = mysql_fetch_row(res);
             lengths = mysql_fetch_lengths(res);
+            mtmZigbeeDBase->makeFieldsList(res);
             if (row) {
-                flen = lengths[fieldAddressIdx];
+                fieldIdx = mtmZigbeeDBase->getFieldIndex("address");
+                flen = lengths[fieldIdx];
                 memset(tmpAddr, 0, 1024);
-                strncpy((char *) tmpAddr, row[fieldAddressIdx], flen);
-//                printf("Addr: %s, ", tmpAddr);
+                strncpy((char *) tmpAddr, row[fieldIdx], flen);
+                if (DEBUG) {
+                    kernel->log.ulogw(LOG_LEVEL_INFO, "Addr: %s, ", tmpAddr);
+                }
+
                 dstAddr = strtoull((char *) tmpAddr, nullptr, 16);
 
-                flen = lengths[fieldDataIdx];
+                fieldIdx = mtmZigbeeDBase->getFieldIndex("data");
+                flen = lengths[fieldIdx];
                 memset(tmpData, 0, 1024);
-                strncpy((char *) tmpData, row[fieldDataIdx], flen);
-//                printf("Data: %s\n", tmpData);
+                strncpy((char *) tmpData, row[fieldIdx], flen);
+                if (DEBUG) {
+                    kernel->log.ulogw(LOG_LEVEL_INFO, "Data: %s\n", tmpData);
+                }
 
                 struct base64_decode_ctx b64_ctx = {};
                 size_t decoded = 512;
@@ -397,7 +417,10 @@ void mtmZigbeeProcessOutPacket() {
                         uint8_t pktType = mtmPkt[0];
                         switch (pktType) {
                             case MTM_CMD_TYPE_CONFIG:
-                                kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] send MTM_CMD_TYPE_CONFIG\n", TAG);
+                                if (DEBUG) {
+                                    kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] send MTM_CMD_TYPE_CONFIG\n", TAG);
+                                }
+
                                 mtm_cmd_config config;
                                 config.header.type = mtmPkt[0];
                                 config.header.protoVersion = mtmPkt[1];
@@ -411,11 +434,17 @@ void mtmZigbeeProcessOutPacket() {
                                     rc = send_mtm_cmd_ext(coordinatorFd, dstAddr, &config);
                                 }
 
-                                log_buffer_hex(mtmPkt, decoded);
-                                kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] Written %ld bytes.\n", TAG, rc);
+                                if (DEBUG) {
+                                    log_buffer_hex(mtmPkt, decoded);
+                                    kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] Written %ld bytes.\n", TAG, rc);
+                                }
+
                                 break;
                             case MTM_CMD_TYPE_CONFIG_LIGHT:
-                                kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] send MTM_CMD_TYPE_CONFIG_LIGHT\n", TAG);
+                                if (DEBUG) {
+                                    kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] send MTM_CMD_TYPE_CONFIG_LIGHT\n", TAG);
+                                }
+
                                 mtm_cmd_config_light config_light;
                                 config_light.header.type = mtmPkt[0];
                                 config_light.header.protoVersion = mtmPkt[1];
@@ -431,11 +460,17 @@ void mtmZigbeeProcessOutPacket() {
                                     rc = send_mtm_cmd_ext(coordinatorFd, dstAddr, &config_light);
                                 }
 
-                                log_buffer_hex(mtmPkt, decoded);
-                                kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] Written %ld bytes.\n", TAG, rc);
+                                if (DEBUG) {
+                                    log_buffer_hex(mtmPkt, decoded);
+                                    kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] Written %ld bytes.\n", TAG, rc);
+                                }
+
                                 break;
                             case MTM_CMD_TYPE_CURRENT_TIME:
-                                kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] send MTM_CMD_TYPE_CURRENT_TIME\n", TAG);
+                                if (DEBUG) {
+                                    kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] send MTM_CMD_TYPE_CURRENT_TIME\n", TAG);
+                                }
+
                                 mtm_cmd_current_time current_time;
                                 current_time.header.type = mtmPkt[0];
                                 current_time.header.protoVersion = mtmPkt[1];
@@ -447,11 +482,17 @@ void mtmZigbeeProcessOutPacket() {
                                     rc = send_mtm_cmd_ext(coordinatorFd, dstAddr, &current_time);
                                 }
 
-                                log_buffer_hex(mtmPkt, decoded);
-                                kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] Written %ld bytes.\n", TAG, rc);
+                                if (DEBUG) {
+                                    kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] Written %ld bytes.\n", TAG, rc);
+                                    log_buffer_hex(mtmPkt, decoded);
+                                }
+
                                 break;
                             case MTM_CMD_TYPE_ACTION:
-                                kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] send MTM_CMD_TYPE_ACTION\n", TAG);
+                                if (DEBUG) {
+                                    kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] send MTM_CMD_TYPE_ACTION\n", TAG);
+                                }
+
                                 mtm_cmd_action action;
                                 action.header.type = mtmPkt[0];
                                 action.header.protoVersion = mtmPkt[1];
@@ -464,13 +505,19 @@ void mtmZigbeeProcessOutPacket() {
                                     rc = send_mtm_cmd_ext(coordinatorFd, dstAddr, &action);
                                 }
 
-                                log_buffer_hex(mtmPkt, decoded);
-                                kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] Written %ld bytes.\n", TAG, rc);
+                                if (DEBUG) {
+                                    kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] Written %ld bytes.\n", TAG, rc);
+                                    log_buffer_hex(mtmPkt, decoded);
+                                }
+
                                 break;
                             case MTM_CMD_TYPE_CONTACTOR:
-                                kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] send MTM_CMD_TYPE_CONTACTOR\n", TAG);
-                                switchContactor(mtmPkt[3], mtmPkt[2]);
-                                log_buffer_hex(mtmPkt, decoded);
+                                if (DEBUG) {
+                                    kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] send MTM_CMD_TYPE_CONTACTOR\n", TAG);
+                                    log_buffer_hex(mtmPkt, decoded);
+                                }
+
+                                rc = switchContactor(mtmPkt[3], mtmPkt[2]);
                                 break;
                             default:
                                 rc = -1;
@@ -510,7 +557,6 @@ void mtmZigbeeProcessInPacket(uint8_t *pktBuff, uint32_t len) {
     uuid_t newUuid;
     char newMeasureUuid[37] = {0};
 
-//    printf("%s\n", resultBuff);
     uint8_t query[1024];
     uint8_t addr[32];
     MYSQL_RES *res;
@@ -518,7 +564,9 @@ void mtmZigbeeProcessInPacket(uint8_t *pktBuff, uint32_t len) {
 
     switch (cmd) {
         case AF_DATA_RESPONSE:
-            kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] AF_DATA_RESPONSE\n", TAG);
+            if (DEBUG) {
+                kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] AF_DATA_RESPONSE\n", TAG);
+            }
 
             dstEndPoint = pktBuff[6];
             cluster = *(uint16_t *) (&pktBuff[4]);
@@ -526,7 +574,7 @@ void mtmZigbeeProcessInPacket(uint8_t *pktBuff, uint32_t len) {
                 return;
             }
 
-            switch (cluster) {
+            switch (cluster) { // NOLINT
                 case 0x0103 :
                     uint8_t sensorIndex;
 
@@ -535,7 +583,10 @@ void mtmZigbeeProcessInPacket(uint8_t *pktBuff, uint32_t len) {
                             pktBuff[17], pktBuff[16], pktBuff[15], pktBuff[14],
                             pktBuff[13], pktBuff[12], pktBuff[11], pktBuff[10]);
 
-                    printf("get sensor data packet!!!!!\n");
+                    if (DEBUG) {
+                        kernel->log.ulogw(LOG_LEVEL_INFO, "get sensor data packet!!!!!\n");
+                    }
+
                     memset(deviceUuid, 0, 64);
                     if (findDevice(addr, deviceUuid)) {
                         // найти по устройству sensor_channel и regIdx=0 (первый датчик)
@@ -548,7 +599,10 @@ void mtmZigbeeProcessInPacket(uint8_t *pktBuff, uint32_t len) {
                             sprintf((char *) query,
                                     "INSERT INTO sensor_channel (uuid, title, register, deviceUuid, measureTypeUuid, createdAt) value('%s', 'IN1', '%d', '%s', '%s', FROM_UNIXTIME(%ld))",
                                     sChannelUuid, sensorIndex, deviceUuid, CHANNEL_IN1, createTime);
-                            kernel->log.ulogw(LOG_LEVEL_INFO, (char *) query, TAG);
+                            if (DEBUG) {
+                                kernel->log.ulogw(LOG_LEVEL_INFO, (char *) query, TAG);
+                            }
+
                             res = mtmZigbeeDBase->sqlexec((const char *) query);
                             if (res) {
                                 mysql_free_result(res);
@@ -563,7 +617,10 @@ void mtmZigbeeProcessInPacket(uint8_t *pktBuff, uint32_t len) {
                         sprintf((char *) query,
                                 "INSERT INTO data (uuid, sensorChannelUuid, value, date, createdAt) value('%s', '%s', %d, FROM_UNIXTIME(%ld), FROM_UNIXTIME(%ld))",
                                 newMeasureUuid, sChannelUuid, value, createTime, createTime);
-                        kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] %s\n", TAG, query);
+                        if (DEBUG) {
+                            kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] %s\n", TAG, query);
+                        }
+
                         res = mtmZigbeeDBase->sqlexec((const char *) query);
                         if (res) {
                             mysql_free_result(res);
@@ -579,7 +636,10 @@ void mtmZigbeeProcessInPacket(uint8_t *pktBuff, uint32_t len) {
                             sprintf((char *) query,
                                     "INSERT INTO sensor_channel (uuid, title, register, deviceUuid, measureTypeUuid, createdAt) value('%s', 'IN2', '%d', '%s', '%s', FROM_UNIXTIME(%ld))",
                                     sChannelUuid, sensorIndex, deviceUuid, CHANNEL_IN2, createTime);
-                            kernel->log.ulogw(LOG_LEVEL_INFO, (char *) query, TAG);
+                            if (DEBUG) {
+                                kernel->log.ulogw(LOG_LEVEL_INFO, (char *) query, TAG);
+                            }
+
                             res = mtmZigbeeDBase->sqlexec((const char *) query);
                             if (res) {
                                 mysql_free_result(res);
@@ -594,7 +654,10 @@ void mtmZigbeeProcessInPacket(uint8_t *pktBuff, uint32_t len) {
                         sprintf((char *) query,
                                 "INSERT INTO data (uuid, sensorChannelUuid, value, date, createdAt) value('%s', '%s', %d, FROM_UNIXTIME(%ld), FROM_UNIXTIME(%ld))",
                                 newMeasureUuid, sChannelUuid, value, createTime, createTime);
-                        kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] %s\n", TAG, query);
+                        if (DEBUG) {
+                            kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] %s\n", TAG, query);
+                        }
+
                         res = mtmZigbeeDBase->sqlexec((const char *) query);
                         if (res) {
                             mysql_free_result(res);
@@ -610,7 +673,10 @@ void mtmZigbeeProcessInPacket(uint8_t *pktBuff, uint32_t len) {
                             sprintf((char *) query,
                                     "INSERT INTO sensor_channel (uuid, title, register, deviceUuid, measureTypeUuid, createdAt) value('%s', 'DIGI1', '%d', '%s', '%s', FROM_UNIXTIME(%ld))",
                                     sChannelUuid, sensorIndex, deviceUuid, CHANNEL_DIGI1, createTime);
-                            kernel->log.ulogw(LOG_LEVEL_INFO, (char *) query, TAG);
+                            if (DEBUG) {
+                                kernel->log.ulogw(LOG_LEVEL_INFO, (char *) query, TAG);
+                            }
+
                             res = mtmZigbeeDBase->sqlexec((const char *) query);
                             if (res) {
                                 mysql_free_result(res);
@@ -623,11 +689,14 @@ void mtmZigbeeProcessInPacket(uint8_t *pktBuff, uint32_t len) {
                         uuid_unparse_upper(newUuid, newMeasureUuid);
                         value = *(uint16_t *) (&pktBuff[32]);
                         value &= 0x0040u;
-                        value = value >> 6;
+                        value = value >> 6; // NOLINT(hicpp-signed-bitwise)
                         sprintf((char *) query,
                                 "INSERT INTO data (uuid, sensorChannelUuid, value, date, createdAt) value('%s', '%s', %d, FROM_UNIXTIME(%ld), FROM_UNIXTIME(%ld))",
                                 newMeasureUuid, sChannelUuid, value, createTime, createTime);
-                        kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] %s\n", TAG, query);
+                        if (DEBUG) {
+                            kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] %s\n", TAG, query);
+                        }
+
                         res = mtmZigbeeDBase->sqlexec((const char *) query);
                         if (res) {
                             mysql_free_result(res);
@@ -641,7 +710,9 @@ void mtmZigbeeProcessInPacket(uint8_t *pktBuff, uint32_t len) {
 
             break;
         case AF_INCOMING_MSG:
-            kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] AF_INCOMING_MSG\n", TAG);
+            if (DEBUG) {
+                kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] AF_INCOMING_MSG\n", TAG);
+            }
 
             dstEndPoint = pktBuff[11];
             cluster = *(uint16_t *) (&pktBuff[6]);
@@ -654,9 +725,11 @@ void mtmZigbeeProcessInPacket(uint8_t *pktBuff, uint32_t len) {
                 case MTM_CMD_TYPE_STATUS:
                     int32_t sensorIndex;
                     len = len - 33;
-                    // выводим содержимое пакета в лог
-                    kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] MTM_CMD_TYPE_STATUS\n", TAG);
-                    log_buffer_hex(&pktBuff[21], len + 12);
+                    if (DEBUG) {
+                        kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] MTM_CMD_TYPE_STATUS\n", TAG);
+                        log_buffer_hex(&pktBuff[21], len + 12);
+                    }
+
                     base64_encode_init(&b64_ctx);
 
 #ifdef __APPLE__
@@ -676,7 +749,9 @@ void mtmZigbeeProcessInPacket(uint8_t *pktBuff, uint32_t len) {
                     sprintf((char *) query,
                             "INSERT INTO light_answer (address, data, createdAt, changedAt, dateIn) value('%s', '%s', FROM_UNIXTIME(%ld), FROM_UNIXTIME(%ld), FROM_UNIXTIME(%ld))",
                             addr, resultBuff, createTime, createTime, createTime);
-                    kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] %s\n", TAG, query);
+                    if (DEBUG) {
+                        kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] %s\n", TAG, query);
+                    }
 
                     res = mtmZigbeeDBase->sqlexec((const char *) query);
                     if (res) {
@@ -698,7 +773,10 @@ void mtmZigbeeProcessInPacket(uint8_t *pktBuff, uint32_t len) {
                                         sprintf((char *) query,
                                                 "INSERT INTO sensor_channel (uuid, title, register, deviceUuid, measureTypeUuid, createdAt) value('%s', 'Температура', '%d', '%s', '%s', FROM_UNIXTIME(%ld))",
                                                 sChannelUuid, sensorIndex, deviceUuid, CHANNEL_T, createTime);
-                                        kernel->log.ulogw(LOG_LEVEL_INFO, (char *) query, TAG);
+                                        if (DEBUG) {
+                                            kernel->log.ulogw(LOG_LEVEL_INFO, (char *) query, TAG);
+                                        }
+
                                         res = mtmZigbeeDBase->sqlexec((const char *) query);
                                         if (res) {
                                             mysql_free_result(res);
@@ -712,7 +790,10 @@ void mtmZigbeeProcessInPacket(uint8_t *pktBuff, uint32_t len) {
                                     sprintf((char *) query,
                                             "INSERT INTO data (uuid, sensorChannelUuid, value, date, createdAt) value('%s', '%s', %d, FROM_UNIXTIME(%ld), FROM_UNIXTIME(%ld))",
                                             newMeasureUuid, sChannelUuid, pktBuff[34], createTime, createTime);
-                                    kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] %s\n", TAG, query);
+                                    if (DEBUG) {
+                                        kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] %s\n", TAG, query);
+                                    }
+
                                     res = mtmZigbeeDBase->sqlexec((const char *) query);
                                     if (res) {
                                         mysql_free_result(res);
@@ -728,7 +809,10 @@ void mtmZigbeeProcessInPacket(uint8_t *pktBuff, uint32_t len) {
                                         sprintf((char *) query,
                                                 "INSERT INTO sensor_channel (uuid, title, register, deviceUuid, measureTypeUuid, createdAt) value('%s', 'Мощность', '%d', '%s', '%s', FROM_UNIXTIME(%ld))",
                                                 sChannelUuid, sensorIndex, deviceUuid, CHANNEL_W, createTime);
-                                        kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] %s\n", TAG, query);
+                                        if (DEBUG) {
+                                            kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] %s\n", TAG, query);
+                                        }
+
                                         res = mtmZigbeeDBase->sqlexec((const char *) query);
                                         if (res) {
                                             mysql_free_result(res);
@@ -742,7 +826,10 @@ void mtmZigbeeProcessInPacket(uint8_t *pktBuff, uint32_t len) {
                                     sprintf((char *) query,
                                             "INSERT INTO data (uuid, sensorChannelUuid, value, date, createdAt) value('%s', '%s', %d, FROM_UNIXTIME(%ld), FROM_UNIXTIME(%ld))",
                                             newMeasureUuid, sChannelUuid, pktBuff[33], createTime, createTime);
-                                    kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] %s\n", TAG, query);
+                                    if (DEBUG) {
+                                        kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] %s\n", TAG, query);
+                                    }
+
                                     res = mtmZigbeeDBase->sqlexec((const char *) query);
                                     if (res) {
                                         mysql_free_result(res);
@@ -758,7 +845,10 @@ void mtmZigbeeProcessInPacket(uint8_t *pktBuff, uint32_t len) {
                                         sprintf((char *) query,
                                                 "INSERT INTO sensor_channel (uuid, title, register, deviceUuid, measureTypeUuid, createdAt) value('%s', 'Авария', '%d', '%s', '%s', FROM_UNIXTIME(%ld))",
                                                 sChannelUuid, sensorIndex, deviceUuid, CHANNEL_STATUS, createTime);
-                                        kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] %s\n", TAG, query);
+                                        if (DEBUG) {
+                                            kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] %s\n", TAG, query);
+                                        }
+
                                         res = mtmZigbeeDBase->sqlexec((const char *) query);
                                         if (res) {
                                             mysql_free_result(res);
@@ -774,7 +864,10 @@ void mtmZigbeeProcessInPacket(uint8_t *pktBuff, uint32_t len) {
                                     sprintf((char *) query,
                                             "INSERT INTO data (uuid, sensorChannelUuid, value, date, createdAt) value('%s', '%s', %d, FROM_UNIXTIME(%ld), FROM_UNIXTIME(%ld))",
                                             newMeasureUuid, sChannelUuid, alert, createTime, createTime);
-                                    kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] %s\n", TAG, query);
+                                    if (DEBUG) {
+                                        kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] %s\n", TAG, query);
+                                    }
+
                                     res = mtmZigbeeDBase->sqlexec((const char *) query);
                                     if (res) {
                                         mysql_free_result(res);
@@ -810,7 +903,10 @@ void mtmZigbeeProcessInPacket(uint8_t *pktBuff, uint32_t len) {
             }
             break;
         case AF_INCOMING_MSG_EXT:
-            kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] AF_INCOMING_MSG_EXT\n", TAG);
+            if (DEBUG) {
+                kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] AF_INCOMING_MSG_EXT\n", TAG);
+            }
+
             break;
         default:
             break;
@@ -835,13 +931,13 @@ int32_t mtmZigbeeInit(int32_t mode, uint8_t *path, uint32_t speed) {
             // пробуем создать
             coordinatorFd = mkfifo((char *) fifo, 0666);
             if (coordinatorFd == -1) {
-                kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] FIFO can not make!!!\n", TAG);
+                kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] FIFO can not make!!!\n", TAG);
                 return -1;
             } else {
                 close(coordinatorFd);
                 coordinatorFd = open((char *) fifo, O_NONBLOCK | O_RDWR | O_NOCTTY); // NOLINT(hicpp-signed-bitwise)
                 if (coordinatorFd == -1) {
-                    kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] FIFO can not open!!!\n", TAG);
+                    kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] FIFO can not open!!!\n", TAG);
                     return -1;
                 }
             }
@@ -857,7 +953,7 @@ int32_t mtmZigbeeInit(int32_t mode, uint8_t *path, uint32_t speed) {
         // открываем порт
         coordinatorFd = open((char *) path, O_NONBLOCK | O_RDWR | O_NOCTTY); // NOLINT(hicpp-signed-bitwise)
         if (coordinatorFd == -1) {
-            kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] can not open file\n", TAG);
+            kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] can not open file\n", TAG);
             return -3;
         }
 
@@ -887,7 +983,7 @@ int32_t mtmZigbeeInit(int32_t mode, uint8_t *path, uint32_t speed) {
         cfmakeraw(&serialPortSettings);
 
         if ((tcsetattr(coordinatorFd, TCSANOW, &serialPortSettings)) != 0) {
-            kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] ERROR ! in Setting attributes\n", TAG);
+            kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] ERROR ! in Setting attributes\n", TAG);
             return -4;
         } else {
             kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] BaudRate = 38400\nStopBits = 1\nParity = none\n", TAG);
@@ -914,7 +1010,9 @@ int32_t mtmZigbeeInit(int32_t mode, uint8_t *path, uint32_t speed) {
     af_register.app_num_out_clusters = 1;
     af_register.app_out_cluster_list[0] = 0xFC00;
     ssize_t rc = send_zb_cmd(coordinatorFd, AF_REGISTER, &af_register);
-    kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] rc=%ld\n", TAG, rc);
+    if (DEBUG) {
+        kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] rc=%ld\n", TAG, rc);
+    }
 
     // тестовый пакет с состоянием светильника
 //    uint8_t buff[] = {
