@@ -68,13 +68,13 @@ int main(int argc, char *argv[]) {
     }
 
     // TODO здесь читаем конфигурацию пока не словим флаг остановки
-    int cnt = 30;
+//    int cnt = 30;
     while (runKernel) {
         sleep(1);
-        cnt--;
-        if (cnt == 0) {
-            runKernel = false;
-        }
+//        cnt--;
+//        if (cnt == 0) {
+//            runKernel = false;
+//        }
     }
 
     // ждём пока завершится dispatcher
@@ -130,9 +130,8 @@ void *dispatcher(void *thread_arg) {
         for (int th = 0; th < numThreads; th++) {
             time_t now = time(nullptr);
             // поток походу протух
-            currentKernelInstance.log.ulogw(LOG_LEVEL_ERROR, "thr [%s] %ld %ld", typeThreads[th].title,
-                                            typeThreads[th].lastDate, now);
-            if ((now - typeThreads[th].lastDate) > 1) {
+//            currentKernelInstance.log.ulogw(LOG_LEVEL_ERROR, "thr [%s] %ld %ld", typeThreads[th].title, typeThreads[th].lastDate, now);
+            if ((now - typeThreads[th].lastDate) > 60) {
                 pRc = 0;
                 if (strncasecmp("0FBACF26-31CA-4B92-BCA3-220E09A6D2D3", typeThreads[th].deviceType, 36) == 0) {
                     if (typeThreads[th].work > 0)

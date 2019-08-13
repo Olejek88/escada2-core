@@ -30,6 +30,7 @@ auto &currentKernelInstance = Kernel::Instance();
 bool OpenCom(char *block, uint16_t speed, uint16_t parity);
 
 uint8_t CRC(const uint8_t *Data, uint8_t DataSize);
+
 uint16_t Crc16(uint8_t *Data, uint8_t DataSize);
 
 //-----------------------------------------------------------------------------
@@ -53,14 +54,14 @@ void *ceDeviceThread(void *pth) {
                     rs = OpenCom(deviceCE.port, thread.speed, 1);
                     if (rs) {
                         currentKernelInstance.log.ulogw(LOG_LEVEL_INFO, "[303] ReadInfo (%s)", deviceCE.address);
-                        UpdateThreads(dBase, thread.id, 0, 1);
+                        UpdateThreads(dBase, thread.id, 0, 1, deviceCE.uuid);
                         rs = deviceCE.ReadInfoCE();
                         if (rs) {
                             currentKernelInstance.log.ulogw(LOG_LEVEL_INFO, "[303] ReadDataCurrent (%d)", deviceCE.id);
-                            UpdateThreads(dBase, thread.id, 0, 1);
+                            UpdateThreads(dBase, thread.id, 0, 1, deviceCE.uuid);
                             deviceCE.ReadDataCurrentCE();
-                            if (currentKernelInstance.current_time->tm_min > 5) {
-                                UpdateThreads(dBase, thread.id, 1, 1);
+                            if (currentKernelInstance.current_time->tm_min > 55) {
+                                UpdateThreads(dBase, thread.id, 1, 1, deviceCE.uuid);
                                 currentKernelInstance.log.ulogw(LOG_LEVEL_INFO, "[303] ReadDataArchive (%d)",
                                                                 deviceCE.id);
                                 deviceCE.ReadAllArchiveCE(5);
@@ -158,47 +159,48 @@ int DeviceCE::ReadDataCurrentCE() {
     time_t tim;
     tim = time(&tim);
     localtime_r(&tim, tt);
-    sprintf(date, "%04d%02d%02d%02d%02d%02d", tt->tm_year + 1900, tt->tm_mon, tt->tm_mday, tt->tm_hour, tt->tm_min,
+    sprintf(date, "%04d%02d%02d%02d%02d%02d", tt->tm_year + 1900, tt->tm_mon + 1, tt->tm_mday, tt->tm_hour, tt->tm_min,
             tt->tm_sec);
 
     rs = this->send_ce(CURRENT_W, 0, date, READ_PARAMETERS);
     if (rs) res = this->read_ce(data, 0);
-    if (rs) {
-        res = static_cast<uint16_t>(sscanf((const char *) data, "POWEP(%s)", param));
-        currentKernelInstance.log.ulogw(LOG_LEVEL_INFO, "[303][%s] %d", data, rs);
+    if (res > 0) {
+        for (int r = 0; r < 40; r++) {
+            if (data[r] == 0x28) {
+                res = static_cast<bool>(sscanf((const char *) data + r, "(%s)", param));
+                break;
+            }
+        }
+        // TODO 3 phases
         if (res) {
             fl = static_cast<float>(atof(param));
-            currentKernelInstance.log.ulogw(LOG_LEVEL_INFO, "[303][%s] W=[%f]", param, fl);
-            chan = dBase.GetChannel(const_cast<char *>(CHANNEL_W), 1, this->uuid);
-            if (chan != nullptr) {
-                currentKernelInstance.log.ulogw(LOG_LEVEL_INFO, "[303][%s]", chan);
-                dBase.StoreData(TYPE_CURRENTS, 0, fl, nullptr, chan);
-                if (fl > 0) {
-                    dBase.StoreData(TYPE_EVENTS, 0, fl, date, chan);
-                }
-
-                free(chan);
-            }
+            strncpy(chan, dBase.GetChannel(const_cast<char *>(CHANNEL_W), 1, this->uuid), 40);
+            currentKernelInstance.log.ulogw(LOG_LEVEL_INFO, "[303][%s][%s] W=[%f]",chan, param, fl);
+	    if (strlen(chan)>0) {
+        	dBase.StoreData(TYPE_CURRENTS, 0, fl, nullptr, chan);
+        	dBase.StoreData(TYPE_CURRENTS, 1, fl, nullptr, chan);
+                dBase.StoreData(TYPE_INTERVALS, 0, fl, date, chan);
+	    }
         }
     }
     rs = send_ce(CURRENT_U, 0, date, READ_PARAMETERS);
     if (rs) res = this->read_ce(data, 0);
-    if (res) {
+    if (res > 0) {
         res = static_cast<uint16_t>(sscanf((const char *) data, "VOLTA(%s)", param));
         if (rs) {
             fl = static_cast<float>(atof(param));
-            currentKernelInstance.log.ulogw(LOG_LEVEL_INFO, "[303][%s] V=[%f]", param, fl);
-            chan = dBase.GetChannel(const_cast<char *>(CHANNEL_U), 1, this->uuid);
-            if (chan != nullptr) {
-                dBase.StoreData(TYPE_CURRENTS, 0, fl, nullptr, chan);
-                dBase.StoreData(TYPE_EVENTS, 0, fl, date, chan);
-                free(chan);
-            }
+            strncpy(chan, dBase.GetChannel(const_cast<char *>(CHANNEL_U), 1, this->uuid), 40);
+            currentKernelInstance.log.ulogw(LOG_LEVEL_INFO, "[303][%s][%s] V=[%f]",chan, param, fl);
+	    if (strlen(chan)>0) {
+        	dBase.StoreData(TYPE_CURRENTS, 0, fl, nullptr, chan);
+        	dBase.StoreData(TYPE_CURRENTS, 1, fl, nullptr, chan);
+        	dBase.StoreData(TYPE_INTERVALS, 0, fl, date, chan);
+	    }
         }
     }
     rs = send_ce(CURRENT_F, 0, date, READ_PARAMETERS);
     if (rs) res = this->read_ce(data, 0);
-    if (res) {
+    if (res > 0) {
         res = static_cast<uint16_t>(sscanf((const char *) data, "FREQU(%s)", param));
         if (rs) {
             fl = static_cast<float>(atof(param));
@@ -212,16 +214,17 @@ int DeviceCE::ReadDataCurrentCE() {
     }
     rs = send_ce(CURRENT_I, 0, date, READ_PARAMETERS);
     if (rs) res = this->read_ce(data, 0);
-    if (res) {
+    if (res > 0) {
         res = static_cast<uint16_t>(sscanf((const char *) data, "ET0PE(%s)", param));
         if (res) {
             fl = static_cast<float>(atof(param));
-            currentKernelInstance.log.ulogw(LOG_LEVEL_INFO, "[303][%s] F=[%f]", param, fl);
-            chan = dBase.GetChannel(const_cast<char *>(CHANNEL_I), 1, this->uuid);
-            if (chan != nullptr) {
-                dBase.StoreData(TYPE_CURRENTS, 0, fl, nullptr, chan);
-                free(chan);
-            }
+            currentKernelInstance.log.ulogw(LOG_LEVEL_INFO, "[303][%s] I=[%f]", param, fl);
+            strncpy(chan, dBase.GetChannel(const_cast<char *>(CHANNEL_I), 1, this->uuid), 40);
+	    if (strlen(chan)>0) {
+        	dBase.StoreData(TYPE_CURRENTS, 0, fl, nullptr, chan);
+        	dBase.StoreData(TYPE_CURRENTS, 1, fl, nullptr, chan);
+    		dBase.StoreData(TYPE_INTERVALS, 0, fl, date, chan);
+	    }
         }
     }
 
@@ -233,7 +236,7 @@ int DeviceCE::ReadAllArchiveCE(uint16_t tp) {
     bool rs;
     char *chan;
     uint16_t res = 0;
-    uint8_t data[400];
+    uint8_t data[400], count = 0;
     char date[20], param[20];
     //uint16_t month, year, index;
     float fl;
@@ -246,24 +249,27 @@ int DeviceCE::ReadAllArchiveCE(uint16_t tp) {
 
     tim = time(&tim);
     localtime_r(&tim, tt);
-    for (int i = 0; i < tp; i++) {
+    for (int i = 0; i < 2; i++) {
         if (tt->tm_mon == 0) {
             tt->tm_mon = 12;
             tt->tm_year--;
         }
         sprintf(date, "EAMPE(%02d.%02d)", tt->tm_mon + 1, tt->tm_year - 100);        // ddMMGGtt
+        strncpy(chan, dBase.GetChannel(const_cast<char *>(CHANNEL_W), 1, this->uuid), 40);
         rs = send_ce(ARCH_MONTH, 0, date, 1);
         if (rs) res = this->read_ce(data, 0);
         if (res) {
-            rs = static_cast<bool>(sscanf((const char *) data, "EAMPE(%s)", param));
-            fl = static_cast<float>(atof(param));
-            sprintf(date, "%04d%02d01000000", tt->tm_year + 1900, tt->tm_mon);
-            chan = dBase.GetChannel(const_cast<char *>(CHANNEL_W), 1, this->uuid);
-            if (chan != nullptr) {
-                currentKernelInstance.log.ulogw(LOG_LEVEL_INFO, "[303][%s] [0x%x 0x%x 0x%x 0x%x] [%f] [%s]",
-                                                chan, data[0], data[1], data[2], data[3], fl, date);
-                dBase.StoreData(TYPE_MONTH, 0, fl, date, chan);
-                free(chan);
+            count = 0;
+            for (int r = 0; r < 40; r++) {
+                if (data[r] == 0x28 && count < 5) {
+                    rs = static_cast<bool>(sscanf((const char *) data + r, "(%s)", param));
+                    fl = static_cast<float>(atof(param));
+                    sprintf(date, "%04d%02d01000000", tt->tm_year + 1900, tt->tm_mon);
+                    currentKernelInstance.log.ulogw(LOG_LEVEL_INFO, "[303][%s] [%f] [%s]", chan, fl, date);
+                    if (strlen(chan) > 0)
+                        dBase.StoreData(TYPE_MONTH, count, fl, date, chan);
+                    count++;
+                }
             }
         }
 
@@ -271,15 +277,17 @@ int DeviceCE::ReadAllArchiveCE(uint16_t tp) {
         rs = send_ce(ARCH_MONTH, 0, date, 1);
         if (rs) res = this->read_ce(data, 0);
         if (res) {
-            res = static_cast<uint16_t>(sscanf((const char *) data, "ENMPE(%s)", param));
-            fl = static_cast<float>(atof(param));
-            sprintf(date, "%04d%02d01000000", tt->tm_year + 1900, tt->tm_mon);
-            chan = dBase.GetChannel(const_cast<char *>(CHANNEL_W), 1, this->uuid);
-            if (chan != nullptr) {
-                currentKernelInstance.log.ulogw(LOG_LEVEL_INFO, "[303][%s] [0x%x 0x%x 0x%x 0x%x] [%f] [%s]",
-                                                chan, data[0], data[1], data[2], data[3], fl, date);
-                dBase.StoreData(TYPE_MONTH, 0, fl, date, chan);
-                free(chan);
+            count = 0;
+            for (int r = 0; r < 40; r++) {
+                if (data[r] == 0x28 && count < 5) {
+                    rs = static_cast<bool>(sscanf((const char *) data + r, "(%s)", param));
+                    fl = static_cast<float>(atof(param));
+                    sprintf(date, "%04d%02d01000000", tt->tm_year + 1900, tt->tm_mon);
+                    currentKernelInstance.log.ulogw(LOG_LEVEL_INFO, "[303][%s] [%f] [%s]", chan, fl, date);
+                    if (strlen(chan) > 0)
+                        dBase.StoreData(TYPE_INCREMENTS, count, fl, date, chan);
+                    count++;
+                }
             }
         }
         tt->tm_mon--;
@@ -292,35 +300,43 @@ int DeviceCE::ReadAllArchiveCE(uint16_t tp) {
         rs = send_ce(ARCH_DAYS, 0, date, 1);
         if (rs) res = this->read_ce(data, 0);
         if (res) {
-            rs = static_cast<bool>(sscanf((const char *) data, "EADPE(%s)", param));
-            fl = static_cast<float>(atof(param));
-            sprintf(date, "%04d%02d%02d000000", tt->tm_year + 1900, tt->tm_mon + 1, tt->tm_mday);
-            chan = dBase.GetChannel(const_cast<char *>(CHANNEL_W), 1, this->uuid);
-            if (chan != nullptr) {
-                currentKernelInstance.log.ulogw(LOG_LEVEL_INFO, "[303][%s] [0x%x 0x%x 0x%x 0x%x] [%f] [%s]",
-                                                chan, data[0], data[1], data[2], data[3], fl, date);
-                if (fl >= 0) dBase.StoreData(TYPE_DAYS, 0, fl, date, chan);
-                free(chan);
+            count = 0;
+            for (int r = 0; r < 40; r++) {
+                if (data[r] == 0x28 && count < 5) {
+                    rs = static_cast<bool>(sscanf((const char *) data + r, "(%s)", param));
+                    fl = static_cast<float>(atof(param));
+                    sprintf(date, "%04d%02d%02d000000", tt->tm_year + 1900, tt->tm_mon + 1, tt->tm_mday);
+                    currentKernelInstance.log.ulogw(LOG_LEVEL_INFO, "[303][%s] [%f] [%s]", chan, fl, date);
+                    if (strlen(chan) > 0)
+                        dBase.StoreData(TYPE_DAYS, count, fl, date, chan);
+                    count++;
+                }
             }
         }
         sprintf(date, "ENDPE(%02d.%02d.%02d)", tt->tm_mday, tt->tm_mon + 1, tt->tm_year - 100);    // ddMMGGtt
         rs = send_ce(ARCH_DAYS, 0, date, 1);
         if (rs) res = this->read_ce(data, 0);
         if (res) {
-            rs = static_cast<bool>(sscanf((const char *) data, "ENDPE(%s)", param));
-            fl = static_cast<float>(atof(param));
-            sprintf(date, "%04d%02d%02d000000", tt->tm_year + 1900, tt->tm_mon + 1, tt->tm_mday);
-            currentKernelInstance.log.ulogw(LOG_LEVEL_INFO, "[303] [0x%x 0x%x 0x%x 0x%x] [%f] [%s]",
-                                            data[0], data[1], data[2], data[3], fl, date);
-            chan = dBase.GetChannel(const_cast<char *>(CHANNEL_W), 1, this->uuid);
-            if (chan != nullptr) {
-                if (fl >= 0) dBase.StoreData(TYPE_DAYS, 0, fl, date, chan);
-                free(chan);
+            count = 0;
+            for (int r = 0; r < 40; r++) {
+                if (data[r] == 0x28 && count < 5) {
+                    rs = static_cast<bool>(sscanf((const char *) data + r, "(%s)", param));
+                    fl = static_cast<float>(atof(param));
+                    sprintf(date, "%04d%02d%02d000000", tt->tm_year + 1900, tt->tm_mon + 1, tt->tm_mday);
+                    currentKernelInstance.log.ulogw(LOG_LEVEL_INFO, "[303][%s] [%f] [%s]", chan, fl, date);
+                    if (strlen(chan) > 0) {
+                        dBase.StoreData(TYPE_INCREMENTS, count, fl, date, chan);
+                        if (i == 0)
+                            dBase.StoreData(TYPE_TOTAL_CURRENT, count, fl, date, chan);
+                    }
+                    count++;
+                }
             }
         }
         tim -= 3600 * 24;
         localtime_r(&tim, tt);
     }
+
     free(tt);
     return 0;
 }
@@ -392,8 +408,9 @@ uint16_t Crc16(uint8_t *Data, uint8_t DataSize) {
 uint8_t CRC(const uint8_t *Data, uint8_t DataSize) {
     uint8_t _CRC = 0;
     for (int i = 0; i < DataSize; i++) {
-        if (Data[i] % 2 == 1) _CRC += (Data[i] | (uint8_t) 0x80);
-        else _CRC += ((Data[i]) & (uint8_t) 0x7f);
+        //CRC += ((Data[i]) & (uint8_t)0x7f);
+        if (Data[i] % 2 == 1) _CRC += (Data[i] | 0x80);
+        else _CRC += ((Data[i]) & 0x7f);
     }
     if (_CRC > 0x80) _CRC -= 0x80;
     return _CRC;
@@ -614,8 +631,8 @@ uint16_t DeviceCE::read_ce(uint8_t *dat, uint8_t type) {
         //if (nbytes>55)
         //    for (int ii=0; ii<nbytes; ii++)
         //	printf ("0x%x\n",data[ii]);
-        //currentKernelInstance.log.ulogw(LOG_LEVEL_INFO, "[ce] [%d][0x%x,0x%x,0x%x]",                    nbytes, data[nbytes - 1], data[nbytes - 2], crc);
-        if (data[nbytes - 1] != 0xa && data[nbytes - 2] != 0xd && nbytes < 50)
+        //currentKernelInstance.log.ulogw(LOG_LEVEL_INFO, "[ce] [%d][0x%x,0x%x,0x%x]", nbytes, data[nbytes - 1], data[nbytes - 2], crc);
+        if (data[nbytes - 1] != 0xa && data[nbytes - 2] != 0xd && nbytes < 10)
             if (crc != data[nbytes - 1] || nbytes < 8) nbytes = 0;
 
         if (nbytes < 100 && nbytes > 11) {

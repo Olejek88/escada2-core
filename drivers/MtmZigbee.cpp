@@ -206,7 +206,7 @@ void mtmZigbeePktListener(int32_t threadId) {
             currentTime = time(nullptr);
             if (currentTime - heartBeatTime >= 5) {
                 heartBeatTime = currentTime;
-                UpdateThreads(*mtmZigbeeDBase, threadId, 0, 1);
+                UpdateThreads(*mtmZigbeeDBase, threadId, 0, 1, nullptr);
             }
 
             // рассылаем пакет с текущим "временем" раз в 10 секунд
