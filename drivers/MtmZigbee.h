@@ -57,4 +57,6 @@ bool createSChannel(uint8_t *uuid, const char *channelTitle, uint8_t sensorIndex
 
 bool storeMeasureValue(uint8_t *uuid, uint8_t *channelUuid, double value, time_t createTime, time_t changedTime);
 
+ssize_t resetCoordinator();
+
 #endif //ESCADA_CORE_MTMZIGBEE_H

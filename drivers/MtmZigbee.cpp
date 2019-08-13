@@ -363,6 +363,14 @@ ssize_t switchContactor(bool enable, uint8_t line) {
     return rc;
 }
 
+ssize_t resetCoordinator() {
+    int dtrFlag = TIOCM_DTR;
+    ioctl(coordinatorFd, TIOCMBIS, &dtrFlag);
+    ioctl(coordinatorFd, TIOCMBIC, &dtrFlag);
+    sleep(2);
+    return 1;
+}
+
 void mtmZigbeeProcessOutPacket() {
     uint8_t query[1024];
     MYSQL_RES *res;
@@ -522,6 +530,15 @@ void mtmZigbeeProcessOutPacket() {
                                 }
 
                                 rc = switchContactor(mtmPkt[3], mtmPkt[2]);
+                                break;
+                            case MTM_CMD_TYPE_RESET_COORDINATOR:
+                                if (DEBUG) {
+                                    kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] send MTM_CMD_TYPE_RESET_COORDINATOR\n",
+                                                      TAG);
+                                    log_buffer_hex(mtmPkt, decoded);
+                                }
+
+                                rc = resetCoordinator();
                                 break;
                             default:
                                 rc = -1;
@@ -892,6 +909,8 @@ int32_t mtmZigbeeInit(int32_t mode, uint8_t *path, uint32_t speed) {
             return -3;
         }
 
+        resetCoordinator();
+
         // инициализируем
         tcgetattr(coordinatorFd, &serialPortSettings);
 
@@ -901,7 +920,7 @@ int32_t mtmZigbeeInit(int32_t mode, uint8_t *path, uint32_t speed) {
 
         /* 8N1 Mode */
         serialPortSettings.c_cflag &= ~PARENB;   /* Disables the Parity Enable bit(PARENB),So No Parity   */ // NOLINT(hicpp-signed-bitwise)
-        serialPortSettings.c_cflag &= HUPCL;     /* принудительно выключаем DTR так как через него мы управляем сбросом модуля zigbee */ // NOLINT(hicpp-signed-bitwise)
+        serialPortSettings.c_cflag &= ~HUPCL;     /* принудительно выключаем DTR при открытом порту, так как через него мы управляем сбросом модуля zigbee */ // NOLINT(hicpp-signed-bitwise)
         serialPortSettings.c_cflag &= ~CSTOPB;   /* CSTOPB = 2 Stop bits,here it is cleared so 1 Stop bit */ // NOLINT(hicpp-signed-bitwise)
         serialPortSettings.c_cflag &= ~CSIZE;    /* Clears the mask for setting the data size             */ // NOLINT(hicpp-signed-bitwise)
         serialPortSettings.c_cflag |= CS8; // NOLINT(hicpp-signed-bitwise)
