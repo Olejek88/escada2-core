@@ -563,25 +563,26 @@ void mtmZigbeeProcessOutPacket() {
 
 }
 
-void mtmZigbeeProcessInPacket(uint8_t *pktBuff, uint32_t len) {
-
+void mtmZigbeeProcessInPacket(uint8_t *pktBuff, uint32_t length) {
     uint16_t cmd = *(uint16_t *) (&pktBuff[2]);
     uint8_t pktType;
+    uint8_t dstEndPoint;
+    uint16_t cluster;
+    uint8_t address[32];
+
+    if (DEBUG) {
+        char pktStr[2048] = {0};
+        kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] RAW packet", TAG);
+        for (int i = 0; i < length; i++) {
+            sprintf(&pktStr[i], "%02X,", pktBuff[i]);
+        }
+
+        kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] %s", TAG, pktStr);
+    }
+
     uint8_t resultBuff[1024] = {};
     struct base64_encode_ctx b64_ctx = {};
     int encoded_bytes;
-    uint8_t dstEndPoint;
-    uint16_t cluster;
-
-    uint8_t deviceUuid[64];
-    uint8_t sChannelUuid[64];
-    uuid_t newUuid;
-    uint8_t newMeasureUuid[37] = {0};
-
-//    uint8_t query[1024];
-    uint8_t addr[32];
-//    MYSQL_RES *res;
-    time_t createTime = time(nullptr);
 
     switch (cmd) {
         case AF_DATA_RESPONSE:
@@ -598,8 +599,8 @@ void mtmZigbeeProcessInPacket(uint8_t *pktBuff, uint32_t len) {
             switch (cluster) { // NOLINT
                 case MBEE_API_LOCAL_IOSTATUS_CLUSTER :
                     // состояние линий модуля zigbee
-                    memset(addr, 0, 32);
-                    sprintf((char *) addr, "%02X%02X%02X%02X%02X%02X%02X%02X",
+                    memset(address, 0, 32);
+                    sprintf((char *) address, "%02X%02X%02X%02X%02X%02X%02X%02X",
                             pktBuff[17], pktBuff[16], pktBuff[15], pktBuff[14],
                             pktBuff[13], pktBuff[12], pktBuff[11], pktBuff[10]);
 
@@ -607,13 +608,14 @@ void mtmZigbeeProcessInPacket(uint8_t *pktBuff, uint32_t len) {
                         kernel->log.ulogw(LOG_LEVEL_INFO, "get sensor data packet!!!!!\n");
                     }
 
-                    makeCoordinatorStatus(addr, pktBuff);
+                    makeCoordinatorStatus(address, pktBuff);
                     break;
                 default:
                     break;
             }
 
             break;
+
         case AF_INCOMING_MSG:
             if (DEBUG) {
                 kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] AF_INCOMING_MSG\n", TAG);
@@ -628,134 +630,45 @@ void mtmZigbeeProcessInPacket(uint8_t *pktBuff, uint32_t len) {
             pktType = pktBuff[21];
             switch (pktType) {
                 case MTM_CMD_TYPE_STATUS:
-                    len = len - 33;
+                    length = length - 33;
                     if (DEBUG) {
                         kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] MTM_CMD_TYPE_STATUS\n", TAG);
-                        log_buffer_hex(&pktBuff[21], len + 12);
+                        log_buffer_hex(&pktBuff[21], length + 12);
                     }
 
-                    base64_encode_init(&b64_ctx);
+                    memset(address, 0, 32);
+                    sprintf((char *) address, "%02X%02X%02X%02X%02X%02X%02X%02X",
+                            pktBuff[30], pktBuff[29], pktBuff[28], pktBuff[27],
+                            pktBuff[26], pktBuff[25], pktBuff[24], pktBuff[23]);
 
+                    base64_encode_init(&b64_ctx);
 #ifdef __APPLE__
                 encoded_bytes = base64_encode_update(&b64_ctx, (char *) resultBuff, get_mtm_command_size(pktType),
                                                      reinterpret_cast<const uint8_t *>((size_t) &pktBuff[21]));
                 base64_encode_final(&b64_ctx, reinterpret_cast<char *>(resultBuff + encoded_bytes));
 #elif __USE_GNU
-                    encoded_bytes = base64_encode_update(&b64_ctx, resultBuff, len + 12, &pktBuff[21]);
+                    encoded_bytes = base64_encode_update(&b64_ctx, resultBuff, length + 12, &pktBuff[21]);
                     base64_encode_final(&b64_ctx, resultBuff + encoded_bytes);
 #endif
 
-                    memset(addr, 0, 32);
-                    sprintf((char *) addr, "%02X%02X%02X%02X%02X%02X%02X%02X",
-                            pktBuff[30], pktBuff[29], pktBuff[28], pktBuff[27],
-                            pktBuff[26], pktBuff[25], pktBuff[24], pktBuff[23]);
+                    if (DEBUG) {
+                        uint8_t query[1024];
+                        MYSQL_RES *res;
+                        time_t createTime = time(nullptr);
+                        sprintf((char *) query,
+                                "INSERT INTO light_answer (address, data, createdAt, changedAt, dateIn) value('%s', '%s', FROM_UNIXTIME(%ld), FROM_UNIXTIME(%ld), FROM_UNIXTIME(%ld))",
+                                address, resultBuff, createTime, createTime, createTime);
+                        kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] %s\n", TAG, query);
+                        res = mtmZigbeeDBase->sqlexec((const char *) query);
+                        if (res) {
+                            mysql_free_result(res);
+                        }
+                    }
 
-                    // данные эти по большому счёту нужны только для отладки
-//                    sprintf((char *) query,
-//                            "INSERT INTO light_answer (address, data, createdAt, changedAt, dateIn) value('%s', '%s', FROM_UNIXTIME(%ld), FROM_UNIXTIME(%ld), FROM_UNIXTIME(%ld))",
-//                            addr, resultBuff, createTime, createTime, createTime);
-//                    if (DEBUG) {
-//                        kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] %s\n", TAG, query);
-//                    }
-//
-//                    res = mtmZigbeeDBase->sqlexec((const char *) query);
-//                    if (res) {
-//                        mysql_free_result(res);
-//                    }
-
-                    for (uint8_t statusIdx = 0; statusIdx < len / 2; statusIdx++) {
+                    for (uint8_t statusIdx = 0; statusIdx < length / 2; statusIdx++) {
                         switch (statusIdx) {
-                            case 0 :
-                                memset(deviceUuid, 0, 64);
-                                if (findDevice(addr, deviceUuid)) {
-                                    // найти канал по устройству sensor_channel и regIdx (Температура светильника)
-                                    memset(sChannelUuid, 0, 64);
-                                    if (!findSChannel(deviceUuid, MTM_ZB_CHANNEL_LIGHT_TEMPERATURE_IDX, CHANNEL_T,
-                                                      sChannelUuid)) {
-                                        // если нет, создать
-                                        uuid_generate(newUuid);
-                                        uuid_unparse_upper(newUuid, (char *) sChannelUuid);
-                                        if (!createSChannel(sChannelUuid, MTM_ZB_CHANNEL_LIGHT_TEMPERATURE_TITLE,
-                                                            MTM_ZB_CHANNEL_LIGHT_TEMPERATURE_IDX, deviceUuid, CHANNEL_T,
-                                                            createTime)) {
-                                            kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] %s %s\n", TAG,
-                                                              "Неудалось канал измерение ",
-                                                              MTM_ZB_CHANNEL_LIGHT_TEMPERATURE_TITLE);
-                                        }
-                                    }
-
-                                    // TODO: найти запись для текущего устройства с указанным каналом, если нет её, создать, если есть, обновить
-                                    // создать новое измерение для канала
-                                    uuid_generate(newUuid);
-                                    memset(newMeasureUuid, 0, 37);
-                                    uuid_unparse_upper(newUuid, (char *) newMeasureUuid);
-                                    int8_t value = pktBuff[34];
-                                    if (!storeMeasureValue(newMeasureUuid, sChannelUuid, (double) value, createTime,
-                                                           createTime)) {
-                                        kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] %s %s\n", TAG,
-                                                          "Не удалось сохранить измерение",
-                                                          MTM_ZB_CHANNEL_LIGHT_TEMPERATURE_TITLE);
-                                    }
-
-                                    // найти канал по устройству sensor_channel и regIdx (Ток светильника)
-                                    memset(sChannelUuid, 0, 64);
-                                    if (!findSChannel(deviceUuid, MTM_ZB_CHANNEL_LIGHT_CURRENT_IDX, CHANNEL_I,
-                                                      sChannelUuid)) {
-                                        // если нет, создать
-                                        uuid_generate(newUuid);
-                                        uuid_unparse_upper(newUuid, (char *) sChannelUuid);
-                                        if (!createSChannel(sChannelUuid, MTM_ZB_CHANNEL_LIGHT_CURRENT_TITLE,
-                                                            MTM_ZB_CHANNEL_LIGHT_CURRENT_IDX, deviceUuid, CHANNEL_I,
-                                                            createTime)) {
-                                            kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] %s %s\n", TAG,
-                                                              "Неудалось канал измерение ",
-                                                              MTM_ZB_CHANNEL_LIGHT_CURRENT_TITLE);
-                                        }
-                                    }
-
-                                    // TODO: найти запись для текущего устройства с указанным каналом, если нет её, создать, если есть, обновить
-                                    // создать новое измерение для канала
-                                    uuid_generate(newUuid);
-                                    memset(newMeasureUuid, 0, 37);
-                                    uuid_unparse_upper(newUuid, (char *) newMeasureUuid);
-                                    value = pktBuff[33];
-                                    if (!storeMeasureValue(newMeasureUuid, sChannelUuid, (double) value, createTime,
-                                                           createTime)) {
-                                        kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] %s %s\n", TAG,
-                                                          "Не удалось сохранить измерение",
-                                                          MTM_ZB_CHANNEL_LIGHT_CURRENT_TITLE);
-                                    }
-
-                                    // найти канал по устройству sensor_channel и regIdx (Состояние светильника)
-                                    memset(sChannelUuid, 0, 64);
-                                    if (!findSChannel(deviceUuid, MTM_ZB_CHANNEL_LIGHT_STATUS_IDX, CHANNEL_STATUS,
-                                                      sChannelUuid)) {
-                                        // если нет, создать
-                                        uuid_generate(newUuid);
-                                        uuid_unparse_upper(newUuid, (char *) sChannelUuid);
-                                        if (!createSChannel(sChannelUuid, MTM_ZB_CHANNEL_LIGHT_STATUS_TITLE,
-                                                            MTM_ZB_CHANNEL_LIGHT_STATUS_IDX, deviceUuid, CHANNEL_STATUS,
-                                                            createTime)) {
-                                            kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] %s %s\n", TAG,
-                                                              "Неудалось канал измерение ",
-                                                              MTM_ZB_CHANNEL_LIGHT_STATUS_TITLE);
-                                        }
-                                    }
-
-                                    // TODO: найти запись для текущего устройства с указанным каналом, если нет её, создать, если есть, обновить
-                                    // создать новое измерение для канала
-                                    uuid_generate(newUuid);
-                                    memset(newMeasureUuid, 0, 37);
-                                    uuid_unparse_upper(newUuid, (char *) newMeasureUuid);
-                                    uint16_t alerts = *(uint16_t *) &pktBuff[31];
-                                    value = alerts & 0x0001u;
-                                    if (!storeMeasureValue(newMeasureUuid, sChannelUuid, (double) value, createTime,
-                                                           createTime)) {
-                                        kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] %s %s\n", TAG,
-                                                          "Не удалось сохранить измерение",
-                                                          MTM_ZB_CHANNEL_LIGHT_STATUS_TITLE);
-                                    }
-                                }
+                            case MTM_DEVICE_LIGHT :
+                                makeLightStatus(address, pktBuff);
                                 break;
                             case 1 :
                             case 2 :
@@ -777,6 +690,7 @@ void mtmZigbeeProcessInPacket(uint8_t *pktBuff, uint32_t len) {
                         }
                     }
                     break;
+
                 case MTM_CMD_TYPE_CONFIG:
                 case MTM_CMD_TYPE_CONFIG_LIGHT:
                 case MTM_CMD_TYPE_CURRENT_TIME:
@@ -785,14 +699,131 @@ void mtmZigbeeProcessInPacket(uint8_t *pktBuff, uint32_t len) {
                     break;
             }
             break;
+
         case AF_INCOMING_MSG_EXT:
             if (DEBUG) {
                 kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] AF_INCOMING_MSG_EXT\n", TAG);
             }
 
             break;
+
         default:
             break;
+    }
+}
+
+void makeLightStatus(uint8_t *address, const uint8_t *packetBuffer) {
+    uint8_t deviceUuid[37];
+    uint8_t sChannelUuid[37];
+    uuid_t newUuid;
+    uint8_t measureUuid[37] = {0};
+    time_t createTime = time(nullptr);
+    int8_t value;
+
+    memset(deviceUuid, 0, 37);
+    if (!findDevice(address, deviceUuid)) {
+        kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] %s %s\n", TAG, "Неудалось найти устройство с адресом %s", address);
+        return;
+    }
+
+    // найти канал по устройству sensor_channel и regIdx (Температура светильника)
+    memset(sChannelUuid, 0, 37);
+    if (!findSChannel(deviceUuid, MTM_ZB_CHANNEL_LIGHT_TEMPERATURE_IDX, CHANNEL_T, sChannelUuid)) {
+        // если нет, создать
+        uuid_generate(newUuid);
+        uuid_unparse_upper(newUuid, (char *) sChannelUuid);
+        if (!createSChannel(sChannelUuid, MTM_ZB_CHANNEL_LIGHT_TEMPERATURE_TITLE, MTM_ZB_CHANNEL_LIGHT_TEMPERATURE_IDX,
+                            deviceUuid, CHANNEL_T, createTime)) {
+            kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] %s %s\n", TAG, "Неудалось канал измерение ",
+                              MTM_ZB_CHANNEL_LIGHT_TEMPERATURE_TITLE);
+            memset(sChannelUuid, 0, 37);
+        }
+    }
+
+    value = packetBuffer[34];
+    if (*sChannelUuid != 0) {
+        if (findMeasure(sChannelUuid, MTM_ZB_CHANNEL_LIGHT_TEMPERATURE_IDX, measureUuid)) {
+            if (!updateMeasureValue(measureUuid, value, createTime)) {
+                kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] %s %s\n", TAG, "Не удалось обновить измерение",
+                                  MTM_ZB_CHANNEL_LIGHT_TEMPERATURE_TITLE);
+            }
+        } else {
+            // создать новое измерение для канала
+            uuid_generate(newUuid);
+            memset(measureUuid, 0, 37);
+            uuid_unparse_upper(newUuid, (char *) measureUuid);
+            if (!storeMeasureValue(measureUuid, sChannelUuid, (double) value, createTime, createTime)) {
+                kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] %s %s\n", TAG, "Не удалось сохранить измерение",
+                                  MTM_ZB_CHANNEL_LIGHT_TEMPERATURE_TITLE);
+            }
+        }
+    }
+
+    // найти канал по устройству sensor_channel и regIdx (Ток светильника)
+    memset(sChannelUuid, 0, 37);
+    if (!findSChannel(deviceUuid, MTM_ZB_CHANNEL_LIGHT_CURRENT_IDX, CHANNEL_I, sChannelUuid)) {
+        // если нет, создать
+        uuid_generate(newUuid);
+        uuid_unparse_upper(newUuid, (char *) sChannelUuid);
+        if (!createSChannel(sChannelUuid, MTM_ZB_CHANNEL_LIGHT_CURRENT_TITLE, MTM_ZB_CHANNEL_LIGHT_CURRENT_IDX,
+                            deviceUuid, CHANNEL_I, createTime)) {
+            kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] %s %s\n", TAG, "Неудалось канал измерение ",
+                              MTM_ZB_CHANNEL_LIGHT_CURRENT_TITLE);
+            memset(sChannelUuid, 0, 37);
+        }
+    }
+
+    value = packetBuffer[33];
+    if (*sChannelUuid != 0) {
+        if (findMeasure(sChannelUuid, MTM_ZB_CHANNEL_LIGHT_CURRENT_IDX, measureUuid)) {
+            if (!updateMeasureValue(measureUuid, value, createTime)) {
+                kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] %s %s\n", TAG, "Не удалось обновить измерение",
+                                  MTM_ZB_CHANNEL_LIGHT_CURRENT_TITLE);
+            }
+        } else {
+            // создать новое измерение для канала
+            uuid_generate(newUuid);
+            memset(measureUuid, 0, 37);
+            uuid_unparse_upper(newUuid, (char *) measureUuid);
+            if (!storeMeasureValue(measureUuid, sChannelUuid, (double) value, createTime, createTime)) {
+                kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] %s %s\n", TAG, "Не удалось сохранить измерение",
+                                  MTM_ZB_CHANNEL_LIGHT_CURRENT_TITLE);
+            }
+        }
+    }
+
+    // найти канал по устройству sensor_channel и regIdx (Состояние светильника)
+    memset(sChannelUuid, 0, 37);
+    if (!findSChannel(deviceUuid, MTM_ZB_CHANNEL_LIGHT_STATUS_IDX, CHANNEL_STATUS, sChannelUuid)) {
+        // если нет, создать
+        uuid_generate(newUuid);
+        uuid_unparse_upper(newUuid, (char *) sChannelUuid);
+        if (!createSChannel(sChannelUuid, MTM_ZB_CHANNEL_LIGHT_STATUS_TITLE, MTM_ZB_CHANNEL_LIGHT_STATUS_IDX,
+                            deviceUuid, CHANNEL_STATUS, createTime)) {
+            kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] %s %s\n", TAG, "Неудалось канал измерение ",
+                              MTM_ZB_CHANNEL_LIGHT_STATUS_TITLE);
+            memset(sChannelUuid, 0, 37);
+        }
+    }
+
+    uint16_t alerts = *(uint16_t *) &packetBuffer[31];
+    value = alerts & 0x0001u;
+    if (*sChannelUuid != 0) {
+        if (findMeasure(sChannelUuid, MTM_ZB_CHANNEL_LIGHT_STATUS_IDX, measureUuid)) {
+            if (!updateMeasureValue(measureUuid, value, createTime)) {
+                kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] %s %s\n", TAG, "Не удалось обновить измерение",
+                                  MTM_ZB_CHANNEL_LIGHT_STATUS_TITLE);
+            }
+        } else {
+            // создать новое измерение для канала
+            uuid_generate(newUuid);
+            memset(measureUuid, 0, 37);
+            uuid_unparse_upper(newUuid, (char *) measureUuid);
+            if (!storeMeasureValue(measureUuid, sChannelUuid, (double) value, createTime, createTime)) {
+                kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] %s %s\n", TAG, "Не удалось сохранить измерение",
+                                  MTM_ZB_CHANNEL_LIGHT_STATUS_TITLE);
+            }
+        }
     }
 }
 

@@ -6,7 +6,7 @@
 #include <termios.h>
 
 #ifndef DEBUG
-#define DEBUG false
+#define DEBUG true
 #endif
 
 #define MTM_ZIGBEE_FIFO 0
@@ -43,7 +43,7 @@ bool mtmZigbeeGetRun();
 
 void mtmZigbeeSetRun(bool val);
 
-void mtmZigbeeProcessInPacket(uint8_t *pktBuff, uint32_t len);
+void mtmZigbeeProcessInPacket(uint8_t *pktBuff, uint32_t length);
 
 void mtmZigbeeProcessOutPacket();
 
@@ -69,5 +69,7 @@ void makeCoordinatorStatus(uint8_t *address, const uint8_t *packetBuffer);
 bool findMeasure(uint8_t *sChannelUuid, uint8_t regIdx, uint8_t *measureUuid);
 
 bool updateMeasureValue(uint8_t *uuid, double value, time_t changedTime);
+
+void makeLightStatus(uint8_t *address, const uint8_t *packetBuffer);
 
 #endif //ESCADA_CORE_MTMZIGBEE_H
