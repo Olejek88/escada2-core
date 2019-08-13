@@ -34,9 +34,13 @@ int main(int argc, char *argv[]) {
     int res = 0;
     Kernel &currentKernelInstance = Kernel::Instance();
     pthread_t dispatcher_thread;
+    pthread_attr_t attr;
     time_t tim;
     tim = time(&tim);
     dBase = new DBase();
+
+    pthread_attr_init(&attr);
+    pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED);
 
     signal(SIGTERM, signal_callback_handler);
 
@@ -64,11 +68,22 @@ int main(int argc, char *argv[]) {
     }
 
     // TODO здесь читаем конфигурацию пока не словим флаг остановки
-//    int cnt = 100;
+//    int cnt = 30;
     while (runKernel) {
         sleep(1);
 //        cnt--;
+//        if (cnt == 0) {
+//            runKernel = false;
+//        }
     }
+
+    // ждём пока завершится dispatcher
+    pthread_join(dispatcher_thread, nullptr);
+    pthread_attr_destroy(&attr);
+
+    dBase->disconnect();
+    delete dBase;
+
     currentKernelInstance.log.ulogw(LOG_LEVEL_INFO, "kernel finished");
     return OK;
 }
@@ -92,6 +107,7 @@ int Kernel::init() {
 void *dispatcher(void *thread_arg) {
     Kernel &currentKernelInstance = Kernel::Instance();
     pthread_t thr;
+    pthread_t zb_thr = 0;
     glibtop_cpu cpu1;
     glibtop_cpu cpu2;
     int who = RUSAGE_SELF;
@@ -100,6 +116,10 @@ void *dispatcher(void *thread_arg) {
     char query[300];
     double ct;
     int32_t pRc;
+    pthread_attr_t attr;
+
+    pthread_attr_init(&attr);
+    pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED);
 
     while (runKernel) {
         // читаем конфигурацию
@@ -110,30 +130,18 @@ void *dispatcher(void *thread_arg) {
         for (int th = 0; th < numThreads; th++) {
             time_t now = time(nullptr);
             // поток походу протух
-            //currentKernelInstance.log.ulogw(LOG_LEVEL_ERROR, "thr [%s] %ld %ld", typeThreads[th].title,typeThreads[th].lastDate, now);
+//            currentKernelInstance.log.ulogw(LOG_LEVEL_ERROR, "thr [%s] %ld %ld", typeThreads[th].title, typeThreads[th].lastDate, now);
             if ((now - typeThreads[th].lastDate) > 60) {
+                pRc = 0;
                 if (strncasecmp("0FBACF26-31CA-4B92-BCA3-220E09A6D2D3", typeThreads[th].deviceType, 36) == 0) {
-		    printf("%d\n",typeThreads[th].work);
                     if (typeThreads[th].work > 0)
-                        pRc = pthread_create(&thr, nullptr, ceDeviceThread, (void *) &typeThreads[th]);
+                        pRc = pthread_create(&thr, &attr, ceDeviceThread, (void *) &typeThreads[th]);
                 } else if (strncasecmp("CFD3C7CC-170C-4764-9A8D-10047C8B8B1D", typeThreads[th].deviceType, 36) == 0) {
                     if (typeThreads[th].work > 0)
-                        pRc = pthread_create(&thr, nullptr, mtmZigbeeDeviceThread, (void *) &typeThreads[th]);
+                        pRc = pthread_create(&zb_thr, nullptr, mtmZigbeeDeviceThread, (void *) &typeThreads[th]);
                 } else {
                     pRc = 0;
                 }
-
-//                switch (typeThreads[th].deviceType) {
-//                    case 1:
-//                        pRc = pthread_create(&thr, nullptr, mekDeviceThread, (void *) &typeThreads[th]);
-//                        break;
-//                    case 4:
-//                        pRc = pthread_create(&thr, nullptr, mtmZigbeeDeviceThread, (void *) &typeThreads[th]);
-//                        break;
-//                    default:
-//                        pRc = 0;
-//                        break;
-//                }
 
                 if (pRc != 0) {
                     currentKernelInstance.log.ulogw(LOG_LEVEL_ERROR, "error create %s thread", typeThreads[th].title);
@@ -142,6 +150,11 @@ void *dispatcher(void *thread_arg) {
         }
 
         sleep(10);
+
+        // удаляем информацию о потоках после задержки, т.к. потоки могут не успеть скопировать необходимую информацию
+        // из переданной им структуры
+        delete[] typeThreads;
+
         // TODO решить как собирать статистику по загрузке и свободному месту с памятью
         glibtop_init();
         glibtop_get_cpu(&cpu1);
@@ -162,10 +175,15 @@ void *dispatcher(void *thread_arg) {
 //        }
     }
 
-    currentKernelInstance.log.ulogw(LOG_LEVEL_INFO, "dispatcher finished");
+    pthread_attr_destroy(&attr);
 
     // пример как остановить поток драйвера zigbee
     mtmZigbeeSetRun(false);
+    if (zb_thr != 0) {
+        pthread_join(zb_thr, nullptr);
+    }
+
+    currentKernelInstance.log.ulogw(LOG_LEVEL_INFO, "dispatcher finished");
 
     return nullptr;
 }
