@@ -87,42 +87,42 @@ MYSQL_RES *DBase::sqlexec(const char *query) {
 bool DBase::StoreData(uint16_t type, uint16_t parameter, double value, char  *data, char *channelUuid) {
     MYSQL_RES *res;
     char query[500];
-    if (type==TYPE_CURRENTS) {
+    if (type==TYPE_CURRENTS || type==TYPE_TOTAL_CURRENT) {
         sprintf(query, "SELECT * FROM data WHERE sensorChannelUuid='%s' AND type=%d AND parameter=%d", channelUuid, type, parameter);
         res = sqlexec(query);
         if (res && (row = mysql_fetch_row(res)))  {
-            sprintf(query, "UPDATE data SET value=%f, date=CURRENT_TIMESTAMP() WHERE sensorChannelUuid='%s' AND type='%d'",
-                    value, channelUuid, type);
+            sprintf(query, "UPDATE data SET value=%f, date=CURRENT_TIMESTAMP(),changedAt=CURRENT_TIMESTAMP() WHERE sensorChannelUuid='%s' AND type='%d' AND parameter='%d'",
+                    value, channelUuid, type, parameter);
             res = sqlexec(query);
         } else {
             uuid_t newUuid;
 	    char newUuidString[37] = {0};
             uuid_generate(newUuid);
 	    uuid_unparse_upper(newUuid, newUuidString);
-            sprintf(query, "INSERT INTO data(uuid, type,value,sensorChannelUuid, date, parameter) VALUES('%s', '0','%f','%s', CURRENT_TIMESTAMP(),'%d')",
-                    newUuidString, value, channelUuid);
+            sprintf(query, "INSERT INTO data(uuid, type,value,sensorChannelUuid, date, parameter, createdAt) VALUES('%s','%d','%f','%s', CURRENT_TIMESTAMP(),'%d', CURRENT_TIMESTAMP())",
+                    newUuidString, type, value, channelUuid, parameter);
             res = sqlexec(query);
 	}
         if (res) mysql_free_result(res);
         return true;
     } else {
         sprintf(query, "SELECT * FROM data WHERE sensorChannelUuid='%s' AND type=%d AND date='%s' AND parameter=%d", channelUuid, type, data, parameter);
+        //printf ("S %s\n",query);
         res = sqlexec(query);
-	printf ("%s = %ld\n",query,res);
 	if (res && (row = mysql_fetch_row(res))) {
-	    printf ("U row=%ld\n",row);
+	    //printf ("U row=%ld\n",row);
             sprintf(query,
-                    "UPDATE data SET value=%f,date=date WHERE type='%d' AND sensorChannelUuid='%s' AND date='%s'",
+                    "UPDATE data SET value=%f,date=date, changedAt=CURRENT_TIMESTAMP() WHERE type='%d' AND sensorChannelUuid='%s' AND date='%s'",
                     value, type, channelUuid, data);
             res = sqlexec(query);
         } else {
-	    printf ("I row=%ld %s\n",row,mysql_error(mysql));
+	    //printf ("I row=%ld %s\n",row,mysql_error(mysql));
             uuid_t newUuid;
 	    char newUuidString[37] = {0};
             uuid_generate(newUuid);
 	    uuid_unparse_upper(newUuid, newUuidString);
-            sprintf(query, "INSERT INTO data(uuid, type,value,sensorChannelUuid, date, parameter) VALUES('%s', '%d','%f','%s','%s','%d')",
-                    newUuidString, type, value, channelUuid, data);
+            sprintf(query, "INSERT INTO data(uuid, type,value,sensorChannelUuid, date, parameter, createdAt) VALUES('%s', '%d','%f','%s','%s','%d',CURRENT_TIMESTAMP())",
+                    newUuidString, type, value, channelUuid, data,parameter);
             res = sqlexec(query);
 	}
         if (res) mysql_free_result(res);
