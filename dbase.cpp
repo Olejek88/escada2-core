@@ -113,17 +113,6 @@ bool DBase::StoreData(uint16_t type, uint16_t parameter, double value, char *dat
 
         return true;
     } else {
-<<<<<<< HEAD
-        sprintf(query, "SELECT * FROM data WHERE sensorChannelUuid='%s' AND type=%d AND date='%s' AND parameter=%d", channelUuid, type, data, parameter);
-        //printf ("S %s\n",query);
-        res = sqlexec(query);
-	if (res && (row = mysql_fetch_row(res))) {
-            sprintf(query,
-                    "UPDATE data SET value=%f,date=date, changedAt=CURRENT_TIMESTAMP() WHERE type='%d' AND sensorChannelUuid='%s' AND date='%s' AND parameter='%d'",
-                    value, type, channelUuid, data, parameter);
-            //res = sqlexec(query);
-	    //printf ("U query=%s %ld\n",query,res);
-=======
         sprintf(query, "SELECT * FROM data WHERE sensorChannelUuid='%s' AND type=%d AND date='%s' AND parameter=%d",
                 channelUuid, type, data, parameter);
         pRes = sqlexec(query);
@@ -136,7 +125,6 @@ bool DBase::StoreData(uint16_t type, uint16_t parameter, double value, char *dat
                     value, type, channelUuid, data);
             pRes = sqlexec(query);
             mysql_free_result(pRes);
->>>>>>> 8f6d0ea739e3b52e5a5443ce89dde1bc7d8edf1c
         } else {
 //            printf("I row=%ld %s\n", row, mysql_error(mysql));
             uuid_t newUuid;

@@ -32,7 +32,7 @@ uint32_t baudrate(uint32_t baud) {
 }
 
 //---------------------------------------------------------------------------------------------------
-bool UpdateThreads(DBase dBase, int thread_id, uint8_t type, uint8_t status, char* deviceUuid) {
+bool UpdateThreads(DBase dBase, int thread_id, uint8_t type, uint8_t status, char *deviceUuid) {
     MYSQL_RES *res;
     MYSQL_ROW row;
     char query[500], types[40];
@@ -63,11 +63,16 @@ bool UpdateThreads(DBase dBase, int thread_id, uint8_t type, uint8_t status, cha
     printf("%s\n", query);
     res = dBase.sqlexec(query);
     if (res && (row = mysql_fetch_row(res))) {
-	if (deviceUuid)
+        mysql_free_result(res);
+        if (deviceUuid) {
             sprintf(query,
-                "UPDATE threads SET deviceUuid='%s', status=%d, message='%s', c_time=FROM_UNIXTIME(%lu) WHERE _id=%d", deviceUuid, status, types, current_time, thread_id);
-	else
-            sprintf(query,"UPDATE threads SET status=%d, message='%s', c_time=FROM_UNIXTIME(%lu) WHERE _id=%d", status, types, current_time, thread_id);
+                    "UPDATE threads SET deviceUuid='%s', status=%d, message='%s', c_time=FROM_UNIXTIME(%lu) WHERE _id=%d",
+                    deviceUuid, status, types, current_time, thread_id);
+        } else {
+            sprintf(query,
+                    "UPDATE threads SET status=%d, message='%s', c_time=FROM_UNIXTIME(%lu), changedAt=FROM_UNIXTIME(%lu) WHERE _id=%d",
+                    status, types, current_time, current_time, thread_id);
+        }
 
         res = dBase.sqlexec(query);
         printf("%s\n", query);
@@ -86,7 +91,7 @@ bool UpdateThreads(DBase dBase, int thread_id, uint8_t type, uint8_t status, cha
 }
 
 //---------------------------------------------------------------------------------------------------
-bool AddDeviceRegister(DBase dBase, char* device, char* description) {
+bool AddDeviceRegister(DBase dBase, char *device, char *description) {
     MYSQL_RES *res;
     char query[500];
     uuid_t newUuid;
@@ -94,8 +99,9 @@ bool AddDeviceRegister(DBase dBase, char* device, char* description) {
     uuid_generate(newUuid);
     uuid_unparse_upper(newUuid, newUuidString);
 
-    sprintf(query, "INSERT INTO device_register(uuid, deviceUuid,description,date) VALUES('%s','%s','%s',CURRENT_TIMESTAMP)",
-            newUuidString, device,description);
+    sprintf(query,
+            "INSERT INTO device_register(uuid, deviceUuid, description, date, createdAt, changedAt) VALUES('%s','%s','%s', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)",
+            newUuidString, device, description);
     res = dBase.sqlexec(query);
     if (res) {
         mysql_free_result(res);
