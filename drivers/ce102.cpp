@@ -39,7 +39,7 @@ void *ceDeviceThread(void *pth) {
     currentKernelInstance.log.ulogw(LOG_LEVEL_INFO, "[303] mercury device thread started");
     if (dBase.openConnection() == OK) {
         while (true) {
-            sprintf(query, "SELECT * FROM device WHERE uuid=%s", thread.device_uuid);
+            sprintf(query, "SELECT * FROM device WHERE deviceTypeUuid='%s'", thread.deviceType);
             currentKernelInstance.log.ulogw(LOG_LEVEL_INFO, "[303] (%s)", query);
             res = dBase.sqlexec(query);
             u_long nRow = mysql_num_rows(res);
@@ -48,7 +48,7 @@ void *ceDeviceThread(void *pth) {
                 if (row) {
                     strncpy(deviceCE.uuid, row[1], 40);
                     strncpy(deviceCE.address, row[3], 10);
-                    strncpy(deviceCE.port, row[10], 20);
+                    strncpy(deviceCE.port, row[9], 20);
                 }
                 if (!fd) {
                     rs = OpenCom(deviceCE.port, thread.speed, 1);
@@ -59,13 +59,13 @@ void *ceDeviceThread(void *pth) {
                         if (rs) {
                             currentKernelInstance.log.ulogw(LOG_LEVEL_INFO, "[303] ReadDataCurrent (%d)", deviceCE.id);
                             UpdateThreads(dBase, thread.id, 0, 1, deviceCE.uuid);
-                            deviceCE.ReadDataCurrentCE();
-                            if (currentKernelInstance.current_time->tm_min > 55) {
+                            if (currentKernelInstance.current_time->tm_min > 5) {
                                 UpdateThreads(dBase, thread.id, 1, 1, deviceCE.uuid);
                                 currentKernelInstance.log.ulogw(LOG_LEVEL_INFO, "[303] ReadDataArchive (%d)",
                                                                 deviceCE.id);
                                 deviceCE.ReadAllArchiveCE(5);
                             }
+                            deviceCE.ReadDataCurrentCE();
                             if (thread.work == 0) {
                                 currentKernelInstance.log.ulogw(LOG_LEVEL_INFO,
                                                                 "[303] mercury 230 & set 4TM & CE303 threads stopped");
@@ -225,18 +225,11 @@ int DeviceCE::ReadDataCurrentCE() {
         result = static_cast<uint16_t>(sscanf((const char *) data, "ET0PE(%s)", param));
         if (result) {
             fl = static_cast<float>(atof(param));
-            currentKernelInstance.log.ulogw(LOG_LEVEL_INFO, "[303][%s] I=[%f]", param, fl);
-            chan = dBase.GetChannel(const_cast<char *>(CHANNEL_I), 1, this->uuid);
-            if (chan != nullptr) {
-                dBase.StoreData(TYPE_CURRENTS, 0, fl, nullptr, chan);
-                dBase.StoreData(TYPE_CURRENTS, 1, fl, nullptr, chan);
-                dBase.StoreData(TYPE_INTERVALS, 0, fl, date, chan);
-                free(chan);
-            }
+            chan = dBase.GetChannel(const_cast<char *>(CHANNEL_W), 1, this->uuid);
             currentKernelInstance.log.ulogw(LOG_LEVEL_INFO, "[303][%s] Ws=[%f]", param, fl);
-            strncpy(chan, dBase.GetChannel(const_cast<char *>(CHANNEL_W), 1, this->uuid), 40);
-            if (strlen(chan) > 0) {
+            if (chan != nullptr) {
                 dBase.StoreData(TYPE_TOTAL_CURRENT, 0, fl, nullptr, chan);
+                free(chan);
             }
         }
     }
@@ -244,7 +237,12 @@ int DeviceCE::ReadDataCurrentCE() {
     lRs = send_ce(CURRENT_I, 0, date, READ_PARAMETERS);
     if (lRs) result = this->read_ce(data, 0);
     if (result > 0) {
-        result = static_cast<uint16_t>(sscanf((const char *) data, "ET0PE(%s)", param));
+        for (int r = 0; r < 40; r++) {
+            if (data[r] == 0x28) {
+                result = static_cast<uint16_t>(sscanf((const char *) data + r, "(%s)", param));
+                break;
+            }
+        }
         if (result) {
             fl = static_cast<float>(atof(param));
             currentKernelInstance.log.ulogw(LOG_LEVEL_INFO, "[303][%s] I=[%f]", param, fl);
@@ -288,8 +286,8 @@ int DeviceCE::ReadAllArchiveCE(uint16_t tp) {
 
         sprintf(date, "EAMPE(%02d.%02d)", tt->tm_mon + 1, tt->tm_year - 100);        // ddMMGGtt
         lRs = send_ce(ARCH_MONTH, 0, date, 1);
-        if (lRs) result = this->read_ce(data, 0);
-        if (result) {
+        if (lRs) result = this->read_ce(data, 4);
+        if (result>12) {
             count = 0;
             for (int r = 0; r < 40; r++) {
                 if (data[r] == 0x28 && count < 5) {
@@ -305,11 +303,15 @@ int DeviceCE::ReadAllArchiveCE(uint16_t tp) {
                 }
             }
         }
+        lRs = send_ce(SN, 0, date, 0);
+	if (lRs) result = this->read_ce(data, 0);
+        lRs = send_ce(OPEN_PREV, 0, date, 0);
+	if (lRs) result = this->read_ce(data, 0);
 
         sprintf(date, "ENMPE(%02d.%02d)", tt->tm_mon + 1, tt->tm_year - 100);    // ddMMGGtt
         lRs = send_ce(ARCH_MONTH, 0, date, 1);
-        if (lRs) result = this->read_ce(data, 0);
-        if (result) {
+        if (lRs) result = this->read_ce(data, 4);
+        if (result>12) {
             count = 0;
             for (int r = 0; r < 40; r++) {
                 if (data[r] == 0x28 && count < 5) {
@@ -331,10 +333,13 @@ int DeviceCE::ReadAllArchiveCE(uint16_t tp) {
     tim = time(&tim);
     localtime_r(&tim, tt);
     for (int i = 0; i < tp; i++) {
+        lRs = send_ce(SN, 0, date, 0);
+	if (lRs) result = this->read_ce(data, 0);
+
         sprintf(date, "EADPE(%02d.%02d.%02d)", tt->tm_mday, tt->tm_mon + 1, tt->tm_year - 100);    // ddMMGGtt
         lRs = send_ce(ARCH_DAYS, 0, date, 1);
-        if (lRs) result = this->read_ce(data, 0);
-        if (result) {
+        if (lRs) result = this->read_ce(data, 2);
+        if (result>12) {
             count = 0;
             for (int r = 0; r < 40; r++) {
                 if (data[r] == 0x28 && count < 5) {
@@ -350,10 +355,13 @@ int DeviceCE::ReadAllArchiveCE(uint16_t tp) {
                 }
             }
         }
+        lRs = send_ce(SN, 0, date, 0);
+	if (lRs) result = this->read_ce(data, 0);
+
         sprintf(date, "ENDPE(%02d.%02d.%02d)", tt->tm_mday, tt->tm_mon + 1, tt->tm_year - 100);    // ddMMGGtt
         lRs = send_ce(ARCH_DAYS, 0, date, 1);
-        if (lRs) result = this->read_ce(data, 0);
-        if (result) {
+        if (lRs) result = this->read_ce(data, 2);
+        if (result>12) {
             count = 0;
             for (int r = 0; r < 40; r++) {
                 if (data[r] == 0x28 && count < 5) {
@@ -453,8 +461,8 @@ uint8_t CRC(const uint8_t *Data, uint8_t DataSize) {
     uint8_t _CRC = 0;
     for (int i = 0; i < DataSize; i++) {
         //CRC += ((Data[i]) & (uint8_t)0x7f);
-        if (Data[i] % 2 == 1) _CRC += (Data[i] | 0x80);
-        else _CRC += ((Data[i]) & 0x7f);
+        if (Data[i] % 2 == 1) _CRC += (Data[i] | (uint8_t)0x80);
+        else _CRC += ((Data[i]) & (uint8_t)0x7f);
     }
     if (_CRC > 0x80) _CRC -= 0x80;
     return _CRC;
@@ -640,10 +648,10 @@ uint16_t DeviceCE::read_ce(uint8_t *dat, uint8_t type) {
 
     usleep(1200000);
     if (type)
-        usleep(200000);
+        sleep(3);
     //ioctl(fd, FIONREAD, &nbytes);
-//    currentKernelInstance.log.ulogw(LOG_LEVEL_INFO, "[303] nbytes=%d", nbytes);
-    nbytes = static_cast<int>(read(fd, &data, 75));
+    //currentKernelInstance.log.ulogw(LOG_LEVEL_INFO, "[303] nbytes=%d", nbytes);
+    nbytes = static_cast<int>(read(fd, &data, 70));
     currentKernelInstance.log.ulogw(LOG_LEVEL_INFO, "[303] nbytes=%d", nbytes);
 
     //data[0]=0x2;
