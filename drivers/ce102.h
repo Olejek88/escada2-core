@@ -44,6 +44,7 @@
 
 #define	CURRENT_U	0x4001
 #define	CURRENT_W	0x4003
+#define	CURRENT_WS	0x4008
 #define	CURRENT_F	0x400D
 #define	CURRENT_I	0x400A
 

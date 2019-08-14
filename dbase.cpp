@@ -110,11 +110,11 @@ bool DBase::StoreData(uint16_t type, uint16_t parameter, double value, char  *da
         //printf ("S %s\n",query);
         res = sqlexec(query);
 	if (res && (row = mysql_fetch_row(res))) {
-	    //printf ("U row=%ld\n",row);
             sprintf(query,
-                    "UPDATE data SET value=%f,date=date, changedAt=CURRENT_TIMESTAMP() WHERE type='%d' AND sensorChannelUuid='%s' AND date='%s'",
-                    value, type, channelUuid, data);
-            res = sqlexec(query);
+                    "UPDATE data SET value=%f,date=date, changedAt=CURRENT_TIMESTAMP() WHERE type='%d' AND sensorChannelUuid='%s' AND date='%s' AND parameter='%d'",
+                    value, type, channelUuid, data, parameter);
+            //res = sqlexec(query);
+	    //printf ("U query=%s %ld\n",query,res);
         } else {
 	    //printf ("I row=%ld %s\n",row,mysql_error(mysql));
             uuid_t newUuid;

@@ -111,7 +111,7 @@ void *dispatcher(void *thread_arg) {
             time_t now = time(nullptr);
             // поток походу протух
             //currentKernelInstance.log.ulogw(LOG_LEVEL_ERROR, "thr [%s] %ld %ld", typeThreads[th].title,typeThreads[th].lastDate, now);
-            if ((now - typeThreads[th].lastDate) > 60) {
+            if ((now - typeThreads[th].lastDate) > 180) {
                 if (strncasecmp("0FBACF26-31CA-4B92-BCA3-220E09A6D2D3", typeThreads[th].deviceType, 36) == 0) {
 		    printf("%d\n",typeThreads[th].work);
                     if (typeThreads[th].work > 0)

@@ -207,18 +207,35 @@ int DeviceCE::ReadDataCurrentCE() {
             dBase.StoreData(TYPE_CURRENTS, 0, fl, nullptr, chan);
         }
     }
-    rs = send_ce(CURRENT_I, 0, date, READ_PARAMETERS);
+    rs = send_ce(CURRENT_WS, 0, date, READ_PARAMETERS);
     if (rs) res = this->read_ce(data, 0);
     if (res>0) {
         res = static_cast<uint16_t>(sscanf((const char *) data, "ET0PE(%s)", param));
         if (res) {
             fl = static_cast<float>(atof(param));
-            currentKernelInstance.log.ulogw(LOG_LEVEL_INFO, "[303][%s] I=[%f]", param, fl);
-            strncpy(chan, dBase.GetChannel(const_cast<char *>(CHANNEL_I), 1, this->uuid), 40);
+            currentKernelInstance.log.ulogw(LOG_LEVEL_INFO, "[303][%s] Ws=[%f]", param, fl);
+            strncpy(chan, dBase.GetChannel(const_cast<char *>(CHANNEL_W), 1, this->uuid), 40);
 	    if (strlen(chan)>0) {
-        	dBase.StoreData(TYPE_CURRENTS, 0, fl, nullptr, chan);
-        	dBase.StoreData(TYPE_CURRENTS, 1, fl, nullptr, chan);
-    		dBase.StoreData(TYPE_INTERVALS, 0, fl, date, chan);
+		dBase.StoreData(TYPE_TOTAL_CURRENT, 0, fl, nullptr, chan);
+	    }
+        }
+    }
+
+    rs = send_ce(CURRENT_I, 0, date, READ_PARAMETERS);
+    if (rs) res = this->read_ce(data, 0);
+    if (res>0) {
+	for (int r=0; r<40;r++) {
+	    if (data[r]==0x28) {
+	        rs = static_cast<bool>(sscanf((const char *) data+r, "(%s)", param));
+	        fl = static_cast<float>(atof(param));
+                currentKernelInstance.log.ulogw(LOG_LEVEL_INFO, "[303][%s] I=[%f]", param, fl);
+	        strncpy(chan, dBase.GetChannel(const_cast<char *>(CHANNEL_I), 1, this->uuid), 40);
+	        if (strlen(chan)>0) {
+    	    	    dBase.StoreData(TYPE_CURRENTS, 0, fl, nullptr, chan);
+            	    dBase.StoreData(TYPE_CURRENTS, 1, fl, nullptr, chan);
+        	    dBase.StoreData(TYPE_INTERVALS, 0, fl, date, chan);
+		}
+		break;
 	    }
         }
     }
@@ -259,7 +276,7 @@ int DeviceCE::ReadAllArchiveCE(uint16_t tp) {
 		if (data[r]==0x28 && count<5) {
 	            rs = static_cast<bool>(sscanf((const char *) data+r, "(%s)", param));
 	            fl = static_cast<float>(atof(param));
-	            sprintf(date, "%04d%02d01000000", tt->tm_year + 1900, tt->tm_mon);
+	            sprintf(date, "%04d%02d01000000", tt->tm_year + 1900, tt->tm_mon+1);
 	            currentKernelInstance.log.ulogw(LOG_LEVEL_INFO, "[303][%s] [%f] [%s]", chan, fl, date);
 		    if (strlen(chan)>0)
 	    	        dBase.StoreData(TYPE_MONTH, count, fl, date, chan);
@@ -277,7 +294,7 @@ int DeviceCE::ReadAllArchiveCE(uint16_t tp) {
 		if (data[r]==0x28 && count<5) {
 	            rs = static_cast<bool>(sscanf((const char *) data+r, "(%s)", param));
 	            fl = static_cast<float>(atof(param));
-	            sprintf(date, "%04d%02d01000000", tt->tm_year + 1900, tt->tm_mon);
+	            sprintf(date, "%04d%02d01000000", tt->tm_year + 1900, tt->tm_mon+1);
 	            currentKernelInstance.log.ulogw(LOG_LEVEL_INFO, "[303][%s] [%f] [%s]", chan, fl, date);
 		    if (strlen(chan)>0)
 	    	        dBase.StoreData(TYPE_INCREMENTS, count, fl, date, chan);
@@ -290,7 +307,7 @@ int DeviceCE::ReadAllArchiveCE(uint16_t tp) {
 
     tim = time(&tim);
     localtime_r(&tim, tt);
-    for (int i = 0; i < tp; i++) {
+    for (int i = 0; i < tp*2; i++) {
         sprintf(date, "EADPE(%02d.%02d.%02d)", tt->tm_mday, tt->tm_mon + 1, tt->tm_year - 100);    // ddMMGGtt
         rs = send_ce(ARCH_DAYS, 0, date, 1);
         if (rs) res = this->read_ce(data, 0);
@@ -532,8 +549,8 @@ bool DeviceCE::send_ce(uint16_t op, uint16_t prm, char *request, uint8_t frame) 
         data[ht + 2] = 0x31;
         data[ht + 3] = STX;
         if (op == CURRENT_W) sprintf((char *) data + 4, "POWEP()");
-        //if (op==CURRENT_I) sprintf (data+4,"CURRE()");
-        if (op == CURRENT_I) sprintf((char *) data + 4, "ET0PE()");
+        if (op == CURRENT_I) sprintf((char *) data + 4, "CURRE()");
+        if (op == CURRENT_WS) sprintf((char *) data + 4, "ET0PE()");
         if (op == CURRENT_F) sprintf((char *) data + 4, "FREQU()");
         if (op == CURRENT_U) sprintf((char *) data + 4, "VOLTA()");
         data[11] = ETX;
@@ -610,6 +627,8 @@ uint16_t DeviceCE::read_ce(uint8_t *dat, uint8_t type) {
 	//    for (int ii=0; ii<nbytes; ii++)
 	//	printf ("0x%x\n",data[ii]);
         //currentKernelInstance.log.ulogw(LOG_LEVEL_INFO, "[ce] [%d][0x%x,0x%x,0x%x]", nbytes, data[nbytes - 1], data[nbytes - 2], crc);
+	//for (int ii=0; ii<nbytes; ii++)
+	//	printf ("[%d] 0x%c\n",ii, data[ii]);
         if (data[nbytes - 1] != 0xa && data[nbytes - 2] != 0xd && nbytes<10)
             if (crc != data[nbytes - 1] || nbytes < 8) nbytes = 0;
 
