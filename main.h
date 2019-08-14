@@ -3,7 +3,8 @@
 #define    TYPE_DAYS        2
 #define    TYPE_MONTH        4
 #define    TYPE_INCREMENTS        7
-#define    TYPE_EVENTS        9
+#define    TYPE_INTERVALS	9
+#define    TYPE_TOTAL_CURRENT	10
 
 #define     bright        "\e[1;37m"
 #define     kernel_color    "\e[0;31m"

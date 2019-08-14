@@ -58,14 +58,14 @@ void *mekDeviceThread(void *pth) {
                     rs = OpenCom(deviceMER.port, thread.speed, 0);
                     if (rs) {
                         currentKernelInstance.log.ulogw(LOG_LEVEL_INFO, "[303] ReadInfo (%s)", deviceMER.address);
-                        UpdateThreads(dBase, thread.id, 0, 1);
+                        UpdateThreads(dBase, thread.id, 0, 1, deviceMER.uuid);
                         rs = deviceMER.ReadInfoCE();
                         if (rs) {
                             currentKernelInstance.log.ulogw(LOG_LEVEL_INFO, "[303] ReadDataCurrent (%d)", deviceMER.id);
-                            UpdateThreads(dBase, thread.id, 0, 1);
+                            UpdateThreads(dBase, thread.id, 0, 1, deviceMER.uuid);
                             deviceMER.ReadDataCurrentCE();
                             if (currentKernelInstance.current_time->tm_min > 45) {
-                                UpdateThreads(dBase, thread.id, 1, 1);
+                                UpdateThreads(dBase, thread.id, 1, 1, deviceMER.uuid);
                                 currentKernelInstance.log.ulogw(LOG_LEVEL_INFO, "[303] ReadDataArchive (%d)",
                                                                 deviceMER.id);
                                 deviceMER.ReadAllArchiveCE(5);
