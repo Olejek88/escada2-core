@@ -5,14 +5,14 @@
 
 #include <mysql/mysql.h>
 #include <stdint.h>
-#include <mysql/mysql.h>
 #include "const.h"
+#include <string.h>
 
 class DBase {
 private:
-    MYSQL *mysql;
-    MYSQL_ROW row;
-    MYSQL_RES *res;
+    MYSQL *mysql = nullptr;
+    char fields[32][64];
+    uint8_t nFields;
 public:
     char driver[MAX_STR];
     char host[MAX_STR];
@@ -20,7 +20,13 @@ public:
     char pass[MAX_STR];
     char database[MAX_STR];
 
-    DBase();
+    DBase() {
+        memset(driver, 0, MAX_STR);
+        memset(host, 0, MAX_STR);
+        memset(user, 0, MAX_STR);
+        memset(pass, 0, MAX_STR);
+        memset(database, 0, MAX_STR);
+    }
 
     int openConnection(); //connect to the database
     int disconnect(); //disconnect from the database
@@ -28,6 +34,14 @@ public:
 
     char *GetChannel(char *measureTypeUuid, uint16_t channel, char *deviceUuid);
     bool StoreData(uint16_t type, uint16_t status, double value, char  *data, char *channelUuid);
+
+    int8_t makeFieldsList(MYSQL_RES *res);
+
+    int8_t getFieldIndex(const char *fieldName);
+
+    bool isError();
+
+    const char *getErrorString();
 };
 
 #endif //ESCADA_CORE_DBASE_H
