@@ -39,7 +39,7 @@ void *ceDeviceThread(void *pth) {
     currentKernelInstance.log.ulogw(LOG_LEVEL_INFO, "[303] mercury device thread started");
     if (dBase.openConnection() == OK) {
         while (true) {
-            sprintf(query, "SELECT * FROM device WHERE uuid=%s", thread.device_uuid);
+            sprintf(query, "SELECT * FROM device WHERE uuid='%s'", thread.deviceType);
             currentKernelInstance.log.ulogw(LOG_LEVEL_INFO, "[303] (%s)", query);
             res = dBase.sqlexec(query);
             u_long nRow = mysql_num_rows(res);
@@ -48,7 +48,7 @@ void *ceDeviceThread(void *pth) {
                 if (row) {
                     strncpy(deviceCE.uuid, row[1], 40);
                     strncpy(deviceCE.address, row[3], 10);
-                    strncpy(deviceCE.port, row[10], 20);
+                    strncpy(deviceCE.port, row[9], 20);
                 }
                 if (!fd) {
                     rs = OpenCom(deviceCE.port, thread.speed, 1);
@@ -101,8 +101,8 @@ bool DeviceCE::ReadInfoCE() {
     if (lRs) result = this->read_ce(data, 0);
     if (result) {
         currentKernelInstance.log.ulogw(LOG_LEVEL_INFO, "[303] [serial=%s]", data);
-        sprintf(registers, "read S/N [%s]", data);
-        AddDeviceRegister(dBase, this->uuid, registers);
+        //sprintf(registers, "read S/N [%s]", data);
+        //AddDeviceRegister(dBase, this->uuid, registers);
     }
 
     lRs = send_ce(SN, 0, date, 0);
@@ -180,6 +180,7 @@ int DeviceCE::ReadDataCurrentCE() {
             fl = static_cast<float>(atof(param));
             chan = dBase.GetChannel(const_cast<char *>(CHANNEL_W), 1, this->uuid);
             if (chan != nullptr) {
+                this->q_attempt = 0;
                 currentKernelInstance.log.ulogw(LOG_LEVEL_INFO, "[303][%s][%s] W=[%f]", chan, param, fl);
                 dBase.StoreData(TYPE_CURRENTS, 0, fl, nullptr, chan);
                 dBase.StoreData(TYPE_CURRENTS, 1, fl, nullptr, chan);
@@ -196,6 +197,7 @@ int DeviceCE::ReadDataCurrentCE() {
             fl = static_cast<float>(atof(param));
             chan = dBase.GetChannel(const_cast<char *>(CHANNEL_U), 1, this->uuid);
             if (chan != nullptr) {
+                this->q_attempt = 0;
                 currentKernelInstance.log.ulogw(LOG_LEVEL_INFO, "[303][%s][%s] V=[%f]", chan, param, fl);
                 dBase.StoreData(TYPE_CURRENTS, 0, fl, nullptr, chan);
                 dBase.StoreData(TYPE_CURRENTS, 1, fl, nullptr, chan);
@@ -209,6 +211,7 @@ int DeviceCE::ReadDataCurrentCE() {
     if (result > 0) {
         result = static_cast<uint16_t>(sscanf((const char *) data, "FREQU(%s)", param));
         if (lRs) {
+            this->q_attempt = 0;
             fl = static_cast<float>(atof(param));
             currentKernelInstance.log.ulogw(LOG_LEVEL_INFO, "[303][%s] F=[%f]", param, fl);
             chan = dBase.GetChannel(const_cast<char *>(CHANNEL_F), 1, this->uuid);
@@ -224,15 +227,8 @@ int DeviceCE::ReadDataCurrentCE() {
     if (result > 0) {
         result = static_cast<uint16_t>(sscanf((const char *) data, "ET0PE(%s)", param));
         if (result) {
+            this->q_attempt = 0;
             fl = static_cast<float>(atof(param));
-            currentKernelInstance.log.ulogw(LOG_LEVEL_INFO, "[303][%s] I=[%f]", param, fl);
-            chan = dBase.GetChannel(const_cast<char *>(CHANNEL_I), 1, this->uuid);
-            if (chan != nullptr) {
-                dBase.StoreData(TYPE_CURRENTS, 0, fl, nullptr, chan);
-                dBase.StoreData(TYPE_CURRENTS, 1, fl, nullptr, chan);
-                dBase.StoreData(TYPE_INTERVALS, 0, fl, date, chan);
-                free(chan);
-            }
             currentKernelInstance.log.ulogw(LOG_LEVEL_INFO, "[303][%s] Ws=[%f]", param, fl);
             strncpy(chan, dBase.GetChannel(const_cast<char *>(CHANNEL_W), 1, this->uuid), 40);
             if (strlen(chan) > 0) {
@@ -244,11 +240,18 @@ int DeviceCE::ReadDataCurrentCE() {
     lRs = send_ce(CURRENT_I, 0, date, READ_PARAMETERS);
     if (lRs) result = this->read_ce(data, 0);
     if (result > 0) {
-        result = static_cast<uint16_t>(sscanf((const char *) data, "ET0PE(%s)", param));
+        result = 0;
+        for (int r = 0; r < 40; r++) {
+            if (data[r] == 0x28) {
+                result = static_cast<uint16_t>(sscanf((const char *) data + r, "(%s)", param));
+                break;
+            }
+        }
         if (result) {
             fl = static_cast<float>(atof(param));
             currentKernelInstance.log.ulogw(LOG_LEVEL_INFO, "[303][%s] I=[%f]", param, fl);
             chan = dBase.GetChannel(const_cast<char *>(CHANNEL_I), 1, this->uuid);
+            this->q_attempt = 0;
             if (chan != nullptr) {
                 dBase.StoreData(TYPE_CURRENTS, 0, fl, nullptr, chan);
                 dBase.StoreData(TYPE_CURRENTS, 1, fl, nullptr, chan);
@@ -257,7 +260,9 @@ int DeviceCE::ReadDataCurrentCE() {
             }
         }
     }
-
+    if (this->q_attempt==10) {
+        AddDeviceRegister(dBase, this->uuid, (char *)" отсутствие связи с устройством");
+    }
     return 0;
 }
 
