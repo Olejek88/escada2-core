@@ -99,7 +99,7 @@ bool DeviceCE::ReadInfoCE() {
 
     lRs = send_ce(SN, 0, date, 0);
     if (lRs) result = this->read_ce(data, 0);
-    if (result) {
+    if (result>5) {
         currentKernelInstance.log.ulogw(LOG_LEVEL_INFO, "[303] [serial=%s]", data);
         sprintf(registers, "read S/N [%s]", data);
         AddDeviceRegister(dBase, this->uuid, registers);
