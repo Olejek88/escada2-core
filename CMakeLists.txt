@@ -51,6 +51,7 @@ target_link_libraries(escada_core pthread)
 target_link_libraries(escada_core gtop-2.0)
 target_link_libraries(escada_core nettle)
 target_link_libraries(escada_core uuid)
+target_link_libraries(escada_core jsoncpp)
 
 include_directories(external/zigbeemtm)
 add_subdirectory(external/zigbeemtm)
