@@ -14,6 +14,7 @@ public:
     char title[100];
     char port[15];
     char device_thread[15];
+    char device_uuid[37];
     uint16_t speed;
 //    uint16_t deviceType;
     char deviceType[36]; // uuid
