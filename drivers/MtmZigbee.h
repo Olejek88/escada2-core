@@ -4,9 +4,10 @@
 #include <cstdint>
 #include <zigbeemtm.h>
 #include <termios.h>
+#include <iostream>
 
 #ifndef DEBUG
-#define DEBUG true
+#define DEBUG false
 #endif
 
 #define MTM_ZIGBEE_FIFO 0
@@ -71,5 +72,7 @@ bool findMeasure(uint8_t *sChannelUuid, uint8_t regIdx, uint8_t *measureUuid);
 bool updateMeasureValue(uint8_t *uuid, double value, time_t changedTime);
 
 void makeLightStatus(uint8_t *address, const uint8_t *packetBuffer);
+
+std::string getSChannelConfig(uint8_t *sChannelUuid);
 
 #endif //ESCADA_CORE_MTMZIGBEE_H
