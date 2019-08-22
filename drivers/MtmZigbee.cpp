@@ -21,6 +21,9 @@
 #include <time.h>
 #include "suninfo.h"
 #include <stdlib.h>
+#include <iostream>
+#include <jsoncpp/json/json.h>
+#include <jsoncpp/json/value.h>
 
 int coordinatorFd;
 bool mtmZigbeeStarted = false;
@@ -834,6 +837,9 @@ void makeCoordinatorStatus(uint8_t *address, const uint8_t *packetBuffer) {
     uint8_t measureUuid[37] = {0};
     time_t createTime = time(nullptr);
     uint16_t value;
+    int threshold;
+    Json::Reader reader;
+    Json::Value obj;
 
     memset(deviceUuid, 0, 37);
     if (!findDevice(address, deviceUuid)) {
@@ -857,6 +863,20 @@ void makeCoordinatorStatus(uint8_t *address, const uint8_t *packetBuffer) {
 
     value = *(uint16_t *) (&packetBuffer[34]);
     if (*sChannelUuid != 0) {
+        // получаем конфигурацию канала измерения
+        threshold = 1024;
+        std::string config = getSChannelConfig(sChannelUuid);
+        if (!config.empty()) {
+            reader.parse(config, obj); // reader can also read strings
+            if (!obj["threshold"].empty()) {
+                try {
+                    threshold = stoi(obj["threshold"].asString());
+                } catch (std::invalid_argument &invalidArgument) {
+                }
+            }
+        }
+
+        value = value > threshold;
         if (findMeasure(sChannelUuid, MTM_ZB_CHANNEL_COORD_IN1_IDX, measureUuid)) {
             if (!updateMeasureValue(measureUuid, value, createTime)) {
                 kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] %s %s\n", TAG,
@@ -890,6 +910,20 @@ void makeCoordinatorStatus(uint8_t *address, const uint8_t *packetBuffer) {
 
     value = *(uint16_t *) (&packetBuffer[36]);
     if (*sChannelUuid != 0) {
+        // получаем конфигурацию канала измерения
+        threshold = 1024;
+        std::string config = getSChannelConfig(sChannelUuid);
+        if (!config.empty()) {
+            reader.parse(config, obj); // reader can also read strings
+            if (!obj["threshold"].empty()) {
+                try {
+                    threshold = stoi(obj["threshold"].asString());
+                } catch (std::invalid_argument &invalidArgument) {
+                }
+            }
+        }
+
+        value = value > threshold;
         if (findMeasure(sChannelUuid, MTM_ZB_CHANNEL_COORD_IN2_IDX, measureUuid)) {
             if (!updateMeasureValue(measureUuid, value, createTime)) {
                 kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] %s %s\n", TAG,
@@ -1144,6 +1178,35 @@ void mtmZigbeeSetRun(bool val) {
     pthread_mutex_lock(&mtmZigbeeStopMutex);
     mtmZigbeeStopIssued = val;
     pthread_mutex_unlock(&mtmZigbeeStopMutex);
+}
+
+std::string getSChannelConfig(uint8_t *sChannelUuid) {
+    ulong nRows;
+    MYSQL_ROW row;
+    uint8_t query[1024];
+    MYSQL_RES *res;
+    std::string config;
+
+    sprintf((char *) query,
+            "SELECT * FROM sensor_config WHERE sensorChannelUuid = '%s'", sChannelUuid);
+    res = mtmZigbeeDBase->sqlexec((char *) query);
+    if (res) {
+        nRows = mysql_num_rows(res);
+        if (nRows == 1) {
+            mtmZigbeeDBase->makeFieldsList(res);
+            row = mysql_fetch_row(res);
+            if (row) {
+                config = std::string(row[mtmZigbeeDBase->getFieldIndex("config")]);
+                mysql_free_result(res);
+            } else {
+                mysql_free_result(res);
+            }
+        } else {
+            mysql_free_result(res);
+        }
+    }
+
+    return config;
 }
 
 bool findSChannel(uint8_t *deviceUuid, uint8_t regIdx, const char *measureType, uint8_t *sChannelUuid) {
