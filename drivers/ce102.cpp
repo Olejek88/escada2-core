@@ -79,7 +79,7 @@ void *ceDeviceThread(void *pth) {
     deviceCE = new DeviceCE();
 
     if (dBase->openConnection() == OK) {
-        while (true) {
+        while (run) {
             sprintf(query, "SELECT * FROM device WHERE deviceTypeUuid='%s'", thread.deviceType);
             currentKernelInstance->log.ulogw(LOG_LEVEL_INFO, "[303] (%s)", query);
             res = dBase->sqlexec(query);
@@ -137,6 +137,10 @@ void *ceDeviceThread(void *pth) {
             }
 
             run = ce102GetRun();
+            if (run) {
+                // задержка чтоб пореже дергать базу
+                sleep(5);
+            }
         }
     }
 

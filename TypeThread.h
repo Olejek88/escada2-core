@@ -17,7 +17,7 @@ public:
     char device_uuid[37];
     uint16_t speed;
 //    uint16_t deviceType;
-    char deviceType[36]; // uuid
+    char deviceType[37]; // uuid
     std::time_t lastDate;
     int status;
     int work;

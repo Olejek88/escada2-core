@@ -34,13 +34,9 @@ int main(int argc, char *argv[]) {
     int res = 0;
     Kernel &currentKernelInstance = Kernel::Instance();
     pthread_t dispatcher_thread;
-    pthread_attr_t attr;
     time_t tim;
     tim = time(&tim);
     dBase = new DBase();
-
-    pthread_attr_init(&attr);
-    pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED);
 
     signal(SIGTERM, signal_callback_handler);
 
@@ -80,7 +76,6 @@ int main(int argc, char *argv[]) {
 
     // ждём пока завершится dispatcher
     pthread_join(dispatcher_thread, nullptr);
-    pthread_attr_destroy(&attr);
 
     dBase->disconnect();
     delete dBase;
