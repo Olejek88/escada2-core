@@ -107,3 +107,7 @@ public:
     int ReadDataCurrentCE();
     int ReadAllArchiveCE(uint16_t tp);
 };
+
+bool ce102GetRun();
+
+void ce102SetRun(bool val);
