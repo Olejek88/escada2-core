@@ -65,8 +65,11 @@ int DBase::openConnection() {
 }
 
 int DBase::disconnect() {
-    if (mysql) mysql_close(mysql);
-    mysql_library_end();
+    if (mysql) {
+        mysql_thread_end();
+        mysql_close(mysql);
+    }
+
     return OK;
 }
 
@@ -111,21 +114,29 @@ bool DBase::StoreData(uint16_t type, uint16_t parameter, double value, char *dat
             mysql_free_result(pRes);
         }
 
+        if (pRes) {
+            mysql_free_result(pRes);
+        }
+
         return true;
     } else {
         sprintf(query, "SELECT * FROM data WHERE sensorChannelUuid='%s' AND type=%d AND date='%s' AND parameter=%d",
                 channelUuid, type, data, parameter);
         pRes = sqlexec(query);
-        printf("%s = %p\n", query, pRes);
+        //printf("%s = %p\n", query, pRes);
         if (pRes && mysql_fetch_row(pRes)) {
             mysql_free_result(pRes);
 //            printf("U row=%ld\n", row);
             sprintf(query,
-                    "UPDATE data SET value=%f, date=date, changedAt=CURRENT_TIMESTAMP() WHERE type='%d' AND sensorChannelUuid='%s' AND date='%s'",
-                    value, type, channelUuid, data);
-            pRes = sqlexec(query);
-            mysql_free_result(pRes);
+                    "UPDATE data SET value=%f, date=date, changedAt=CURRENT_TIMESTAMP() WHERE type='%d' AND sensorChannelUuid='%s' AND parameter='%d' AND date='%s'",
+                    value, type, channelUuid, parameter, data);
+            //pRes = sqlexec(query);
+            //mysql_free_result(pRes);
         } else {
+            if (pRes) {
+                mysql_free_result(pRes);
+            }
+
 //            printf("I row=%ld %s\n", row, mysql_error(mysql));
             uuid_t newUuid;
             char newUuidString[37] = {0};

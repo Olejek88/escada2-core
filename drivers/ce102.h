@@ -2,31 +2,6 @@
 #include <cstring>
 #include <cstdint>
 
-/*
-#define    CHECK        0x0
-#define    OPEN_CHANNEL    0x1
-#define    CLOSE_CHANNEL    0x2
-#define    WRITE_DATA    0x3
-#define    READ_TIME_230    0x4
-#define    READ_EVENTS    0x4
-#define    READ_DATA_230    0x5
-#define    READ_POWER    0x6
-#define    READ_PARAMETRS    0x8
-#define    READ_DATA_230L    0xA
-#define    READ_UI        0x11
-
-#define ENERGY_SUM    0x8
-#define I1        0x21
-#define I2        0x22
-#define I3        0x23
-#define U1        0x11
-#define U2        0x12
-#define U3        0x13
-#define F        0x40
-#define P_SUM        0x00
-#define Q_SUM        0x04
-#define S_SUM        0x08
-*/
 //-----------------------------------------------------------------------------
 #define START		0x2f
 #define STOP		0x21
@@ -44,6 +19,7 @@
 
 #define	CURRENT_U	0x4001
 #define	CURRENT_W	0x4003
+#define	CURRENT_WS	0x4008
 #define	CURRENT_F	0x400D
 #define	CURRENT_I	0x400A
 
@@ -106,3 +82,7 @@ public:
     int ReadDataCurrentCE();
     int ReadAllArchiveCE(uint16_t tp);
 };
+
+bool ce102GetRun();
+
+void ce102SetRun(bool val);

@@ -34,13 +34,9 @@ int main(int argc, char *argv[]) {
     int res = 0;
     Kernel &currentKernelInstance = Kernel::Instance();
     pthread_t dispatcher_thread;
-    pthread_attr_t attr;
     time_t tim;
     tim = time(&tim);
     dBase = new DBase();
-
-    pthread_attr_init(&attr);
-    pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED);
 
     signal(SIGTERM, signal_callback_handler);
 
@@ -68,21 +64,23 @@ int main(int argc, char *argv[]) {
     }
 
     // TODO здесь читаем конфигурацию пока не словим флаг остановки
-//    int cnt = 30;
+//    int cnt = 180;
     while (runKernel) {
         sleep(1);
 //        cnt--;
 //        if (cnt == 0) {
 //            runKernel = false;
+//            currentKernelInstance.log.ulogw(LOG_LEVEL_INFO, "-> kernel run timeout...");
 //        }
     }
 
     // ждём пока завершится dispatcher
     pthread_join(dispatcher_thread, nullptr);
-    pthread_attr_destroy(&attr);
 
     dBase->disconnect();
     delete dBase;
+
+    mysql_library_end();
 
     currentKernelInstance.log.ulogw(LOG_LEVEL_INFO, "kernel finished");
     return OK;
@@ -106,20 +104,20 @@ int Kernel::init() {
 // create thread evaluate
 void *dispatcher(void *thread_arg) {
     Kernel &currentKernelInstance = Kernel::Instance();
-    pthread_t thr;
+    pthread_t thr = 0;
     pthread_t zb_thr = 0;
     glibtop_cpu cpu1;
     glibtop_cpu cpu2;
     int who = RUSAGE_SELF;
 //    unsigned temp = 2;
     struct rusage usage{};
-    char query[300];
+    char query[300] = {0};
     double ct;
     int32_t pRc;
-    pthread_attr_t attr;
+    uuid_t newUuid;
+    char newUuidString[37];
 
-    pthread_attr_init(&attr);
-    pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED);
+    glibtop_init();
 
     while (runKernel) {
         // читаем конфигурацию
@@ -131,11 +129,11 @@ void *dispatcher(void *thread_arg) {
             time_t now = time(nullptr);
             // поток походу протух
 //            currentKernelInstance.log.ulogw(LOG_LEVEL_ERROR, "thr [%s] %ld %ld", typeThreads[th].title, typeThreads[th].lastDate, now);
-            if ((now - typeThreads[th].lastDate) > 60) {
+            if ((now - typeThreads[th].lastDate) > 250) {
                 pRc = 0;
                 if (strncasecmp("0FBACF26-31CA-4B92-BCA3-220E09A6D2D3", typeThreads[th].deviceType, 36) == 0) {
                     if (typeThreads[th].work > 0)
-                        pRc = pthread_create(&thr, &attr, ceDeviceThread, (void *) &typeThreads[th]);
+                        pRc = pthread_create(&thr, nullptr, ceDeviceThread, (void *) &typeThreads[th]);
                 } else if (strncasecmp("CFD3C7CC-170C-4764-9A8D-10047C8B8B1D", typeThreads[th].deviceType, 36) == 0) {
                     if (typeThreads[th].work > 0)
                         pRc = pthread_create(&zb_thr, nullptr, mtmZigbeeDeviceThread, (void *) &typeThreads[th]);
@@ -156,15 +154,13 @@ void *dispatcher(void *thread_arg) {
         delete[] typeThreads;
 
         // TODO решить как собирать статистику по загрузке и свободному месту с памятью
-        glibtop_init();
         glibtop_get_cpu(&cpu1);
         sleep(1);
         glibtop_get_cpu(&cpu2);
         ct = 100 * (cpu2.user - cpu1.user + (cpu2.nice - cpu1.nice) + (cpu2.sys - cpu1.sys));
         ct /= (cpu2.total - cpu1.total);
         getrusage(who, &usage);
-        uuid_t newUuid;
-        char newUuidString[37] = {0};
+        memset(newUuidString, 0, 37);
         uuid_generate(newUuid);
         uuid_unparse_upper(newUuid, newUuidString);
         sprintf(query, "INSERT INTO stat(uuid, type, cpu, mem) VALUES('%s', '1','%f','%ld')", newUuidString, ct,
@@ -175,7 +171,14 @@ void *dispatcher(void *thread_arg) {
 //        }
     }
 
-    pthread_attr_destroy(&attr);
+    currentKernelInstance.log.ulogw(LOG_LEVEL_INFO, "dispatcher try to finish");
+
+    glibtop_close();
+
+    ce102SetRun(false);
+    if (thr != 0) {
+        pthread_join(thr, nullptr);
+    }
 
     // пример как остановить поток драйвера zigbee
     mtmZigbeeSetRun(false);
