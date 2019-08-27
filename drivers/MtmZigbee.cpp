@@ -248,20 +248,8 @@ void mtmZigbeePktListener(int32_t threadId) {
             // проверка на наступление астрономических событий
             currentTime = time(nullptr);
             if (currentTime - checkAstroTime > 60) {
-                checkAstroTime = currentTime;
-                struct tm *ctm = localtime(&currentTime);
                 double lon = 0, lat = 0;
-                double rise, set;
-                double twilightStart, twilightEnd;
-                int rs;
-                int civ;
-                uint64_t checkTime;
-                uint64_t sunRiseTime;
-                uint64_t sunSetTime;
-                uint64_t twilightStartTime;
-                uint64_t twilightEndTime;
-                mtm_cmd_action action = {0};
-
+                checkAstroTime = currentTime;
                 MYSQL_RES *res = mtmZigbeeDBase->sqlexec("SELECT * FROM node LIMIT 1");
                 if (res) {
                     MYSQL_ROW row = mysql_fetch_row(res);
@@ -274,128 +262,11 @@ void mtmZigbeePktListener(int32_t threadId) {
                     mysql_free_result(res);
                 }
 
-                rs = sun_rise_set(ctm->tm_year + 1900, ctm->tm_mon + 1, ctm->tm_mday, lon, lat, &rise, &set);
-                bool isTimeAboveSunSet;
-                bool isTimeLessSunSet;
-                bool isTimeAboveSunRise;
-                bool isTimeLessSunRise;
-                civ = civil_twilight(ctm->tm_year + 1900, ctm->tm_mon + 1, ctm->tm_mday, lon, lat, &twilightStart,
-                                     &twilightEnd);
-                bool isTimeAboveTwilightStart;
-                bool isTimeLessTwilightStart;
-                bool isTimeAboveTwilightEnd;
-                bool isTimeLessTwilightEnd;
+                // управление контактором, рассылка пакетов светильникам
+                checkAstroEvents(currentTime, lon, lat);
 
-                if (rs == 0 && civ == 0) {
-                    checkTime = ctm->tm_hour * 3600 + ctm->tm_min * 60 + ctm->tm_sec;
-                    sunRiseTime = (uint64_t) (rise * 3600 + ctm->tm_gmtoff);
-                    sunSetTime = (uint64_t) (set * 3600 + ctm->tm_gmtoff);
-
-                    twilightStartTime = (uint64_t) (twilightStart * 3600 + ctm->tm_gmtoff);
-                    twilightEndTime = (uint64_t) (twilightEnd * 3600 + ctm->tm_gmtoff);
-
-                    action.header.type = MTM_CMD_TYPE_ACTION;
-                    action.header.protoVersion = MTM_VERSION_0;
-                    action.device = MTM_DEVICE_LIGHT;
-
-                    isTimeAboveSunSet = checkTime > sunSetTime;
-                    isTimeLessSunSet = checkTime < sunSetTime;
-                    isTimeAboveSunRise = checkTime > sunRiseTime;
-                    isTimeLessSunRise = checkTime < sunRiseTime;
-
-                    isTimeAboveTwilightStart = checkTime > twilightStartTime;
-                    isTimeLessTwilightStart = checkTime < twilightStartTime;
-                    isTimeAboveTwilightEnd = checkTime > twilightEndTime;
-                    isTimeLessTwilightEnd = checkTime < twilightEndTime;
-
-                    if ((isTimeAboveSunSet && isTimeLessTwilightEnd) && (!isSunSet || !isSunInit)) {
-                        isSunInit = true;
-                        isSunSet = true;
-                        isTwilightEnd = false;
-                        isTwilightStart = false;
-                        isSunRise = false;
-                        // включаем контактор, зажигаем светильники, отправляем команду "закат"
-                        switchContactor(true, MBEE_API_DIGITAL_LINE7);
-                        // даём задержку для того чтоб стартанули модули в светильниках
-                        // т.к. неизвестно, питаются они через контактор или всё время под напряжением
-                        sleep(5);
-                        switchAllLight(100);
-                        // передаём команду "астро событие" "закат"
-                        action.data = (0x02 << 8 | 0x01); // NOLINT(hicpp-signed-bitwise)
-                        ssize_t rc = send_mtm_cmd(coordinatorFd, 0xFFFF, &action);
-#ifdef DEBUG
-                        kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] rc=%ld\n", TAG, rc);
-                        kernel->log.ulogw(LOG_LEVEL_INFO, "--> закат", TAG);
-#endif
-                    } else if ((isTimeAboveTwilightEnd || isTimeLessTwilightStart) && (!isTwilightEnd || !isSunInit)) {
-                        isSunInit = true;
-                        isSunSet = false;
-                        isTwilightEnd = true;
-                        isTwilightStart = false;
-                        isSunRise = false;
-
-                        // передаём команду "астро событие" "конец сумерек"
-                        action.data = (0x01 << 8 | 0x00); // NOLINT(hicpp-signed-bitwise)
-                        ssize_t rc = send_mtm_cmd(coordinatorFd, 0xFFFF, &action);
-#ifdef DEBUG
-                        kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] rc=%ld\n", TAG, rc);
-                        kernel->log.ulogw(LOG_LEVEL_INFO, "--> конец сумерек", TAG);
-#endif
-                    } else if ((isTimeAboveTwilightStart && isTimeLessSunRise) && (!isTwilightStart || !isSunInit)) {
-                        isSunInit = true;
-                        isSunSet = false;
-                        isTwilightEnd = false;
-                        isTwilightStart = true;
-                        isSunRise = false;
-                        // передаём команду "астро событие" "начало сумерек"
-                        action.data = (0x03 << 8 | 0x00); // NOLINT(hicpp-signed-bitwise)
-                        ssize_t rc = send_mtm_cmd(coordinatorFd, 0xFFFF, &action);
-#ifdef DEBUG
-                        kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] rc=%ld\n", TAG, rc);
-                        kernel->log.ulogw(LOG_LEVEL_INFO, "--> начало сумерек", TAG);
-#endif
-                    } else if ((isTimeAboveSunRise && isTimeLessSunSet) && (isSunRise || !isSunInit)) {
-                        isSunInit = true;
-                        isSunSet = false;
-                        isTwilightEnd = false;
-                        isTwilightStart = false;
-                        isSunRise = true;
-                        // выключаем контактор, гасим светильники, отправляем команду "восход"
-                        switchContactor(false, MBEE_API_DIGITAL_LINE7);
-                        // на всякий случай, если светильники всегда под напряжением
-                        switchAllLight(0);
-                        // передаём команду "астро событие" "восход"
-                        action.data = (0x00 << 8 | 0x00); // NOLINT(hicpp-signed-bitwise)
-                        ssize_t rc = send_mtm_cmd(coordinatorFd, 0xFFFF, &action);
-#ifdef DEBUG
-                        kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] rc=%ld\n", TAG, rc);
-                        kernel->log.ulogw(LOG_LEVEL_INFO, "--> восход", TAG);
-#endif
-                    } else {
-                        // ситуация когда мы не достигли условий переключения состояния светильников
-                        // такого не должно происходить
-                    }
-                } else {
-                    // TODO: добавить оставшуюся логику
-                    // Т.е. у нас может быть целый набор состояний. сонце никогда не восходит/заходит,
-                    // сумерки длятся постоянно(полярная ночь)/ни когда не наступают(полярный день)
-                    // нужно отрабатывать эти события!
-//                    switch (rs) {
-//                        case 0:
-//
-//                            break;
-//                        case 1:
-//                            // солнце всегда над горизонтом - принудительно отключаем контактор, гасим все светильники?
-//                            break;
-//                        case -1:
-//                            // солнце всегда за горизонтом - принудительно включаем контактор, зажигаем все светильники?
-//                            break;
-//                        default:
-//                            break;
-//                    }
-                }
-
-
+                // рассылка пакетов светильникам по параметрам заданным в программах
+                checkLightProgram(mtmZigbeeDBase, currentTime, lon, lat);
             }
 
             currentTime = time(nullptr);
