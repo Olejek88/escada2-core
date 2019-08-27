@@ -34,7 +34,7 @@ DBase *mtmZigbeeDBase;
 int32_t mtmZigBeeThreadId;
 Kernel *kernel;
 bool isSunInit;
-bool isLightEnabled;
+bool isSunSet, isTwilightEnd, isTwilightStart, isSunRise;
 
 void *mtmZigbeeDeviceThread(void *pth) { // NOLINT
     uint16_t speed;
@@ -51,7 +51,10 @@ void *mtmZigbeeDeviceThread(void *pth) { // NOLINT
 
     if (!mtmZigbeeStarted) {
         isSunInit = false;
-        isLightEnabled = false;
+        isSunSet = false;
+        isTwilightEnd = false;
+        isTwilightStart = false;
+        isSunRise = false;
 
         mtmZigbeeStarted = true;
         kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] device thread started", TAG);
@@ -272,16 +275,16 @@ void mtmZigbeePktListener(int32_t threadId) {
                 }
 
                 rs = sun_rise_set(ctm->tm_year + 1900, ctm->tm_mon + 1, ctm->tm_mday, lon, lat, &rise, &set);
-                bool isCheckTimeAboveSunSet;
-                bool isCheckTimeLessSunSet;
-                bool isCheckTimeAboveSunRise;
-                bool isCheckTimeLessSunRise;
+                bool isTimeAboveSunSet;
+                bool isTimeLessSunSet;
+                bool isTimeAboveSunRise;
+                bool isTimeLessSunRise;
                 civ = civil_twilight(ctm->tm_year + 1900, ctm->tm_mon + 1, ctm->tm_mday, lon, lat, &twilightStart,
                                      &twilightEnd);
-                bool isCheckTimeAboveTwilightStart;
-                bool isCheckTimeLessTwilightStart;
-                bool isCheckTimeAboveTwilightEnd;
-                bool isCheckTimeLessTwilightEnd;
+                bool isTimeAboveTwilightStart;
+                bool isTimeLessTwilightStart;
+                bool isTimeAboveTwilightEnd;
+                bool isTimeLessTwilightEnd;
 
                 if (rs == 0 && civ == 0) {
                     checkTime = ctm->tm_hour * 3600 + ctm->tm_min * 60 + ctm->tm_sec;
@@ -295,25 +298,22 @@ void mtmZigbeePktListener(int32_t threadId) {
                     action.header.protoVersion = MTM_VERSION_0;
                     action.device = MTM_DEVICE_LIGHT;
 
-                    isCheckTimeAboveSunSet = checkTime > sunSetTime;
-                    isCheckTimeLessSunSet = checkTime < sunSetTime;
-                    isCheckTimeAboveSunRise = checkTime > sunRiseTime;
-                    isCheckTimeLessSunRise = checkTime < sunRiseTime;
+                    isTimeAboveSunSet = checkTime > sunSetTime;
+                    isTimeLessSunSet = checkTime < sunSetTime;
+                    isTimeAboveSunRise = checkTime > sunRiseTime;
+                    isTimeLessSunRise = checkTime < sunRiseTime;
 
-                    isCheckTimeAboveTwilightStart = checkTime > twilightStartTime;
-                    isCheckTimeLessTwilightStart = checkTime < twilightStartTime;
-                    isCheckTimeAboveTwilightEnd = checkTime > twilightEndTime;
-                    isCheckTimeLessTwilightEnd = checkTime > twilightEndTime;
+                    isTimeAboveTwilightStart = checkTime > twilightStartTime;
+                    isTimeLessTwilightStart = checkTime < twilightStartTime;
+                    isTimeAboveTwilightEnd = checkTime > twilightEndTime;
+                    isTimeLessTwilightEnd = checkTime < twilightEndTime;
 
-                    // TODO: добавить в правильной последовательности проверку на возможные события
-                    // больше заката и меньше конца сумерек - закат
-                    // больше конца сумерек и меньше начала сумерек - конец сумерек
-                    // больше начала сумерек и меньше восхода - начало сумерек
-                    // больше восхода и меньше заката - закат
-
-                    if ((isCheckTimeAboveSunSet || isCheckTimeLessSunRise) && (!isLightEnabled || !isSunInit)) {
+                    if ((isTimeAboveSunSet && isTimeLessTwilightEnd) && (!isSunSet || !isSunInit)) {
                         isSunInit = true;
-                        isLightEnabled = true;
+                        isSunSet = true;
+                        isTwilightEnd = false;
+                        isTwilightStart = false;
+                        isSunRise = false;
                         // включаем контактор, зажигаем светильники, отправляем команду "закат"
                         switchContactor(true, MBEE_API_DIGITAL_LINE7);
                         // даём задержку для того чтоб стартанули модули в светильниках
@@ -325,25 +325,55 @@ void mtmZigbeePktListener(int32_t threadId) {
                         ssize_t rc = send_mtm_cmd(coordinatorFd, 0xFFFF, &action);
 #ifdef DEBUG
                         kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] rc=%ld\n", TAG, rc);
+                        kernel->log.ulogw(LOG_LEVEL_INFO, "--> закат", TAG);
 #endif
-                    } else if ((isCheckTimeAboveSunRise && isCheckTimeLessSunSet) &&
-                               (isLightEnabled || !isSunInit)) {
+                    } else if ((isTimeAboveTwilightEnd || isTimeLessTwilightStart) && (!isTwilightEnd || !isSunInit)) {
                         isSunInit = true;
-                        isLightEnabled = false;
+                        isSunSet = false;
+                        isTwilightEnd = true;
+                        isTwilightStart = false;
+                        isSunRise = false;
+
+                        // передаём команду "астро событие" "конец сумерек"
+                        action.data = (0x01 << 8 | 0x00); // NOLINT(hicpp-signed-bitwise)
+                        ssize_t rc = send_mtm_cmd(coordinatorFd, 0xFFFF, &action);
+#ifdef DEBUG
+                        kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] rc=%ld\n", TAG, rc);
+                        kernel->log.ulogw(LOG_LEVEL_INFO, "--> конец сумерек", TAG);
+#endif
+                    } else if ((isTimeAboveTwilightStart && isTimeLessSunRise) && (!isTwilightStart || !isSunInit)) {
+                        isSunInit = true;
+                        isSunSet = false;
+                        isTwilightEnd = false;
+                        isTwilightStart = true;
+                        isSunRise = false;
+                        // передаём команду "астро событие" "начало сумерек"
+                        action.data = (0x03 << 8 | 0x00); // NOLINT(hicpp-signed-bitwise)
+                        ssize_t rc = send_mtm_cmd(coordinatorFd, 0xFFFF, &action);
+#ifdef DEBUG
+                        kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] rc=%ld\n", TAG, rc);
+                        kernel->log.ulogw(LOG_LEVEL_INFO, "--> начало сумерек", TAG);
+#endif
+                    } else if ((isTimeAboveSunRise && isTimeLessSunSet) && (isSunRise || !isSunInit)) {
+                        isSunInit = true;
+                        isSunSet = false;
+                        isTwilightEnd = false;
+                        isTwilightStart = false;
+                        isSunRise = true;
                         // выключаем контактор, гасим светильники, отправляем команду "восход"
                         switchContactor(false, MBEE_API_DIGITAL_LINE7);
                         // на всякий случай, если светильники всегда под напряжением
                         switchAllLight(0);
                         // передаём команду "астро событие" "восход"
-                        action.data = (0x02 << 8 | 0x00); // NOLINT(hicpp-signed-bitwise)
+                        action.data = (0x00 << 8 | 0x00); // NOLINT(hicpp-signed-bitwise)
                         ssize_t rc = send_mtm_cmd(coordinatorFd, 0xFFFF, &action);
 #ifdef DEBUG
                         kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] rc=%ld\n", TAG, rc);
+                        kernel->log.ulogw(LOG_LEVEL_INFO, "--> восход", TAG);
 #endif
-                    } else if (false) {
-
                     } else {
                         // ситуация когда мы не достигли условий переключения состояния светильников
+                        // такого не должно происходить
                     }
                 } else {
                     // TODO: добавить оставшуюся логику
