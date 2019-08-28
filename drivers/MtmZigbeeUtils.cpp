@@ -564,7 +564,7 @@ void checkAstroEvents(time_t currentTime, double lon, double lat) {
             ssize_t rc = send_mtm_cmd(coordinatorFd, 0xFFFF, &action);
 #ifdef DEBUG
             kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] rc=%ld\n", TAG, rc);
-            kernel->log.ulogw(LOG_LEVEL_INFO, "--> закат", TAG);
+            kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] закат", TAG);
 #endif
         } else if ((isTimeAboveTwilightEnd || isTimeLessTwilightStart) && (!isTwilightEnd || !isSunInit)) {
             isSunInit = true;
@@ -577,8 +577,8 @@ void checkAstroEvents(time_t currentTime, double lon, double lat) {
             action.data = (0x01 << 8 | 0x00); // NOLINT(hicpp-signed-bitwise)
             ssize_t rc = send_mtm_cmd(coordinatorFd, 0xFFFF, &action);
 #ifdef DEBUG
-            kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] rc=%ld\n", TAG, rc);
-            kernel->log.ulogw(LOG_LEVEL_INFO, "--> конец сумерек", TAG);
+            kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] rc=%ld", TAG, rc);
+            kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] конец сумерек", TAG);
 #endif
         } else if ((isTimeAboveTwilightStart && isTimeLessSunRise) && (!isTwilightStart || !isSunInit)) {
             isSunInit = true;
@@ -590,8 +590,8 @@ void checkAstroEvents(time_t currentTime, double lon, double lat) {
             action.data = (0x03 << 8 | 0x00); // NOLINT(hicpp-signed-bitwise)
             ssize_t rc = send_mtm_cmd(coordinatorFd, 0xFFFF, &action);
 #ifdef DEBUG
-            kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] rc=%ld\n", TAG, rc);
-            kernel->log.ulogw(LOG_LEVEL_INFO, "--> начало сумерек", TAG);
+            kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] rc=%ld", TAG, rc);
+            kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] начало сумерек", TAG);
 #endif
         } else if ((isTimeAboveSunRise && isTimeLessSunSet) && (isSunRise || !isSunInit)) {
             isSunInit = true;
@@ -607,8 +607,8 @@ void checkAstroEvents(time_t currentTime, double lon, double lat) {
             action.data = (0x00 << 8 | 0x00); // NOLINT(hicpp-signed-bitwise)
             ssize_t rc = send_mtm_cmd(coordinatorFd, 0xFFFF, &action);
 #ifdef DEBUG
-            kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] rc=%ld\n", TAG, rc);
-            kernel->log.ulogw(LOG_LEVEL_INFO, "--> восход", TAG);
+            kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] rc=%ld", TAG, rc);
+            kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] восход", TAG);
 #endif
         } else {
             // ситуация когда мы не достигли условий переключения состояния светильников
@@ -651,18 +651,15 @@ void checkLightProgram(DBase *dBase, time_t currentTime, double lon, double lat)
     std::string currentProgram;
     struct tm *ctm = localtime(&currentTime);
     uint64_t checkTime = ctm->tm_hour * 3600 + ctm->tm_min * 60 + ctm->tm_sec;
-    printf("checkTime: %ld\n", checkTime);
     uint64_t time1raw = 0, time2raw = 0, time3raw = 0, time4raw = 0;
     uint64_t time1loc = 0, time2loc = 0, time3loc = 0, time4loc = 0;
     double rise, set;
     double rs = sun_rise_set(ctm->tm_year + 1900, ctm->tm_mon + 1, ctm->tm_mday, lon, lat, &rise, &set);
     auto sunRiseTime = (uint64_t) (rise * 3600 + ctm->tm_gmtoff);
     auto sunSetTime = (uint64_t) (set * 3600 + ctm->tm_gmtoff);
-    printf("sunRiseTime: %ld, sunSetTime: %ld\n", sunRiseTime, sunSetTime);
     double civlen = day_length(ctm->tm_year + 1900, ctm->tm_mon + 1, ctm->tm_mday, lon, lat);
     auto dayLen = (uint64_t) (civlen * 3600);
     uint64_t nightLen = 86400 - dayLen;
-    printf("dayLen: %ld, nightLen: %ld, sum: %ld\n", dayLen, nightLen, dayLen + nightLen);
     std::string query = std::string("SELECT device.address AS address, device_program.title AS title, "
                                     "time1, value1, time2, value2, time3, value3, time4, value4, value5 "
                                     "FROM device "
@@ -671,6 +668,13 @@ void checkLightProgram(DBase *dBase, time_t currentTime, double lon, double lat)
                                     "WHERE device.deviceTypeUuid = 'CFD3C7CC-170C-4764-9A8D-10047C8B8B1D' "
                                     "AND device_config.parameter = 'Программа' "
                                     "ORDER BY device_program.title");
+
+#ifdef DEBUG
+    kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] checkTime: %ld", TAG, checkTime);
+    kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] sunRiseTime: %ld, sunSetTime: %ld", TAG, sunRiseTime, sunSetTime);
+    kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] dayLen: %ld, nightLen: %ld, sum: %ld", TAG, dayLen, nightLen,
+                      dayLen + nightLen);
+#endif
 
     res = dBase->sqlexec(query.data());
     if (res) {
@@ -689,22 +693,19 @@ void checkLightProgram(DBase *dBase, time_t currentTime, double lon, double lat)
                 percent = std::stoi(row[dBase->getFieldIndex("time4")]);
                 time4raw = time3raw + (uint64_t) (nightLen * (1.0 / (100.0 / percent)));
 #ifdef DEBUG
-                kernel->log.ulogw(LOG_LEVEL_INFO, "--> восход", TAG);
+                kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] time1raw: %ld, time2raw: %ld, time3raw: %ld, time4raw: %ld",
+                                  TAG, time1raw, time2raw, time3raw, time4raw);
 #endif
-
-                printf("time1raw: %ld, time2raw: %ld, time3raw: %ld, time4raw: %ld\n", time1raw, time2raw, time3raw,
-                       time4raw);
 
                 time1loc = time1raw > 86400 ? time1raw - 86400 : time1raw;
                 time2loc = time2raw > 86400 ? time2raw - 86400 : time2raw;
                 time3loc = time3raw > 86400 ? time3raw - 86400 : time3raw;
                 time4loc = time4raw > 86400 ? time4raw - 86400 : time4raw;
 #ifdef DEBUG
-                kernel->log.ulogw(LOG_LEVEL_INFO, "--> восход", TAG);
+                kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] time1loc: %ld, time2loc: %ld, time3loc: %ld, time4loc: %ld",
+                                  TAG, time1loc, time2loc, time3loc, time4loc);
 #endif
 
-                printf("time1loc: %ld, time2loc: %ld, time3loc: %ld, time4loc: %ld\n", time1loc, time2loc, time3loc,
-                       time4loc);
             }
 
             ssize_t rc;
@@ -716,14 +717,14 @@ void checkLightProgram(DBase *dBase, time_t currentTime, double lon, double lat)
                     if ((checkTime >= sunSetTime && checkTime < 86400) || (checkTime >= 0 && checkTime < time1loc)) {
                         processed = true;
 #ifdef DEBUG
-                        kernel->log.ulogw(LOG_LEVEL_INFO, "--> period 1 overnight", TAG);
+                        kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] period 1 overnight", TAG);
 #endif
                     }
                 } else {
                     if (checkTime >= sunSetTime && checkTime < time1raw) {
                         processed = true;
 #ifdef DEBUG
-                        kernel->log.ulogw(LOG_LEVEL_INFO, "--> period 1", TAG);
+                        kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] period 1", TAG);
 #endif
                     }
                 }
@@ -732,7 +733,7 @@ void checkLightProgram(DBase *dBase, time_t currentTime, double lon, double lat)
                     setPeriod1Active();
                     rc = sendLightLevel(row[dBase->getFieldIndex("address")], row[dBase->getFieldIndex("value1")]);
 #ifdef DEBUG
-                    kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] rc=%ld\n", TAG, rc);
+                    kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] rc=%ld", TAG, rc);
 #endif
                 }
             }
@@ -744,14 +745,14 @@ void checkLightProgram(DBase *dBase, time_t currentTime, double lon, double lat)
                     if ((checkTime >= time1raw && checkTime < 86400) || (checkTime >= 0 && checkTime < time2loc)) {
                         processed = true;
 #ifdef DEBUG
-                        kernel->log.ulogw(LOG_LEVEL_INFO, "--> period 2 overnight", TAG);
+                        kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] period 2 overnight", TAG);
 #endif
                     }
                 } else {
                     if (checkTime >= time1loc && checkTime < time2loc) {
                         processed = true;
 #ifdef DEBUG
-                        kernel->log.ulogw(LOG_LEVEL_INFO, "--> period 2", TAG);
+                        kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] period 2", TAG);
 #endif
                     }
                 }
@@ -760,7 +761,7 @@ void checkLightProgram(DBase *dBase, time_t currentTime, double lon, double lat)
                     setPeriod2Active();
                     rc = sendLightLevel(row[dBase->getFieldIndex("address")], row[dBase->getFieldIndex("value2")]);
 #ifdef DEBUG
-                    kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] rc=%ld\n", TAG, rc);
+                    kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] rc=%ld", TAG, rc);
 #endif
                 }
             }
@@ -772,14 +773,14 @@ void checkLightProgram(DBase *dBase, time_t currentTime, double lon, double lat)
                     if ((checkTime >= time2raw && checkTime < 86400) || (checkTime >= 0 && checkTime < time3loc)) {
                         processed = true;
 #ifdef DEBUG
-                        kernel->log.ulogw(LOG_LEVEL_INFO, "--> period 3 overnight", TAG);
+                        kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] period 3 overnight", TAG);
 #endif
                     }
                 } else {
                     if (checkTime >= time2loc && checkTime < time3loc) {
                         processed = true;
 #ifdef DEBUG
-                        kernel->log.ulogw(LOG_LEVEL_INFO, "--> period 3", TAG);
+                        kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] period 3", TAG);
 #endif
                     }
                 }
@@ -788,7 +789,7 @@ void checkLightProgram(DBase *dBase, time_t currentTime, double lon, double lat)
                     setPeriod3Active();
                     rc = sendLightLevel(row[dBase->getFieldIndex("address")], row[dBase->getFieldIndex("value3")]);
 #ifdef DEBUG
-                    kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] rc=%ld\n", TAG, rc);
+                    kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] rc=%ld", TAG, rc);
 #endif
                 }
             }
@@ -800,14 +801,14 @@ void checkLightProgram(DBase *dBase, time_t currentTime, double lon, double lat)
                     if ((checkTime >= time3raw && checkTime < 86400) || (checkTime >= 0 && checkTime < time4loc)) {
                         processed = true;
 #ifdef DEBUG
-                        kernel->log.ulogw(LOG_LEVEL_INFO, "--> period 4 overnight", TAG);
+                        kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] period 4 overnight", TAG);
 #endif
                     }
                 } else {
                     if (checkTime >= time3loc && checkTime < time4loc) {
                         processed = true;
 #ifdef DEBUG
-                        kernel->log.ulogw(LOG_LEVEL_INFO, "--> period 4", TAG);
+                        kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] period 4", TAG);
 #endif
                     }
                 }
@@ -816,7 +817,7 @@ void checkLightProgram(DBase *dBase, time_t currentTime, double lon, double lat)
                     setPeriod4Active();
                     rc = sendLightLevel(row[dBase->getFieldIndex("address")], row[dBase->getFieldIndex("value4")]);
 #ifdef DEBUG
-                    kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] rc=%ld\n", TAG, rc);
+                    kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] rc=%ld", TAG, rc);
 #endif
                 }
             }
@@ -828,8 +829,8 @@ void checkLightProgram(DBase *dBase, time_t currentTime, double lon, double lat)
                     setPeriod5Active();
                     rc = sendLightLevel(row[dBase->getFieldIndex("address")], row[dBase->getFieldIndex("value5")]);
 #ifdef DEBUG
-                    kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] rc=%ld\n", TAG, rc);
-                    kernel->log.ulogw(LOG_LEVEL_INFO, "--> period 5", TAG);
+                    kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] rc=%ld", TAG, rc);
+                    kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] period 5", TAG);
 #endif
                 }
             }
@@ -839,10 +840,10 @@ void checkLightProgram(DBase *dBase, time_t currentTime, double lon, double lat)
                 if (checkTime >= sunRiseTime && checkTime < sunSetTime) {
                     processed = true;
                     setDayActive();
-                    rc = sendLightLevel(row[dBase->getFieldIndex("address")], (char *) "0");
+                    rc = switchAllLight(100);
 #ifdef DEBUG
-                    kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] rc=%ld\n", TAG, rc);
-                    kernel->log.ulogw(LOG_LEVEL_INFO, "--> period day", TAG);
+                    kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] rc=%ld", TAG, rc);
+                    kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] period day", TAG);
 #endif
                 }
             }
@@ -851,7 +852,7 @@ void checkLightProgram(DBase *dBase, time_t currentTime, double lon, double lat)
             if (!processed && !isNoEvents) {
                 setNoEventsActive();
 #ifdef DEBUG
-                kernel->log.ulogw(LOG_LEVEL_INFO, "--> no events by light program", TAG);
+                kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] no events by light program", TAG);
 #endif
             }
         }
@@ -867,7 +868,7 @@ ssize_t sendLightLevel(char *addrString, char *level) {
     action.header.protoVersion = MTM_VERSION_0;
     action.device = MTM_DEVICE_LIGHT;
     action.data = std::stoi(level);
-    uint64_t addr = std::stoull(addrString);
+    uint64_t addr = std::stoull(addrString, 0, 16);
     return send_mtm_cmd_ext(coordinatorFd, addr, &action);
 }
 
