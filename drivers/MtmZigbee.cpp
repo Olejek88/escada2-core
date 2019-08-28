@@ -57,6 +57,13 @@ void *mtmZigbeeDeviceThread(void *pth) { // NOLINT
         isTwilightStart = false;
         isSunRise = false;
 
+        isPeriod1 = false;
+        isPeriod2 = false;
+        isPeriod3 = false;
+        isPeriod4 = false;
+        isPeriod5 = false;
+        isDay = false;
+
         mtmZigbeeStarted = true;
         kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] device thread started", TAG);
         if (mtmZigbeeInit(MTM_ZIGBEE_COM_PORT, port, speed) == 0) {

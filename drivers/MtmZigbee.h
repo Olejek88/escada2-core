@@ -77,4 +77,16 @@ void checkAstroEvents(time_t currentTime, double lon = 0, double lat = 0);
 
 void checkLightProgram(DBase *dBase, time_t currentTime, double lon, double lat);
 
+void setPeriod1Active();
+
+void setPeriod2Active();
+
+void setPeriod3Active();
+
+void setPeriod4Active();
+
+void setPeriod5Active();
+
+void setDayActive();
+
 #endif //ESCADA_CORE_MTMZIGBEE_H

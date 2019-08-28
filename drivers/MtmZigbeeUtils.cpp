@@ -701,80 +701,93 @@ void checkLightProgram(DBase *dBase, time_t currentTime, double lon, double lat)
 
             bool processed = false;
             // интервал от заката до длительности заданной time1
-            if (time1raw > time1loc) {
-                // переход через полночь
-                if ((checkTime >= sunSetTime && checkTime < 86400) || (checkTime >= 0 && checkTime < time1loc)) {
-                    processed = true;
-                    printf("period 1 overnight\n");
-                }
-            } else {
-                if (checkTime >= sunSetTime && checkTime < time1raw) {
-                    processed = true;
-                    printf("period 1\n");
+            if (!isPeriod1) {
+                if (time1raw > time1loc) {
+                    // переход через полночь
+                    if ((checkTime >= sunSetTime && checkTime < 86400) || (checkTime >= 0 && checkTime < time1loc)) {
+                        processed = true;
+                        printf("period 1 overnight\n");
+                        setPeriod1Active();
+                    }
+                } else {
+                    if (checkTime >= sunSetTime && checkTime < time1raw) {
+                        processed = true;
+                        printf("period 1\n");
+                        setPeriod1Active();
+                    }
                 }
             }
 
             // интервал от time1 до длительности заданной time2
-            if (!processed) {
+            if (!processed && !isPeriod2) {
                 if (time1loc > time2loc) {
                     // переход через полночь
                     if ((checkTime >= time1raw && checkTime < 86400) || (checkTime >= 0 && checkTime < time2loc)) {
                         processed = true;
-                        printf("period 1 overnight\n");
+                        printf("period 2 overnight\n");
+                        setPeriod2Active();
+                        isDay = false;
                     }
                 } else {
                     if (checkTime >= time1loc && checkTime < time2loc) {
                         processed = true;
                         printf("period 2\n");
+                        setPeriod2Active();
                     }
                 }
             }
 
             // интервал от time2 до длительности заданной time3
-            if (!processed) {
+            if (!processed && !isPeriod3) {
                 if (time2loc > time3loc) {
                     // переход через полночь
                     if ((checkTime >= time2raw && checkTime < 86400) || (checkTime >= 0 && checkTime < time3loc)) {
                         processed = true;
                         printf("period 3 overnight\n");
+                        setPeriod3Active();
                     }
                 } else {
                     if (checkTime >= time2loc && checkTime < time3loc) {
                         processed = true;
                         printf("period 3\n");
+                        setPeriod3Active();
                     }
                 }
             }
 
             // интервал от time3 до длительности заданной time4
-            if (!processed) {
+            if (!processed && !isPeriod4) {
                 if (time3loc > time4loc) {
                     // переход через полночь
                     if ((checkTime >= time3raw && checkTime < 86400) || (checkTime >= 0 && checkTime < time4loc)) {
                         processed = true;
                         printf("period 4 overnight\n");
+                        setPeriod4Active();
                     }
                 } else {
                     if (checkTime >= time3loc && checkTime < time4loc) {
                         processed = true;
                         printf("period 4\n");
+                        setPeriod4Active();
                     }
                 }
             }
 
             // интервал от time4 до восхода
-            if (!processed) {
+            if (!processed && !isPeriod5) {
                 if (checkTime >= time4loc && checkTime < sunRiseTime) {
                     processed = true;
                     printf("period 5\n");
+                    setPeriod5Active();
                 }
             }
 
             // день
-            if (!processed) {
+            if (!processed && !isDay) {
                 if (checkTime >= sunRiseTime && checkTime < sunSetTime) {
                     processed = true;
                     printf("день\n");
+                    setDayActive();
                 }
             }
 
@@ -787,4 +800,58 @@ void checkLightProgram(DBase *dBase, time_t currentTime, double lon, double lat)
         mysql_free_result(res);
     }
 
+}
+
+void setPeriod1Active() {
+    isPeriod1 = true;
+    isPeriod2 = false;
+    isPeriod3 = false;
+    isPeriod4 = false;
+    isPeriod5 = false;
+    isDay = false;
+}
+
+void setPeriod2Active() {
+    isPeriod1 = false;
+    isPeriod2 = true;
+    isPeriod3 = false;
+    isPeriod4 = false;
+    isPeriod5 = false;
+    isDay = false;
+}
+
+void setPeriod3Active() {
+    isPeriod1 = false;
+    isPeriod2 = false;
+    isPeriod3 = true;
+    isPeriod4 = false;
+    isPeriod5 = false;
+    isDay = false;
+}
+
+void setPeriod4Active() {
+    isPeriod1 = false;
+    isPeriod2 = false;
+    isPeriod3 = false;
+    isPeriod4 = true;
+    isPeriod5 = false;
+    isDay = false;
+}
+
+void setPeriod5Active() {
+    isPeriod1 = false;
+    isPeriod2 = false;
+    isPeriod3 = false;
+    isPeriod4 = false;
+    isPeriod5 = true;
+    isDay = false;
+}
+
+void setDayActive() {
+    isPeriod1 = false;
+    isPeriod2 = false;
+    isPeriod3 = false;
+    isPeriod4 = false;
+    isPeriod5 = false;
+    isDay = true;
 }
