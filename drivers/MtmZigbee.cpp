@@ -35,6 +35,7 @@ int32_t mtmZigBeeThreadId;
 Kernel *kernel;
 bool isSunInit;
 bool isSunSet, isTwilightEnd, isTwilightStart, isSunRise;
+bool isPeriod1, isPeriod2, isPeriod3, isPeriod4, isPeriod5, isDay;
 
 void *mtmZigbeeDeviceThread(void *pth) { // NOLINT
     uint16_t speed;

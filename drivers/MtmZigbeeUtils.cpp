@@ -14,6 +14,7 @@ extern uint8_t TAG[];
 extern bool isSunInit;
 extern bool isSunSet, isTwilightEnd, isTwilightStart, isSunRise;
 extern int coordinatorFd;
+extern bool isPeriod1, isPeriod2, isPeriod3, isPeriod4, isPeriod5, isDay;
 
 void log_buffer_hex(uint8_t *buffer, size_t buffer_size) {
     uint8_t message[1024];
@@ -702,12 +703,12 @@ void checkLightProgram(DBase *dBase, time_t currentTime, double lon, double lat)
             // интервал от заката до длительности заданной time1
             if (time1raw > time1loc) {
                 // переход через полночь
-                if ((checkTime > sunSetTime && checkTime < 86400) || (checkTime > 0 && checkTime < time1loc)) {
+                if ((checkTime >= sunSetTime && checkTime < 86400) || (checkTime >= 0 && checkTime < time1loc)) {
                     processed = true;
                     printf("period 1 overnight\n");
                 }
             } else {
-                if (checkTime > sunSetTime && checkTime < time1raw) {
+                if (checkTime >= sunSetTime && checkTime < time1raw) {
                     processed = true;
                     printf("period 1\n");
                 }
@@ -717,12 +718,12 @@ void checkLightProgram(DBase *dBase, time_t currentTime, double lon, double lat)
             if (!processed) {
                 if (time1loc > time2loc) {
                     // переход через полночь
-                    if ((checkTime > time1raw && checkTime < 86400) || (checkTime > 0 && checkTime < time2loc)) {
+                    if ((checkTime >= time1raw && checkTime < 86400) || (checkTime >= 0 && checkTime < time2loc)) {
                         processed = true;
                         printf("period 1 overnight\n");
                     }
                 } else {
-                    if (checkTime > time1loc && checkTime < time2loc) {
+                    if (checkTime >= time1loc && checkTime < time2loc) {
                         processed = true;
                         printf("period 2\n");
                     }
@@ -733,12 +734,12 @@ void checkLightProgram(DBase *dBase, time_t currentTime, double lon, double lat)
             if (!processed) {
                 if (time2loc > time3loc) {
                     // переход через полночь
-                    if ((checkTime > time2raw && checkTime < 86400) || (checkTime > 0 && checkTime < time3loc)) {
+                    if ((checkTime >= time2raw && checkTime < 86400) || (checkTime >= 0 && checkTime < time3loc)) {
                         processed = true;
                         printf("period 3 overnight\n");
                     }
                 } else {
-                    if (checkTime > time2loc && checkTime < time3loc) {
+                    if (checkTime >= time2loc && checkTime < time3loc) {
                         processed = true;
                         printf("period 3\n");
                     }
@@ -749,12 +750,12 @@ void checkLightProgram(DBase *dBase, time_t currentTime, double lon, double lat)
             if (!processed) {
                 if (time3loc > time4loc) {
                     // переход через полночь
-                    if ((checkTime > time3raw && checkTime < 86400) || (checkTime > 0 && checkTime < time4loc)) {
+                    if ((checkTime >= time3raw && checkTime < 86400) || (checkTime >= 0 && checkTime < time4loc)) {
                         processed = true;
                         printf("period 4 overnight\n");
                     }
                 } else {
-                    if (checkTime > time3loc && checkTime < time4loc) {
+                    if (checkTime >= time3loc && checkTime < time4loc) {
                         processed = true;
                         printf("period 4\n");
                     }
@@ -763,7 +764,7 @@ void checkLightProgram(DBase *dBase, time_t currentTime, double lon, double lat)
 
             // интервал от time4 до восхода
             if (!processed) {
-                if (checkTime > time4loc && checkTime < sunRiseTime) {
+                if (checkTime >= time4loc && checkTime < sunRiseTime) {
                     processed = true;
                     printf("period 5\n");
                 }
@@ -771,7 +772,7 @@ void checkLightProgram(DBase *dBase, time_t currentTime, double lon, double lat)
 
             // день
             if (!processed) {
-                if (checkTime > sunRiseTime && checkTime < sunSetTime) {
+                if (checkTime >= sunRiseTime && checkTime < sunSetTime) {
                     processed = true;
                     printf("день\n");
                 }
@@ -781,30 +782,6 @@ void checkLightProgram(DBase *dBase, time_t currentTime, double lon, double lat)
             if (!processed) {
                 printf("нет событий\n");
             }
-
-//            if (checkTime > sunSetTime && checkTime < time1raw) {
-//                // интервал от заката до окончания сумерек
-//                printf("time1\n");
-//            } else if (checkTime > time1raw && checkTime < time2raw) {
-//                // интервал от окончания сумерек до полуночи
-//                printf("time2\n");
-//            } else if (checkTime > time2raw && checkTime < time3raw) {
-//                // интервал от полуночи до глубокой ночи
-//                printf("time3\n");
-//            } else if (checkTime > time3raw && checkTime < time4raw) {
-//                // интервал от глубой ночи до начала сумерек
-//                printf("time4\n");
-//            } else if (checkTime > time4raw && checkTime < sunRiseTime) {
-//                // интервал от начала сумерек до восхода
-//                printf("time5\n");
-//            } else if (checkTime > sunRiseTime && checkTime < sunSetTime) {
-//                printf("день\n");
-//            } else {
-//                // условия когда ни каких событий нет. это возможно когда сумма в процентах длительностей интервалов
-//                // меньше 100 процентов, либо сейчас день.
-//                printf("нет событий\n");
-//            }
-
         }
 
         mysql_free_result(res);
