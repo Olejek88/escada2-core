@@ -35,7 +35,7 @@ int32_t mtmZigBeeThreadId;
 Kernel *kernel;
 bool isSunInit;
 bool isSunSet, isTwilightEnd, isTwilightStart, isSunRise;
-bool isPeriod1, isPeriod2, isPeriod3, isPeriod4, isPeriod5, isDay;
+bool isPeriod1, isPeriod2, isPeriod3, isPeriod4, isPeriod5, isDay, isNoEvents;
 
 void *mtmZigbeeDeviceThread(void *pth) { // NOLINT
     uint16_t speed;
@@ -63,6 +63,7 @@ void *mtmZigbeeDeviceThread(void *pth) { // NOLINT
         isPeriod4 = false;
         isPeriod5 = false;
         isDay = false;
+        isNoEvents = false;
 
         mtmZigbeeStarted = true;
         kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] device thread started", TAG);

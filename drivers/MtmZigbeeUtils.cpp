@@ -14,7 +14,7 @@ extern uint8_t TAG[];
 extern bool isSunInit;
 extern bool isSunSet, isTwilightEnd, isTwilightStart, isSunRise;
 extern int coordinatorFd;
-extern bool isPeriod1, isPeriod2, isPeriod3, isPeriod4, isPeriod5, isDay;
+extern bool isPeriod1, isPeriod2, isPeriod3, isPeriod4, isPeriod5, isDay, isNoEvents;
 
 void log_buffer_hex(uint8_t *buffer, size_t buffer_size) {
     uint8_t message[1024];
@@ -537,14 +537,14 @@ void checkAstroEvents(time_t currentTime, double lon, double lat) {
         action.header.protoVersion = MTM_VERSION_0;
         action.device = MTM_DEVICE_LIGHT;
 
-        isTimeAboveSunSet = checkTime > sunSetTime;
+        isTimeAboveSunSet = checkTime >= sunSetTime;
         isTimeLessSunSet = checkTime < sunSetTime;
-        isTimeAboveSunRise = checkTime > sunRiseTime;
+        isTimeAboveSunRise = checkTime >= sunRiseTime;
         isTimeLessSunRise = checkTime < sunRiseTime;
 
-        isTimeAboveTwilightStart = checkTime > twilightStartTime;
+        isTimeAboveTwilightStart = checkTime >= twilightStartTime;
         isTimeLessTwilightStart = checkTime < twilightStartTime;
-        isTimeAboveTwilightEnd = checkTime > twilightEndTime;
+        isTimeAboveTwilightEnd = checkTime >= twilightEndTime;
         isTimeLessTwilightEnd = checkTime < twilightEndTime;
 
         if ((isTimeAboveSunSet && isTimeLessTwilightEnd) && (!isSunSet || !isSunInit)) {
@@ -688,6 +688,10 @@ void checkLightProgram(DBase *dBase, time_t currentTime, double lon, double lat)
                 time3raw = time2raw + (uint64_t) (nightLen * (1.0 / (100.0 / percent)));
                 percent = std::stoi(row[dBase->getFieldIndex("time4")]);
                 time4raw = time3raw + (uint64_t) (nightLen * (1.0 / (100.0 / percent)));
+#ifdef DEBUG
+                kernel->log.ulogw(LOG_LEVEL_INFO, "--> восход", TAG);
+#endif
+
                 printf("time1raw: %ld, time2raw: %ld, time3raw: %ld, time4raw: %ld\n", time1raw, time2raw, time3raw,
                        time4raw);
 
@@ -695,10 +699,15 @@ void checkLightProgram(DBase *dBase, time_t currentTime, double lon, double lat)
                 time2loc = time2raw > 86400 ? time2raw - 86400 : time2raw;
                 time3loc = time3raw > 86400 ? time3raw - 86400 : time3raw;
                 time4loc = time4raw > 86400 ? time4raw - 86400 : time4raw;
+#ifdef DEBUG
+                kernel->log.ulogw(LOG_LEVEL_INFO, "--> восход", TAG);
+#endif
+
                 printf("time1loc: %ld, time2loc: %ld, time3loc: %ld, time4loc: %ld\n", time1loc, time2loc, time3loc,
                        time4loc);
             }
 
+            ssize_t rc;
             bool processed = false;
             // интервал от заката до длительности заданной time1
             if (!isPeriod1) {
@@ -706,15 +715,25 @@ void checkLightProgram(DBase *dBase, time_t currentTime, double lon, double lat)
                     // переход через полночь
                     if ((checkTime >= sunSetTime && checkTime < 86400) || (checkTime >= 0 && checkTime < time1loc)) {
                         processed = true;
-                        printf("period 1 overnight\n");
-                        setPeriod1Active();
+#ifdef DEBUG
+                        kernel->log.ulogw(LOG_LEVEL_INFO, "--> period 1 overnight", TAG);
+#endif
                     }
                 } else {
                     if (checkTime >= sunSetTime && checkTime < time1raw) {
                         processed = true;
-                        printf("period 1\n");
-                        setPeriod1Active();
+#ifdef DEBUG
+                        kernel->log.ulogw(LOG_LEVEL_INFO, "--> period 1", TAG);
+#endif
                     }
+                }
+
+                if (processed) {
+                    setPeriod1Active();
+                    rc = sendLightLevel(row[dBase->getFieldIndex("address")], row[dBase->getFieldIndex("value1")]);
+#ifdef DEBUG
+                    kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] rc=%ld\n", TAG, rc);
+#endif
                 }
             }
 
@@ -724,16 +743,25 @@ void checkLightProgram(DBase *dBase, time_t currentTime, double lon, double lat)
                     // переход через полночь
                     if ((checkTime >= time1raw && checkTime < 86400) || (checkTime >= 0 && checkTime < time2loc)) {
                         processed = true;
-                        printf("period 2 overnight\n");
-                        setPeriod2Active();
-                        isDay = false;
+#ifdef DEBUG
+                        kernel->log.ulogw(LOG_LEVEL_INFO, "--> period 2 overnight", TAG);
+#endif
                     }
                 } else {
                     if (checkTime >= time1loc && checkTime < time2loc) {
                         processed = true;
-                        printf("period 2\n");
-                        setPeriod2Active();
+#ifdef DEBUG
+                        kernel->log.ulogw(LOG_LEVEL_INFO, "--> period 2", TAG);
+#endif
                     }
+                }
+
+                if (processed) {
+                    setPeriod2Active();
+                    rc = sendLightLevel(row[dBase->getFieldIndex("address")], row[dBase->getFieldIndex("value2")]);
+#ifdef DEBUG
+                    kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] rc=%ld\n", TAG, rc);
+#endif
                 }
             }
 
@@ -743,15 +771,25 @@ void checkLightProgram(DBase *dBase, time_t currentTime, double lon, double lat)
                     // переход через полночь
                     if ((checkTime >= time2raw && checkTime < 86400) || (checkTime >= 0 && checkTime < time3loc)) {
                         processed = true;
-                        printf("period 3 overnight\n");
-                        setPeriod3Active();
+#ifdef DEBUG
+                        kernel->log.ulogw(LOG_LEVEL_INFO, "--> period 3 overnight", TAG);
+#endif
                     }
                 } else {
                     if (checkTime >= time2loc && checkTime < time3loc) {
                         processed = true;
-                        printf("period 3\n");
-                        setPeriod3Active();
+#ifdef DEBUG
+                        kernel->log.ulogw(LOG_LEVEL_INFO, "--> period 3", TAG);
+#endif
                     }
+                }
+
+                if (processed) {
+                    setPeriod3Active();
+                    rc = sendLightLevel(row[dBase->getFieldIndex("address")], row[dBase->getFieldIndex("value3")]);
+#ifdef DEBUG
+                    kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] rc=%ld\n", TAG, rc);
+#endif
                 }
             }
 
@@ -761,15 +799,25 @@ void checkLightProgram(DBase *dBase, time_t currentTime, double lon, double lat)
                     // переход через полночь
                     if ((checkTime >= time3raw && checkTime < 86400) || (checkTime >= 0 && checkTime < time4loc)) {
                         processed = true;
-                        printf("period 4 overnight\n");
-                        setPeriod4Active();
+#ifdef DEBUG
+                        kernel->log.ulogw(LOG_LEVEL_INFO, "--> period 4 overnight", TAG);
+#endif
                     }
                 } else {
                     if (checkTime >= time3loc && checkTime < time4loc) {
                         processed = true;
-                        printf("period 4\n");
-                        setPeriod4Active();
+#ifdef DEBUG
+                        kernel->log.ulogw(LOG_LEVEL_INFO, "--> period 4", TAG);
+#endif
                     }
+                }
+
+                if (processed) {
+                    setPeriod4Active();
+                    rc = sendLightLevel(row[dBase->getFieldIndex("address")], row[dBase->getFieldIndex("value4")]);
+#ifdef DEBUG
+                    kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] rc=%ld\n", TAG, rc);
+#endif
                 }
             }
 
@@ -777,8 +825,12 @@ void checkLightProgram(DBase *dBase, time_t currentTime, double lon, double lat)
             if (!processed && !isPeriod5) {
                 if (checkTime >= time4loc && checkTime < sunRiseTime) {
                     processed = true;
-                    printf("period 5\n");
                     setPeriod5Active();
+                    rc = sendLightLevel(row[dBase->getFieldIndex("address")], row[dBase->getFieldIndex("value5")]);
+#ifdef DEBUG
+                    kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] rc=%ld\n", TAG, rc);
+                    kernel->log.ulogw(LOG_LEVEL_INFO, "--> period 5", TAG);
+#endif
                 }
             }
 
@@ -786,20 +838,37 @@ void checkLightProgram(DBase *dBase, time_t currentTime, double lon, double lat)
             if (!processed && !isDay) {
                 if (checkTime >= sunRiseTime && checkTime < sunSetTime) {
                     processed = true;
-                    printf("день\n");
                     setDayActive();
+                    rc = sendLightLevel(row[dBase->getFieldIndex("address")], (char *) "0");
+#ifdef DEBUG
+                    kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] rc=%ld\n", TAG, rc);
+                    kernel->log.ulogw(LOG_LEVEL_INFO, "--> period day", TAG);
+#endif
                 }
             }
 
-            // длина суммы периодов меньше длины ночи
-            if (!processed) {
-                printf("нет событий\n");
+            // длина суммы периодов меньше длины ночи или равна 0
+            if (!processed && !isNoEvents) {
+                setNoEventsActive();
+#ifdef DEBUG
+                kernel->log.ulogw(LOG_LEVEL_INFO, "--> no events by light program", TAG);
+#endif
             }
         }
 
         mysql_free_result(res);
     }
 
+}
+
+ssize_t sendLightLevel(char *addrString, char *level) {
+    mtm_cmd_action action = {0};
+    action.header.type = MTM_CMD_TYPE_ACTION;
+    action.header.protoVersion = MTM_VERSION_0;
+    action.device = MTM_DEVICE_LIGHT;
+    action.data = std::stoi(level);
+    uint64_t addr = std::stoull(addrString);
+    return send_mtm_cmd_ext(coordinatorFd, addr, &action);
 }
 
 void setPeriod1Active() {
@@ -809,6 +878,7 @@ void setPeriod1Active() {
     isPeriod4 = false;
     isPeriod5 = false;
     isDay = false;
+    isNoEvents = false;
 }
 
 void setPeriod2Active() {
@@ -818,6 +888,7 @@ void setPeriod2Active() {
     isPeriod4 = false;
     isPeriod5 = false;
     isDay = false;
+    isNoEvents = false;
 }
 
 void setPeriod3Active() {
@@ -827,6 +898,7 @@ void setPeriod3Active() {
     isPeriod4 = false;
     isPeriod5 = false;
     isDay = false;
+    isNoEvents = false;
 }
 
 void setPeriod4Active() {
@@ -836,6 +908,7 @@ void setPeriod4Active() {
     isPeriod4 = true;
     isPeriod5 = false;
     isDay = false;
+    isNoEvents = false;
 }
 
 void setPeriod5Active() {
@@ -845,6 +918,7 @@ void setPeriod5Active() {
     isPeriod4 = false;
     isPeriod5 = true;
     isDay = false;
+    isNoEvents = false;
 }
 
 void setDayActive() {
@@ -854,4 +928,15 @@ void setDayActive() {
     isPeriod4 = false;
     isPeriod5 = false;
     isDay = true;
+    isNoEvents = false;
+}
+
+void setNoEventsActive() {
+    isPeriod1 = false;
+    isPeriod2 = false;
+    isPeriod3 = false;
+    isPeriod4 = false;
+    isPeriod5 = false;
+    isDay = false;
+    isNoEvents = true;
 }

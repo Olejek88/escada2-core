@@ -89,4 +89,8 @@ void setPeriod5Active();
 
 void setDayActive();
 
+void setNoEventsActive();
+
+ssize_t sendLightLevel(char *addrString, char *level);
+
 #endif //ESCADA_CORE_MTMZIGBEE_H
