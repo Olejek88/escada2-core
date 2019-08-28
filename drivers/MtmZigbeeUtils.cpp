@@ -635,19 +635,15 @@ void checkAstroEvents(time_t currentTime, double lon, double lat) {
 }
 
 void checkLightProgram(DBase *dBase, time_t currentTime, double lon, double lat) {
-//    currentTime = 1566918060 + 100;
-//    currentTime = 1566918060 + 10840;
-//    currentTime = 1566867054 - 1000;
-//    currentTime = 1566867054 - 18500;
-    struct tm ttm = {0};
-    ttm.tm_year = 119;
-    ttm.tm_mon = 7;
-    ttm.tm_mday = 27;
-    ttm.tm_hour = 0;
-    ttm.tm_min = 1;
-    ttm.tm_sec = 1;
-    ttm.tm_gmtoff = 5 * 3600;
-    currentTime = std::mktime(&ttm);
+//    struct tm ttm = {0};
+//    ttm.tm_year = 119;
+//    ttm.tm_mon = 7;
+//    ttm.tm_mday = 28;
+//    ttm.tm_hour = 00;
+//    ttm.tm_min = 0;
+//    ttm.tm_sec = 21133;
+//    ttm.tm_gmtoff = 5 * 3600;
+//    currentTime = std::mktime(&ttm);
 
     MYSQL_RES *res;
     MYSQL_ROW row;
@@ -703,81 +699,73 @@ void checkLightProgram(DBase *dBase, time_t currentTime, double lon, double lat)
             }
 
             bool processed = false;
-            // период 1
-            if (checkTime > sunSetTime) {
+            // интервал от заката до длительности заданной time1
+            if (time1raw > time1loc) {
                 // переход через полночь
-                if (checkTime > sunSetTime && checkTime < time1raw) {
+                if ((checkTime > sunSetTime && checkTime < 86400) || (checkTime > 0 && checkTime < time1loc)) {
                     processed = true;
-                    printf("time1\n");
+                    printf("period 1 overnight\n");
                 }
             } else {
-                if (checkTime > sunSetTime && checkTime < time1loc) {
+                if (checkTime > sunSetTime && checkTime < time1raw) {
                     processed = true;
-                    printf("time1\n");
+                    printf("period 1\n");
                 }
             }
 
-            // период 2
+            // интервал от time1 до длительности заданной time2
             if (!processed) {
                 if (time1loc > time2loc) {
                     // переход через полночь
-                    if (checkTime > time1raw && checkTime < time2raw) {
+                    if ((checkTime > time1raw && checkTime < 86400) || (checkTime > 0 && checkTime < time2loc)) {
                         processed = true;
-                        printf("time2\n");
+                        printf("period 1 overnight\n");
                     }
                 } else {
                     if (checkTime > time1loc && checkTime < time2loc) {
                         processed = true;
-                        printf("time2\n");
+                        printf("period 2\n");
                     }
                 }
             }
 
-            // период 3
+            // интервал от time2 до длительности заданной time3
             if (!processed) {
                 if (time2loc > time3loc) {
                     // переход через полночь
-                    if (checkTime > time2raw && checkTime < time3raw) {
+                    if ((checkTime > time2raw && checkTime < 86400) || (checkTime > 0 && checkTime < time3loc)) {
                         processed = true;
-                        printf("time3\n");
+                        printf("period 3 overnight\n");
                     }
                 } else {
                     if (checkTime > time2loc && checkTime < time3loc) {
                         processed = true;
-                        printf("time3\n");
+                        printf("period 3\n");
                     }
                 }
             }
 
-            // период 4
+            // интервал от time3 до длительности заданной time4
             if (!processed) {
                 if (time3loc > time4loc) {
                     // переход через полночь
-                    if (checkTime > time3raw && checkTime < time4raw) {
+                    if ((checkTime > time3raw && checkTime < 86400) || (checkTime > 0 && checkTime < time4loc)) {
                         processed = true;
-                        printf("time4\n");
+                        printf("period 4 overnight\n");
                     }
                 } else {
                     if (checkTime > time3loc && checkTime < time4loc) {
                         processed = true;
-                        printf("time4\n");
+                        printf("period 4\n");
                     }
                 }
             }
 
-            // период 5
+            // интервал от time4 до восхода
             if (!processed) {
-                if (time4loc > sunRiseTime) {
-                    // переход через полночь
-                    if (checkTime > time4raw && checkTime < sunRiseTime) {
-                        processed = true;
-                        printf("time5\n");
-                    }
-                } else {
-                    if (checkTime > time4loc && checkTime < sunRiseTime) {
-                        processed = true;
-                        printf("time5\n");
-                    }
+                if (checkTime > time4loc && checkTime < sunRiseTime) {
+                    processed = true;
+                    printf("period 5\n");
                 }
             }
 
