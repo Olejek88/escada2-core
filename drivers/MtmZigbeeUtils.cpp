@@ -664,7 +664,7 @@ void checkLightProgram(DBase *dBase, time_t currentTime, double lon, double lat)
     uint64_t nightLen = 86400 - dayLen;
     printf("dayLen: %ld, nightLen: %ld, sum: %ld\n", dayLen, nightLen, dayLen + nightLen);
     std::string query = std::string("SELECT device.address AS address, device_program.title AS title, "
-                                    "time1, value1, time2, value2, time3, value3, time4, value4, time5, value5 "
+                                    "time1, value1, time2, value2, time3, value3, time4, value4, value5 "
                                     "FROM device "
                                     "LEFT JOIN device_config ON device.uuid = device_config.deviceUuid "
                                     "LEFT JOIN device_program ON device_config.value = device_program.title "
