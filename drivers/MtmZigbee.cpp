@@ -24,6 +24,7 @@
 #include <iostream>
 #include <jsoncpp/json/json.h>
 #include <jsoncpp/json/value.h>
+#include "LightFlags.h"
 
 int coordinatorFd;
 bool mtmZigbeeStarted = false;
@@ -35,7 +36,7 @@ int32_t mtmZigBeeThreadId;
 Kernel *kernel;
 bool isSunInit;
 bool isSunSet, isTwilightEnd, isTwilightStart, isSunRise;
-bool isPeriod1, isPeriod2, isPeriod3, isPeriod4, isPeriod5, isDay, isNoEvents;
+std::map<std::string, LightFlags> lightFlags;
 
 void *mtmZigbeeDeviceThread(void *pth) { // NOLINT
     uint16_t speed;
@@ -56,14 +57,6 @@ void *mtmZigbeeDeviceThread(void *pth) { // NOLINT
         isTwilightEnd = false;
         isTwilightStart = false;
         isSunRise = false;
-
-        isPeriod1 = false;
-        isPeriod2 = false;
-        isPeriod3 = false;
-        isPeriod4 = false;
-        isPeriod5 = false;
-        isDay = false;
-        isNoEvents = false;
 
         mtmZigbeeStarted = true;
         kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] device thread started", TAG);
