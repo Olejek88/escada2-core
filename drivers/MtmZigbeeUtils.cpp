@@ -594,7 +594,7 @@ void checkAstroEvents(time_t currentTime, double lon, double lat) {
             kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] rc=%ld", TAG, rc);
             kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] начало сумерек", TAG);
 #endif
-        } else if ((isTimeAboveSunRise && isTimeLessSunSet) && (isSunRise || !isSunInit)) {
+        } else if ((isTimeAboveSunRise && isTimeLessSunSet) && (!isSunRise || !isSunInit)) {
             isSunInit = true;
             isSunSet = false;
             isTwilightEnd = false;
@@ -647,6 +647,7 @@ void checkLightProgram(DBase *dBase, time_t currentTime, double lon, double lat)
 //    ttm.tm_gmtoff = 5 * 3600;
 //    currentTime = std::mktime(&ttm);
 
+    bool isDay = false;
     MYSQL_RES *res;
     MYSQL_ROW row;
     std::string currentProgram;
@@ -848,8 +849,8 @@ void checkLightProgram(DBase *dBase, time_t currentTime, double lon, double lat)
             // день
             if (!lightFlags[address].isDay()) {
                 if (checkTime >= sunRiseTime && checkTime < sunSetTime) {
+                    isDay = true;
                     lightFlags[address].setDayActive();
-                    rc = switchAllLight(0);
 #ifdef DEBUG
                     kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] %s period day", TAG, address.data());
                     kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] checkTime: %ld", TAG, checkTime);
@@ -858,7 +859,7 @@ void checkLightProgram(DBase *dBase, time_t currentTime, double lon, double lat)
                 }
             }
 
-            // TODO: пеерсмотреть алгоритм, для выявления подобного события
+            // TODO: пересмотреть алгоритм, для выявления подобного события
             // длина суммы периодов меньше длины ночи или равна 0
 //            if (!processed) {
 //                if (!lightFlags[addresses[i]].isNoEvents) {
@@ -867,6 +868,14 @@ void checkLightProgram(DBase *dBase, time_t currentTime, double lon, double lat)
 //                    printf("[%s] checkTime: %ld\n", TAG, checkTime);
 //                }
 //            }
+        }
+
+        if (isDay) {
+            ssize_t rc = switchAllLight(0);
+#ifdef DEBUG
+            kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] Switch all lights off by program", TAG);
+            kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] rc=%ld", TAG, rc);
+#endif
         }
 
         mysql_free_result(res);
