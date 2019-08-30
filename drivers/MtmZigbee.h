@@ -6,10 +6,6 @@
 #include <termios.h>
 #include <iostream>
 
-#ifndef DEBUG
-#define DEBUG false
-#endif
-
 #define MTM_ZIGBEE_FIFO 0
 #define MTM_ZIGBEE_COM_PORT 1
 
@@ -48,9 +44,9 @@ void mtmZigbeeProcessInPacket(uint8_t *pktBuff, uint32_t length);
 
 void mtmZigbeeProcessOutPacket();
 
-bool findDevice(uint8_t *addr, uint8_t *uuid);
+bool findDevice(DBase *dBase, uint8_t *addr, uint8_t *uuid);
 
-bool findSChannel(uint8_t *deviceUuid, uint8_t regIdx, const char *measureType, uint8_t *sChannelUuid);
+std::string findSChannel(DBase *dBase, uint8_t *deviceUuid, uint8_t regIdx, const char *measureType);
 
 void log_buffer_hex(uint8_t *buffer, size_t buffer_size);
 
@@ -58,21 +54,29 @@ ssize_t switchContactor(bool enable, uint8_t line);
 
 ssize_t switchAllLight(uint16_t level);
 
-bool createSChannel(uint8_t *uuid, const char *channelTitle, uint8_t sensorIndex, uint8_t *deviceUuid,
-                    const char *channelTypeUuid, time_t createTime);
+bool
+createSChannel(DBase *dBase, uint8_t *uuid, const char *channelTitle, uint8_t sensorIndex, uint8_t *deviceUuid,
+               const char *channelTypeUuid, time_t createTime);
 
-bool storeMeasureValue(uint8_t *uuid, uint8_t *channelUuid, double value, time_t createTime, time_t changedTime);
+bool storeMeasureValue(DBase *dBase, uint8_t *uuid, std::string *channelUuid, double value, time_t createTime,
+                       time_t changedTime);
 
 ssize_t resetCoordinator();
 
-void makeCoordinatorStatus(uint8_t *address, const uint8_t *packetBuffer);
+void makeCoordinatorStatus(DBase *dBase, uint8_t *address, const uint8_t *packetBuffer);
 
-bool findMeasure(uint8_t *sChannelUuid, uint8_t regIdx, uint8_t *measureUuid);
+std::string findMeasure(DBase *dBase, std::string *sChannelUuid, uint8_t regIdx);
 
-bool updateMeasureValue(uint8_t *uuid, double value, time_t changedTime);
+bool updateMeasureValue(DBase *dBase, uint8_t *uuid, double value, time_t changedTime);
 
-void makeLightStatus(uint8_t *address, const uint8_t *packetBuffer);
+void makeLightStatus(DBase *dBase, uint8_t *address, const uint8_t *packetBuffer);
 
-std::string getSChannelConfig(uint8_t *sChannelUuid);
+std::string getSChannelConfig(DBase *dBase, std::string *sChannelUuid);
+
+void checkAstroEvents(time_t currentTime, double lon = 0, double lat = 0);
+
+void checkLightProgram(DBase *dBase, time_t currentTime, double lon, double lat);
+
+ssize_t sendLightLevel(char *addrString, char *level);
 
 #endif //ESCADA_CORE_MTMZIGBEE_H
