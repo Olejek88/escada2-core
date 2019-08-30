@@ -525,7 +525,7 @@ void mtmZigbeeProcessInPacket(uint8_t *pktBuff, uint32_t length) {
     char pktStr[2048] = {0};
     kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] RAW packet", TAG);
     for (int i = 0; i < length; i++) {
-        sprintf(&pktStr[i], "%02X,", pktBuff[i]);
+        sprintf(&pktStr[i * 2], "%02X,", pktBuff[i]);
     }
 
     kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] %s", TAG, pktStr);
