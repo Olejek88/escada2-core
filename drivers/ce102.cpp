@@ -105,7 +105,7 @@ void *ceDeviceThread(void *pth) {
                                 UpdateThreads(*dBase, id, 1, 1, deviceCE->uuid);
                                 currentKernelInstance->log.ulogw(LOG_LEVEL_INFO, "[303] ReadDataArchive (%d)",
                                                                  deviceCE->id);
-                                deviceCE->ReadAllArchiveCE(5);
+                                deviceCE->ReadAllArchiveCE(12);
                             }
                             deviceCE->ReadDataCurrentCE();
                             if (work == 0) {
@@ -414,6 +414,8 @@ int DeviceCE::ReadAllArchiveCE(uint16_t tp) {
     for (int i = 0; i < tp; i++) {
         lRs = send_ce(SN, 0, date, 0);
         if (lRs) result = this->read_ce(data, 0);
+        lRs = send_ce(OPEN_PREV, 0, date, 0);
+        if (lRs) result = this->read_ce(data, 0);
 
         sprintf(date, "EADPE(%02d.%02d.%02d)", tt->tm_mday, tt->tm_mon + 1, tt->tm_year - 100);    // ddMMGGtt
         lRs = send_ce(ARCH_DAYS, 0, date, 1);
@@ -436,6 +438,8 @@ int DeviceCE::ReadAllArchiveCE(uint16_t tp) {
         }
 
         lRs = send_ce(SN, 0, date, 0);
+        if (lRs) result = this->read_ce(data, 0);
+        lRs = send_ce(OPEN_PREV, 0, date, 0);
         if (lRs) result = this->read_ce(data, 0);
 
         sprintf(date, "ENDPE(%02d.%02d.%02d)", tt->tm_mday, tt->tm_mon + 1, tt->tm_year - 100);    // ddMMGGtt
