@@ -90,8 +90,11 @@ int main(int argc, char *argv[]) {
 int Kernel::init() {
     tinyxml2::XMLDocument doc;
     if (doc.LoadFile("config/escada.conf") == tinyxml2::XML_SUCCESS) {
-        if (dBase->openConnection()) {
+        if (dBase->openConnection() == 0) {
             log.ulogw(LOG_LEVEL_INFO, "database initialisation success");
+        } else {
+            log.ulogw(LOG_LEVEL_INFO, "database initialisation error");
+            return ERROR;
         }
     } else {
         this->log.ulogw(LOG_LEVEL_ERROR, "load configuration file failed");
@@ -129,7 +132,7 @@ void *dispatcher(void *thread_arg) {
             time_t now = time(nullptr);
             // поток походу протух
 //            currentKernelInstance.log.ulogw(LOG_LEVEL_ERROR, "thr [%s] %ld %ld", typeThreads[th].title, typeThreads[th].lastDate, now);
-            if ((now - typeThreads[th].lastDate) > 250) {
+            if ((now - typeThreads[th].lastDate) > 30) {
                 pRc = 0;
                 if (strncasecmp("0FBACF26-31CA-4B92-BCA3-220E09A6D2D3", typeThreads[th].deviceType, 36) == 0) {
                     if (typeThreads[th].work > 0)
