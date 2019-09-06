@@ -63,6 +63,7 @@ void *ceDeviceThread(void *pth) {
 
     if (ce102Started) {
         currentKernelInstance->log.ulogw(LOG_LEVEL_INFO, "[303] mercury device thread ALREADY started");
+        pthread_exit(nullptr);
     } else {
         ce102Started = true;
         ce102SetRun(true);
