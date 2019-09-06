@@ -65,8 +65,11 @@ int DBase::openConnection() {
 }
 
 int DBase::disconnect() {
-    if (mysql) mysql_close(mysql);
-    mysql_library_end();
+    if (mysql) {
+        mysql_thread_end();
+        mysql_close(mysql);
+    }
+
     return OK;
 }
 
@@ -84,18 +87,19 @@ MYSQL_RES *DBase::sqlexec(const char *query) {
 
 //---------------------------------------------------------------------------------------------------
 // function store archive data to database
-bool DBase::StoreData(uint16_t type, uint16_t status, double value, char *data, char *channelUuid) {
+bool DBase::StoreData(uint16_t type, uint16_t parameter, double value, char *data, char *channelUuid) {
     MYSQL_RES *pRes;
-    MYSQL_ROW row;
     char query[500];
-    if (type == TYPE_CURRENTS) {
-        sprintf(query, "SELECT * FROM data WHERE sensorChannelUuid='%s' AND type=%d", channelUuid, type);
+
+    if (type == TYPE_CURRENTS || type == TYPE_TOTAL_CURRENT) {
+        sprintf(query, "SELECT * FROM data WHERE sensorChannelUuid='%s' AND type=%d AND parameter=%d", channelUuid,
+                type, parameter);
         pRes = sqlexec(query);
-        if (pRes && (row = mysql_fetch_row(pRes))) {
+        if (pRes && mysql_fetch_row(pRes)) {
             mysql_free_result(pRes);
             sprintf(query,
-                    "UPDATE data SET value=%f, date=CURRENT_TIMESTAMP() WHERE sensorChannelUuid='%s' AND type='%d'",
-                    value, channelUuid, type);
+                    "UPDATE data SET value=%f, date=CURRENT_TIMESTAMP(), changedAt=CURRENT_TIMESTAMP() WHERE sensorChannelUuid='%s' AND type='%d' AND parameter='%d'",
+                    value, channelUuid, type, parameter);
             pRes = sqlexec(query);
             mysql_free_result(pRes);
         } else {
@@ -104,39 +108,48 @@ bool DBase::StoreData(uint16_t type, uint16_t status, double value, char *data, 
             uuid_generate(newUuid);
             uuid_unparse_upper(newUuid, newUuidString);
             sprintf(query,
-                    "INSERT INTO data(uuid, type, value, sensorChannelUuid, date) VALUES('%s', '0','%f','%s', CURRENT_TIMESTAMP())",
-                    newUuidString, value, channelUuid);
+                    "INSERT INTO data(uuid, type, value, sensorChannelUuid, date, parameter, createdAt) VALUES('%s', '%d', '%f', '%s', CURRENT_TIMESTAMP(),'%d', CURRENT_TIMESTAMP())",
+                    newUuidString, type, value, channelUuid, parameter);
             pRes = sqlexec(query);
+            mysql_free_result(pRes);
+        }
+
+        if (pRes) {
             mysql_free_result(pRes);
         }
 
         return true;
     } else {
-        sprintf(query, "SELECT * FROM data WHERE sensorChannelUuid='%s' AND type=%d AND date='%s'", channelUuid, type,
-                data);
+        sprintf(query, "SELECT * FROM data WHERE sensorChannelUuid='%s' AND type=%d AND date='%s' AND parameter=%d",
+                channelUuid, type, data, parameter);
         pRes = sqlexec(query);
-        printf("%s = %p\n", query, pRes);
-        if (pRes && (row = mysql_fetch_row(pRes))) {
+        //printf("%s = %p\n", query, pRes);
+        if (pRes && mysql_fetch_row(pRes)) {
             mysql_free_result(pRes);
-            printf("U row=%p\n", row);
+//            printf("U row=%ld\n", row);
             sprintf(query,
-                    "UPDATE data SET value=%f, date=date WHERE type='%d' AND sensorChannelUuid='%s' AND date='%s'",
-                    value, type, channelUuid, data);
-            pRes = sqlexec(query);
-            mysql_free_result(pRes);
+                    "UPDATE data SET value=%f, date=date, changedAt=CURRENT_TIMESTAMP() WHERE type='%d' AND sensorChannelUuid='%s' AND parameter='%d' AND date='%s'",
+                    value, type, channelUuid, parameter, data);
+            //pRes = sqlexec(query);
+            //mysql_free_result(pRes);
         } else {
-            printf("I row=%p %s\n", row, mysql_error(mysql));
+            if (pRes) {
+                mysql_free_result(pRes);
+            }
+
+//            printf("I row=%ld %s\n", row, mysql_error(mysql));
             uuid_t newUuid;
             char newUuidString[37] = {0};
             uuid_generate(newUuid);
             uuid_unparse_upper(newUuid, newUuidString);
             sprintf(query,
-                    "INSERT INTO data(uuid, type, value, sensorChannelUuid, date) VALUES('%s', '%d','%f','%s','%s')",
-                    newUuidString, type, value, channelUuid, data);
+                    "INSERT INTO data(uuid, type, value, sensorChannelUuid, date, parameter, createdAt) VALUES('%s', '%d','%f','%s','%s', '%d', CURRENT_TIMESTAMP())",
+                    newUuidString, type, value, channelUuid, data, parameter);
             pRes = sqlexec(query);
             mysql_free_result(pRes);
         }
     }
+
     return true;
 }
 
@@ -168,6 +181,36 @@ char *DBase::GetChannel(char *measureTypeUuid, uint16_t channel, char *deviceUui
         return nullptr;
     }
 }
+
+int8_t DBase::makeFieldsList(MYSQL_RES *res) {
+    MYSQL_FIELD *field;
+    int8_t i;
+    for (i = 0; (field = mysql_fetch_field(res)); i++) {
+        strcpy(fields[i], field->name);
+    }
+
+    nFields = i;
+    return i;
+}
+
+int8_t DBase::getFieldIndex(const char *fieldName) {
+    for (uint32_t i = 0; i < nFields; i++) {
+        if (strcmp(fieldName, fields[i]) == 0) {
+            return i;
+        }
+    }
+
+    return -1;
+}
+
+bool DBase::isError() {
+    return *mysql_error(mysql) == 0;
+}
+
+const char *DBase::getErrorString() {
+    return mysql_error(mysql);
+}
+
 
 
 

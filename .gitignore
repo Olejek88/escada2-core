@@ -2,3 +2,4 @@
 cmake-build-debug
 config/escada.conf
 logs/*
+external

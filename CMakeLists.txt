@@ -41,7 +41,7 @@ add_executable(escada_core
         drivers/ce102.cpp
         drivers/ce102.h
         tinyxml2.cpp
-        tinyxml2.h TypeThread.cpp TypeThread.h drivers/MtmZigbee.cpp drivers/MtmZigbee.h function.cpp)
+        tinyxml2.h TypeThread.cpp TypeThread.h drivers/MtmZigbee.cpp drivers/MtmZigbee.h function.cpp suninfo.cpp suninfo.h drivers/MtmZigbeeUtils.cpp LightFlags.cpp LightFlags.h)
 
 #target_link_libraries(escada_core /usr/local/lib/libmysqlclient.dylib)
 #target_link_libraries(escada_core /usr/local/lib/libmysqlcppconn.dylib)
@@ -51,6 +51,7 @@ target_link_libraries(escada_core pthread)
 target_link_libraries(escada_core gtop-2.0)
 target_link_libraries(escada_core nettle)
 target_link_libraries(escada_core uuid)
+target_link_libraries(escada_core jsoncpp)
 
 include_directories(external/zigbeemtm)
 add_subdirectory(external/zigbeemtm)

@@ -200,29 +200,29 @@ drivers/MtmZigbee.cpp.s:
 	$(MAKE) -f CMakeFiles/escada_core.dir/build.make CMakeFiles/escada_core.dir/drivers/MtmZigbee.cpp.s
 .PHONY : drivers/MtmZigbee.cpp.s
 
-drivers/mercury230.o: drivers/mercury230.cpp.o
-.PHONY : drivers/mercury230.o
+drivers/ce102.o: drivers/ce102.cpp.o
+.PHONY : drivers/ce102.o
 
 # target to build an object file
-drivers/mercury230.cpp.o:
-	$(MAKE) -f CMakeFiles/escada_core.dir/build.make CMakeFiles/escada_core.dir/drivers/mercury230.cpp.o
-.PHONY : drivers/mercury230.cpp.o
+drivers/ce102.cpp.o:
+	$(MAKE) -f CMakeFiles/escada_core.dir/build.make CMakeFiles/escada_core.dir/drivers/ce102.cpp.o
+.PHONY : drivers/ce102.cpp.o
 
-drivers/mercury230.i: drivers/mercury230.cpp.i
-.PHONY : drivers/mercury230.i
+drivers/ce102.i: drivers/ce102.cpp.i
+.PHONY : drivers/ce102.i
 
 # target to preprocess a source file
-drivers/mercury230.cpp.i:
-	$(MAKE) -f CMakeFiles/escada_core.dir/build.make CMakeFiles/escada_core.dir/drivers/mercury230.cpp.i
-.PHONY : drivers/mercury230.cpp.i
+drivers/ce102.cpp.i:
+	$(MAKE) -f CMakeFiles/escada_core.dir/build.make CMakeFiles/escada_core.dir/drivers/ce102.cpp.i
+.PHONY : drivers/ce102.cpp.i
 
-drivers/mercury230.s: drivers/mercury230.cpp.s
-.PHONY : drivers/mercury230.s
+drivers/ce102.s: drivers/ce102.cpp.s
+.PHONY : drivers/ce102.s
 
 # target to generate assembly for a file
-drivers/mercury230.cpp.s:
-	$(MAKE) -f CMakeFiles/escada_core.dir/build.make CMakeFiles/escada_core.dir/drivers/mercury230.cpp.s
-.PHONY : drivers/mercury230.cpp.s
+drivers/ce102.cpp.s:
+	$(MAKE) -f CMakeFiles/escada_core.dir/build.make CMakeFiles/escada_core.dir/drivers/ce102.cpp.s
+.PHONY : drivers/ce102.cpp.s
 
 function.o: function.cpp.o
 .PHONY : function.o
@@ -296,6 +296,30 @@ logs.cpp.s:
 	$(MAKE) -f CMakeFiles/escada_core.dir/build.make CMakeFiles/escada_core.dir/logs.cpp.s
 .PHONY : logs.cpp.s
 
+suninfo.o: suninfo.cpp.o
+.PHONY : suninfo.o
+
+# target to build an object file
+suninfo.cpp.o:
+	$(MAKE) -f CMakeFiles/escada_core.dir/build.make CMakeFiles/escada_core.dir/suninfo.cpp.o
+.PHONY : suninfo.cpp.o
+
+suninfo.i: suninfo.cpp.i
+.PHONY : suninfo.i
+
+# target to preprocess a source file
+suninfo.cpp.i:
+	$(MAKE) -f CMakeFiles/escada_core.dir/build.make CMakeFiles/escada_core.dir/suninfo.cpp.i
+.PHONY : suninfo.cpp.i
+
+suninfo.s: suninfo.cpp.s
+.PHONY : suninfo.s
+
+# target to generate assembly for a file
+suninfo.cpp.s:
+	$(MAKE) -f CMakeFiles/escada_core.dir/build.make CMakeFiles/escada_core.dir/suninfo.cpp.s
+.PHONY : suninfo.cpp.s
+
 tinyxml2.o: tinyxml2.cpp.o
 .PHONY : tinyxml2.o
 
@@ -339,9 +363,9 @@ help:
 	@echo "... drivers/MtmZigbee.o"
 	@echo "... drivers/MtmZigbee.i"
 	@echo "... drivers/MtmZigbee.s"
-	@echo "... drivers/mercury230.o"
-	@echo "... drivers/mercury230.i"
-	@echo "... drivers/mercury230.s"
+	@echo "... drivers/ce102.o"
+	@echo "... drivers/ce102.i"
+	@echo "... drivers/ce102.s"
 	@echo "... function.o"
 	@echo "... function.i"
 	@echo "... function.s"
@@ -351,6 +375,9 @@ help:
 	@echo "... logs.o"
 	@echo "... logs.i"
 	@echo "... logs.s"
+	@echo "... suninfo.o"
+	@echo "... suninfo.i"
+	@echo "... suninfo.s"
 	@echo "... tinyxml2.o"
 	@echo "... tinyxml2.i"
 	@echo "... tinyxml2.s"

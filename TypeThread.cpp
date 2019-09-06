@@ -43,7 +43,7 @@ uint32_t TypeThread::getAllThreads(TypeThread **dstPtr) {
                     tThread[r].work = strtol(row[7], nullptr, 10);
 //                    tThread[r].deviceType = strtol(row[6], nullptr, 10);
                     flen = lengths[8];
-                    memset(tThread[r].title, 0, 36);
+                    memset(tThread[r].deviceType, 0, 37);
                     strncpy(tThread[r].deviceType, row[8], flen);
                     if (row[9]) {
                         strptime(row[9], "%Y-%m-%d %H:%M:%S", &tms);

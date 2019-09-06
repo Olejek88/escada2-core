@@ -5,7 +5,7 @@
 #include "dbase.h"
 
 uint32_t baudrate(uint32_t  baud);
-bool UpdateThreads(DBase dBase, int thread_id, uint8_t type, uint8_t status);
+bool UpdateThreads(DBase dBase, int thread_id, uint8_t type, uint8_t status, char* deviceUuid);
 bool AddDeviceRegister(DBase dBase, char* device, char* description);
 uint8_t BCD (uint8_t dat);
 

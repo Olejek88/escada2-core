@@ -11,6 +11,8 @@
 class DBase {
 private:
     MYSQL *mysql = nullptr;
+    char fields[32][64];
+    uint8_t nFields;
 public:
     char driver[MAX_STR];
     char host[MAX_STR];
@@ -32,6 +34,14 @@ public:
 
     char *GetChannel(char *measureTypeUuid, uint16_t channel, char *deviceUuid);
     bool StoreData(uint16_t type, uint16_t status, double value, char  *data, char *channelUuid);
+
+    int8_t makeFieldsList(MYSQL_RES *res);
+
+    int8_t getFieldIndex(const char *fieldName);
+
+    bool isError();
+
+    const char *getErrorString();
 };
 
 #endif //ESCADA_CORE_DBASE_H
