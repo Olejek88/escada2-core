@@ -23,7 +23,7 @@ void log_buffer_hex(uint8_t *buffer, size_t buffer_size) {
         sprintf((char *) &message[i * 6], "0x%02x, ", buffer[i]);
     }
 
-    kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] %s\n", TAG, message);
+    kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] %s", TAG, message);
 }
 
 bool findDevice(DBase *dBase, uint8_t *addr, uint8_t *uuid) {
@@ -141,7 +141,7 @@ bool updateMeasureValue(DBase *dBase, uint8_t *uuid, double value, time_t change
             "UPDATE data SET value=%f, date=FROM_UNIXTIME(%ld), changedAt=FROM_UNIXTIME(%ld) WHERE uuid = '%s'",
             value, changedTime, changedTime, uuid);
 #ifdef DEBUG
-    kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] %s\n", TAG, query);
+    kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] %s", TAG, query);
 #endif
 
     res = dBase->sqlexec((const char *) query);
@@ -161,7 +161,7 @@ bool storeMeasureValue(DBase *dBase, uint8_t *uuid, std::string *channelUuid, do
             "INSERT INTO data (uuid, sensorChannelUuid, value, date, createdAt) value('%s', '%s', %f, FROM_UNIXTIME(%ld), FROM_UNIXTIME(%ld))",
             uuid, channelUuid->data(), value, createTime, changedTime);
 #ifdef DEBUG
-    kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] %s\n", TAG, query);
+    kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] %s", TAG, query);
 #endif
 
     res = dBase->sqlexec((const char *) query);
@@ -181,7 +181,7 @@ createSChannel(DBase *dBase, uint8_t *uuid, const char *channelTitle, uint8_t se
             "INSERT INTO sensor_channel (uuid, title, register, deviceUuid, measureTypeUuid, createdAt) value('%s', '%s', '%d', '%s', '%s', FROM_UNIXTIME(%ld))",
             uuid, channelTitle, sensorIndex, deviceUuid, channelTypeUuid, createTime);
 #ifdef DEBUG
-    kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] %s\n", TAG, query);
+    kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] %s", TAG, query);
 #endif
 
     res = dBase->sqlexec((const char *) query);
@@ -238,7 +238,7 @@ void makeCoordinatorStatus(DBase *dBase, uint8_t *address, const uint8_t *packet
 
     memset(deviceUuid, 0, 37);
     if (!findDevice(dBase, address, deviceUuid)) {
-        kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] %s %s\n", TAG, "Неудалось найти устройство с адресом %s", address);
+        kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] %s %s", TAG, "Неудалось найти устройство с адресом", address);
         return;
     }
 
@@ -250,7 +250,7 @@ void makeCoordinatorStatus(DBase *dBase, uint8_t *address, const uint8_t *packet
         uuid_unparse_upper(newUuid, (char *) newUuidString);
         if (!createSChannel(dBase, newUuidString, MTM_ZB_CHANNEL_COORD_IN1_TITLE,
                             MTM_ZB_CHANNEL_COORD_IN1_IDX, deviceUuid, CHANNEL_IN1, createTime)) {
-            kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] %s %s\n", TAG, "Неудалось канал измерение",
+            kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] %s %s", TAG, "Неудалось канал измерение",
                               MTM_ZB_CHANNEL_COORD_IN1_TITLE);
         } else {
             sChannelUuid = std::string((char *) newUuidString);
@@ -276,7 +276,7 @@ void makeCoordinatorStatus(DBase *dBase, uint8_t *address, const uint8_t *packet
         measureUuid = findMeasure(dBase, &sChannelUuid, MTM_ZB_CHANNEL_COORD_IN1_IDX);
         if (!measureUuid.empty()) {
             if (!updateMeasureValue(dBase, (uint8_t *) measureUuid.data(), value, createTime)) {
-                kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] %s %s\n", TAG,
+                kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] %s %s", TAG,
                                   "Не удалось обновить измерение", MTM_ZB_CHANNEL_COORD_IN1_TITLE);
             }
         } else {
@@ -286,7 +286,7 @@ void makeCoordinatorStatus(DBase *dBase, uint8_t *address, const uint8_t *packet
             uuid_unparse_upper(newUuid, (char *) newUuidString);
             if (!storeMeasureValue(dBase, newUuidString, &sChannelUuid, (double) value, createTime,
                                    createTime)) {
-                kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] %s %s\n", TAG,
+                kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] %s %s", TAG,
                                   "Не удалось сохранить измерение", MTM_ZB_CHANNEL_COORD_IN1_TITLE);
             }
         }
@@ -300,7 +300,7 @@ void makeCoordinatorStatus(DBase *dBase, uint8_t *address, const uint8_t *packet
         uuid_unparse_upper(newUuid, (char *) newUuidString);
         if (!createSChannel(dBase, newUuidString, MTM_ZB_CHANNEL_COORD_IN2_TITLE,
                             MTM_ZB_CHANNEL_COORD_IN2_IDX, deviceUuid, CHANNEL_IN2, createTime)) {
-            kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] %s %s\n", TAG, "Неудалось канал измерение",
+            kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] %s %s", TAG, "Неудалось канал измерение",
                               MTM_ZB_CHANNEL_COORD_IN2_TITLE);
         } else {
             sChannelUuid = std::string((char *) newUuidString);
@@ -326,7 +326,7 @@ void makeCoordinatorStatus(DBase *dBase, uint8_t *address, const uint8_t *packet
         measureUuid = findMeasure(dBase, &sChannelUuid, MTM_ZB_CHANNEL_COORD_IN2_IDX);
         if (!measureUuid.empty()) {
             if (!updateMeasureValue(dBase, (uint8_t *) measureUuid.data(), value, createTime)) {
-                kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] %s %s\n", TAG,
+                kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] %s %s", TAG,
                                   "Не удалось обновить измерение", MTM_ZB_CHANNEL_COORD_IN2_TITLE);
             }
         } else {
@@ -335,7 +335,7 @@ void makeCoordinatorStatus(DBase *dBase, uint8_t *address, const uint8_t *packet
             uuid_unparse_upper(newUuid, (char *) newUuidString);
             if (!storeMeasureValue(dBase, (uint8_t *) measureUuid.data(), &sChannelUuid, (double) value,
                                    createTime, createTime)) {
-                kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] %s %s\n", TAG,
+                kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] %s %s", TAG,
                                   "Не удалось сохранить измерение", MTM_ZB_CHANNEL_COORD_IN2_TITLE);
             }
         }
@@ -350,7 +350,7 @@ void makeCoordinatorStatus(DBase *dBase, uint8_t *address, const uint8_t *packet
         if (!createSChannel(dBase, newUuidString, MTM_ZB_CHANNEL_COORD_DIGI1_TITLE,
                             MTM_ZB_CHANNEL_COORD_DIGI1_IDX, deviceUuid, CHANNEL_DIGI1,
                             createTime)) {
-            kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] %s %s\n", TAG, "Неудалось канал измерение",
+            kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] %s %s", TAG, "Неудалось канал измерение",
                               MTM_ZB_CHANNEL_COORD_DIGI1_TITLE);
         } else {
             sChannelUuid = std::string((char *) newUuidString);
@@ -364,7 +364,7 @@ void makeCoordinatorStatus(DBase *dBase, uint8_t *address, const uint8_t *packet
         measureUuid = findMeasure(dBase, &sChannelUuid, MTM_ZB_CHANNEL_COORD_DIGI1_IDX);
         if (!measureUuid.empty()) {
             if (!updateMeasureValue(dBase, (uint8_t *) measureUuid.data(), value, createTime)) {
-                kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] %s %s\n", TAG,
+                kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] %s %s", TAG,
                                   "Не удалось обновить измерение", MTM_ZB_CHANNEL_COORD_DIGI1_TITLE);
             }
         } else {
@@ -373,7 +373,7 @@ void makeCoordinatorStatus(DBase *dBase, uint8_t *address, const uint8_t *packet
             uuid_unparse_upper(newUuid, (char *) newUuidString);
             if (!storeMeasureValue(dBase, newUuidString, &sChannelUuid, (double) value, createTime,
                                    createTime)) {
-                kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] %s %s\n", TAG,
+                kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] %s %s", TAG,
                                   "Не удалось сохранить измерение", MTM_ZB_CHANNEL_COORD_DIGI1_TITLE);
             }
         }
@@ -393,7 +393,7 @@ void makeLightStatus(DBase *dBase, uint8_t *address, const uint8_t *packetBuffer
 
     memset(deviceUuid, 0, 37);
     if (!findDevice(dBase, address, deviceUuid)) {
-        kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] %s %s\n", TAG, "Неудалось найти устройство с адресом %s", address);
+        kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] %s %s", TAG, "Неудалось найти устройство с адресом", address);
         return;
     }
 
@@ -406,7 +406,7 @@ void makeLightStatus(DBase *dBase, uint8_t *address, const uint8_t *packetBuffer
         if (!createSChannel(dBase, newUuidString, MTM_ZB_CHANNEL_LIGHT_TEMPERATURE_TITLE,
                             MTM_ZB_CHANNEL_LIGHT_TEMPERATURE_IDX,
                             deviceUuid, CHANNEL_T, createTime)) {
-            kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] %s %s\n", TAG, "Неудалось канал измерение ",
+            kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] %s %s", TAG, "Неудалось канал измерение ",
                               MTM_ZB_CHANNEL_LIGHT_TEMPERATURE_TITLE);
         }
     }
@@ -416,7 +416,7 @@ void makeLightStatus(DBase *dBase, uint8_t *address, const uint8_t *packetBuffer
         measureUuid = findMeasure(dBase, &sChannelUuid, MTM_ZB_CHANNEL_LIGHT_TEMPERATURE_IDX);
         if (!measureUuid.empty()) {
             if (!updateMeasureValue(dBase, (uint8_t *) measureUuid.data(), value, createTime)) {
-                kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] %s %s\n", TAG, "Не удалось обновить измерение",
+                kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] %s %s", TAG, "Не удалось обновить измерение",
                                   MTM_ZB_CHANNEL_LIGHT_TEMPERATURE_TITLE);
             }
         } else {
@@ -425,7 +425,7 @@ void makeLightStatus(DBase *dBase, uint8_t *address, const uint8_t *packetBuffer
             uuid_unparse_upper(newUuid, (char *) newUuidString);
             if (!storeMeasureValue(dBase, newUuidString, &sChannelUuid, (double) value, createTime,
                                    createTime)) {
-                kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] %s %s\n", TAG, "Не удалось сохранить измерение",
+                kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] %s %s", TAG, "Не удалось сохранить измерение",
                                   MTM_ZB_CHANNEL_LIGHT_TEMPERATURE_TITLE);
             }
         }
@@ -440,7 +440,7 @@ void makeLightStatus(DBase *dBase, uint8_t *address, const uint8_t *packetBuffer
         if (!createSChannel(dBase, newUuidString, MTM_ZB_CHANNEL_LIGHT_CURRENT_TITLE,
                             MTM_ZB_CHANNEL_LIGHT_CURRENT_IDX,
                             deviceUuid, CHANNEL_I, createTime)) {
-            kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] %s %s\n", TAG, "Неудалось канал измерение ",
+            kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] %s %s", TAG, "Неудалось канал измерение ",
                               MTM_ZB_CHANNEL_LIGHT_CURRENT_TITLE);
         }
     }
@@ -450,7 +450,7 @@ void makeLightStatus(DBase *dBase, uint8_t *address, const uint8_t *packetBuffer
         measureUuid = findMeasure(dBase, &sChannelUuid, MTM_ZB_CHANNEL_LIGHT_CURRENT_IDX);
         if (!measureUuid.empty()) {
             if (!updateMeasureValue(dBase, (uint8_t *) measureUuid.data(), value, createTime)) {
-                kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] %s %s\n", TAG, "Не удалось обновить измерение",
+                kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] %s %s", TAG, "Не удалось обновить измерение",
                                   MTM_ZB_CHANNEL_LIGHT_CURRENT_TITLE);
             }
         } else {
@@ -459,7 +459,7 @@ void makeLightStatus(DBase *dBase, uint8_t *address, const uint8_t *packetBuffer
             uuid_unparse_upper(newUuid, (char *) newUuidString);
             if (!storeMeasureValue(dBase, newUuidString, &sChannelUuid, (double) value, createTime,
                                    createTime)) {
-                kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] %s %s\n", TAG, "Не удалось сохранить измерение",
+                kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] %s %s", TAG, "Не удалось сохранить измерение",
                                   MTM_ZB_CHANNEL_LIGHT_CURRENT_TITLE);
             }
         }
@@ -474,7 +474,7 @@ void makeLightStatus(DBase *dBase, uint8_t *address, const uint8_t *packetBuffer
         if (!createSChannel(dBase, newUuidString, MTM_ZB_CHANNEL_LIGHT_STATUS_TITLE,
                             MTM_ZB_CHANNEL_LIGHT_STATUS_IDX,
                             deviceUuid, CHANNEL_STATUS, createTime)) {
-            kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] %s %s\n", TAG, "Неудалось канал измерение ",
+            kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] %s %s", TAG, "Неудалось канал измерение ",
                               MTM_ZB_CHANNEL_LIGHT_STATUS_TITLE);
         }
     }
@@ -485,7 +485,7 @@ void makeLightStatus(DBase *dBase, uint8_t *address, const uint8_t *packetBuffer
         measureUuid = findMeasure(dBase, &sChannelUuid, MTM_ZB_CHANNEL_LIGHT_STATUS_IDX);
         if (!measureUuid.empty()) {
             if (!updateMeasureValue(dBase, (uint8_t *) measureUuid.data(), value, createTime)) {
-                kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] %s %s\n", TAG, "Не удалось обновить измерение",
+                kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] %s %s", TAG, "Не удалось обновить измерение",
                                   MTM_ZB_CHANNEL_LIGHT_STATUS_TITLE);
             }
         } else {
@@ -494,7 +494,7 @@ void makeLightStatus(DBase *dBase, uint8_t *address, const uint8_t *packetBuffer
             uuid_unparse_upper(newUuid, (char *) newUuidString);
             if (!storeMeasureValue(dBase, newUuidString, &sChannelUuid, (double) value, createTime,
                                    createTime)) {
-                kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] %s %s\n", TAG, "Не удалось сохранить измерение",
+                kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] %s %s", TAG, "Не удалось сохранить измерение",
                                   MTM_ZB_CHANNEL_LIGHT_STATUS_TITLE);
             }
         }
@@ -564,7 +564,7 @@ void checkAstroEvents(time_t currentTime, double lon, double lat) {
             action.data = (0x02 << 8 | 0x01); // NOLINT(hicpp-signed-bitwise)
             ssize_t rc = send_mtm_cmd(coordinatorFd, 0xFFFF, &action);
 #ifdef DEBUG
-            kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] rc=%ld\n", TAG, rc);
+            kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] rc=%ld", TAG, rc);
             kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] закат", TAG);
 #endif
         } else if ((isTimeAboveTwilightEnd || isTimeLessTwilightStart) && (!isTwilightEnd || !isSunInit)) {
