@@ -679,11 +679,11 @@ void checkLightProgram(DBase *dBase, time_t currentTime, double lon, double lat)
                                     "ORDER BY device_program.title");
 
 #ifdef DEBUG
-    kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] checkTime: %ld", TAG, checkTime);
+    kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] checkTime: %llu", TAG, checkTime);
     kernel->log.ulogw(LOG_LEVEL_INFO,
-                      "[%s] twilightStartTime: %ld, sunRiseTime: %ld, sunSetTime: %ld, twilightEndTime: %ld",
+                      "[%s] twilightStartTime: %llu, sunRiseTime: %llu, sunSetTime: %llu, twilightEndTime: %llu",
                       TAG, twilightStartTime, sunRiseTime, sunSetTime, twilightEndTime);
-    kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] dayLen: %ld, nightLen: %ld, twilightLen: %ld, sum: %ld",
+    kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] dayLen: %llu, nightLen: %llu, twilightLen: %llu, sum: %llu",
                       TAG, dayLen, nightLen, twilightLen, dayLen + nightLen + twilightLen);
 #endif
 
@@ -703,8 +703,8 @@ void checkLightProgram(DBase *dBase, time_t currentTime, double lon, double lat)
                 time1loc = time1raw > 86400 ? time1raw - 86400 : time1raw;
                 time2loc = time2raw > 86400 ? time2raw - 86400 : time2raw;
 #ifdef DEBUG
-                kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] time1raw: %ld, time2raw: %ld", TAG, time1raw, time2raw);
-                kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] time1loc: %ld, time2loc: %ld", TAG, time1loc, time2loc);
+                kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] time1raw: %llu, time2raw: %llu", TAG, time1raw, time2raw);
+                kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] time1loc: %llu, time2loc: %llu", TAG, time1loc, time2loc);
 #endif
             }
 
@@ -840,7 +840,7 @@ void checkLightProgram(DBase *dBase, time_t currentTime, double lon, double lat)
                     rc = sendLightLevel((char *) address.data(), row[dBase->getFieldIndex("value5")]);
 #ifdef DEBUG
                     kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] %s period 5", TAG, address.data());
-                    kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] checkTime: %ld", TAG, checkTime);
+                    kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] checkTime: %llu", TAG, checkTime);
                     kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] rc=%ld", TAG, rc);
 #endif
                 }
@@ -853,7 +853,7 @@ void checkLightProgram(DBase *dBase, time_t currentTime, double lon, double lat)
                     lightFlags[address].setDayActive();
 #ifdef DEBUG
                     kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] %s period day", TAG, address.data());
-                    kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] checkTime: %ld", TAG, checkTime);
+                    kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] checkTime: %llu", TAG, checkTime);
                     kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] rc=%ld", TAG, rc);
 #endif
                 }
