@@ -137,7 +137,7 @@ void *dispatcher(void *thread_arg) {
                 if (strncasecmp("0FBACF26-31CA-4B92-BCA3-220E09A6D2D3", typeThreads[th].deviceType, 36) == 0) {
                     if (typeThreads[th].work > 0)
                         pRc = pthread_create(&thr, nullptr, ceDeviceThread, (void *) &typeThreads[th]);
-                } else if (strncasecmp("CFD3C7CC-170C-4764-9A8D-10047C8B8B1D", typeThreads[th].deviceType, 36) == 0) {
+                } else if (strncasecmp("8CF354DB-6FC2-4256-A24E-3E497BA99589", typeThreads[th].deviceType, 36) == 0) {
                     if (typeThreads[th].work > 0)
                         pRc = pthread_create(&zb_thr, nullptr, mtmZigbeeDeviceThread, (void *) &typeThreads[th]);
                 } else {

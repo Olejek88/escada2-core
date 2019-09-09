@@ -1,0 +1,15 @@
+[Unit]
+Description=yiid
+After=network-online.target mysql.service
+Requires=mysql.service
+
+[Service]
+User=www-data
+PIDFile=/var/www/html/console/runtime/daemon/daemon.pid
+Type=forking
+KillMode=process
+ExecStart=/var/www/html/vendor/inpassor/yii2-daemon/yiid start
+ExecStop=/var/www/html/vendor/inpassor/yii2-daemon/yiid stop
+
+[Install]
+WantedBy=multi-user.target

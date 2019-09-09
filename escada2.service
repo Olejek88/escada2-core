@@ -1,0 +1,13 @@
+[Unit]
+Description=escada2-core
+Documentation=
+After=network-online.target mysql.service
+Requires=mysql.service
+
+[Service]
+#Type=simple
+ExecStart=/opt/escada2-core/start.sh
+Restart=always
+
+[Install]
+WantedBy=multi-user.target
