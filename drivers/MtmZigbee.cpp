@@ -130,13 +130,13 @@ void mtmZigbeePktListener(int32_t threadId) {
                 isSof = true;
                 seek[i++] = data;
 #ifdef DEBUG
-                kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] found SOF", TAG);
+//                kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] found SOF", TAG);
 #endif
             } else if (!isFrameLen) {
                 isFrameLen = true;
                 seek[i++] = frameLen = data;
 #ifdef DEBUG
-                kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] found frame len", TAG);
+//                kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] found frame len", TAG);
 #endif
             } else if (!isCommand) {
                 commandByteCount++;
@@ -145,7 +145,7 @@ void mtmZigbeePktListener(int32_t threadId) {
                     commandByteCount = 0;
                     isCommand = true;
 #ifdef DEBUG
-                    kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] found command", TAG);
+//                    kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] found command", TAG);
 #endif
                 }
             } else if (!isFrameData && frameDataByteCount < frameLen) {
@@ -155,14 +155,14 @@ void mtmZigbeePktListener(int32_t threadId) {
                     isFrameData = true;
                     frameDataByteCount = 0;
 #ifdef DEBUG
-                    kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] found frame data", TAG);
+//                    kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] found frame data", TAG);
 #endif
                 }
             } else {
                 // нашли контрольную сумму
                 seek[i++] = data;
 #ifdef DEBUG
-                kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] found FCS", TAG);
+//                kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] found FCS", TAG);
 #endif
 
                 // пакет вроде как разобран
@@ -170,7 +170,7 @@ void mtmZigbeePktListener(int32_t threadId) {
                 fcs = compute_fcs(seek, i);
                 if (fcs == seek[i - 1]) {
 #ifdef DEBUG
-                    kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] frame good", TAG);
+//                    kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] frame good", TAG);
 #endif
 
                     // складываем полученный пакет в список
@@ -181,7 +181,7 @@ void mtmZigbeePktListener(int32_t threadId) {
                     SLIST_INSERT_HEAD(&zb_queue_head, zb_item, items);
                 } else {
 #ifdef DEBUG
-                    kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] frame bad", TAG);
+//                    kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] frame bad", TAG);
 #endif
                     // вероятно то что попадает в порт с модуля zigbee уже проверено им самим
                     // как проверить это предположение? попробовать послать порченый пакет.
