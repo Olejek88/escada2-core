@@ -1,3 +1,6 @@
+#ifndef ESCADA_CORE_KERNEL_H
+#define ESCADA_CORE_KERNEL_H
+
 #include "consolecolors.h"
 #include <ctime>
 #include <sys/time.h>
@@ -27,3 +30,5 @@ private:
 
     Kernel &operator=(Kernel const &);
 };
+
+#endif
