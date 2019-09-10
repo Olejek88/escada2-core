@@ -196,6 +196,11 @@ void mtmZigbeePktListener(int32_t threadId) {
                 isFrameData = false;
                 i = 0;
             }
+//        } else if (count == -1) {
+//            // порт видимо куда-то пропал, либо ещё какая-то ошибка
+//            kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] Error read data from port", TAG);
+//            kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] Stopping thread", TAG);
+//            return;
         } else {
             // есть свободное время, разбираем список полученных пакетов
             while (!SLIST_EMPTY(&zb_queue_head)) {
@@ -210,11 +215,56 @@ void mtmZigbeePktListener(int32_t threadId) {
                 free(zb_item);
             }
 
+            // проверяем, не отключили ли запуск потока, если да, остановить выполнение
             // обновляем значение c_time в таблице thread раз в 5 секунд
             currentTime = time(nullptr);
             if (currentTime - heartBeatTime >= 5) {
                 heartBeatTime = currentTime;
-                UpdateThreads(*mtmZigbeeDBase, threadId, 0, 1, nullptr);
+                char query[512] = {0};
+                MYSQL_RES *res;
+                MYSQL_ROW row;
+                my_ulonglong nRows;
+                int isWork = 0;
+                sprintf(query, "SELECT * FROM threads WHERE _id = %d", threadId);
+                res = mtmZigbeeDBase->sqlexec(query);
+                if (res) {
+                    nRows = mysql_num_rows(res);
+                    if (nRows == 1) {
+                        mtmZigbeeDBase->makeFieldsList(res);
+                        row = mysql_fetch_row(res);
+                        if (row != nullptr) {
+                            isWork = std::stoi(row[mtmZigbeeDBase->getFieldIndex("work")]);
+                        } else {
+                            // ошибка получения записи из базы, останавливаем поток
+                            kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] Read thread record get null", TAG);
+                            kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] Stopping thread", TAG);
+                            mysql_free_result(res);
+                            return;
+                        }
+                    } else {
+                        // записи о потоке нет, либо их больше одной, останавливаем поток
+                        kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] Thread record not single, or not exists", TAG);
+                        kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] Stopping thread", TAG);
+                        mysql_free_result(res);
+                        return;
+                    }
+
+                    mysql_free_result(res);
+
+                    if (isWork == 1) {
+                        // обновляем статус
+                        UpdateThreads(*mtmZigbeeDBase, threadId, 0, 1, nullptr);
+                    } else {
+                        // поток "остановили"
+                        sprintf(query, "UPDATE threads SET status=%d, changedAt=FROM_UNIXTIME(%lu) WHERE _id=%d", 0,
+                                currentTime, threadId);
+                        res = mtmZigbeeDBase->sqlexec(query);
+                        mysql_free_result(res);
+                        kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] Thread stopped from GUI", TAG);
+                        kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] Stopping thread", TAG);
+                        return;
+                    }
+                }
             }
 
             // рассылаем пакет с текущим "временем" раз в 10 секунд
