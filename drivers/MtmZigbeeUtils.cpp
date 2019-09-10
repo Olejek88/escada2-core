@@ -20,7 +20,7 @@ extern std::map<std::string, LightFlags> lightFlags;
 void log_buffer_hex(uint8_t *buffer, size_t buffer_size) {
     uint8_t message[1024];
     for (int i = 0; i < buffer_size; i++) {
-        sprintf((char *) &message[i * 6], "0x%02x, ", buffer[i]);
+        sprintf((char *) &message[i * 6], "0x%02x ", buffer[i]);
     }
 
     kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] %s", TAG, message);
@@ -562,7 +562,7 @@ void checkAstroEvents(time_t currentTime, double lon, double lat) {
             switchAllLight(100);
             // передаём команду "астро событие" "закат"
             action.data = (0x02 << 8 | 0x01); // NOLINT(hicpp-signed-bitwise)
-            ssize_t rc = send_mtm_cmd(coordinatorFd, 0xFFFF, &action);
+            ssize_t rc = send_mtm_cmd(coordinatorFd, 0xFFFF, &action, kernel);
 #ifdef DEBUG
             kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] rc=%ld", TAG, rc);
             kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] закат", TAG);
@@ -576,7 +576,7 @@ void checkAstroEvents(time_t currentTime, double lon, double lat) {
 
             // передаём команду "астро событие" "конец сумерек"
             action.data = (0x01 << 8 | 0x00); // NOLINT(hicpp-signed-bitwise)
-            ssize_t rc = send_mtm_cmd(coordinatorFd, 0xFFFF, &action);
+            ssize_t rc = send_mtm_cmd(coordinatorFd, 0xFFFF, &action, kernel);
 #ifdef DEBUG
             kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] rc=%ld", TAG, rc);
             kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] конец сумерек", TAG);
@@ -589,7 +589,7 @@ void checkAstroEvents(time_t currentTime, double lon, double lat) {
             isSunRise = false;
             // передаём команду "астро событие" "начало сумерек"
             action.data = (0x03 << 8 | 0x00); // NOLINT(hicpp-signed-bitwise)
-            ssize_t rc = send_mtm_cmd(coordinatorFd, 0xFFFF, &action);
+            ssize_t rc = send_mtm_cmd(coordinatorFd, 0xFFFF, &action, kernel);
 #ifdef DEBUG
             kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] rc=%ld", TAG, rc);
             kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] начало сумерек", TAG);
@@ -606,7 +606,7 @@ void checkAstroEvents(time_t currentTime, double lon, double lat) {
             switchAllLight(0);
             // передаём команду "астро событие" "восход"
             action.data = (0x00 << 8 | 0x00); // NOLINT(hicpp-signed-bitwise)
-            ssize_t rc = send_mtm_cmd(coordinatorFd, 0xFFFF, &action);
+            ssize_t rc = send_mtm_cmd(coordinatorFd, 0xFFFF, &action, kernel);
 #ifdef DEBUG
             kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] rc=%ld", TAG, rc);
             kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] восход", TAG);
@@ -890,5 +890,5 @@ ssize_t sendLightLevel(char *addrString, char *level) {
     action.device = MTM_DEVICE_LIGHT;
     action.data = std::stoi(level);
     uint64_t addr = std::stoull(addrString, nullptr, 16);
-    return send_mtm_cmd_ext(coordinatorFd, addr, &action);
+    return send_mtm_cmd_ext(coordinatorFd, addr, &action, kernel);
 }

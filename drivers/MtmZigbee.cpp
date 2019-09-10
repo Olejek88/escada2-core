@@ -276,7 +276,7 @@ void mtmZigbeePktListener(int32_t threadId) {
                 current_time.header.protoVersion = MTM_VERSION_0;
                 localTime = localtime(&currentTime);
                 current_time.time = localTime->tm_hour * 60 + localTime->tm_min;
-                ssize_t rc = send_mtm_cmd(coordinatorFd, 0xFFFF, &current_time);
+                ssize_t rc = send_mtm_cmd(coordinatorFd, 0xFFFF, &current_time, kernel);
 #ifdef DEBUG
                 kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] Written %ld bytes.", TAG, rc);
 #endif
@@ -291,7 +291,7 @@ void mtmZigbeePktListener(int32_t threadId) {
                 req.sep = 0xE8;
                 req.dep = 0xE8;
                 req.cid = 0x0103;
-                ssize_t rc = send_zb_cmd(coordinatorFd, AF_DATA_REQUEST, &req);
+                ssize_t rc = send_zb_cmd(coordinatorFd, AF_DATA_REQUEST, &req, kernel);
 #ifdef DEBUG
                 kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] rc=%ld", TAG, rc);
 #endif
@@ -340,7 +340,7 @@ ssize_t switchAllLight(uint16_t level) {
     action.header.protoVersion = MTM_VERSION_0;
     action.device = MTM_DEVICE_LIGHT;
     action.data = level;
-    ssize_t rc = send_mtm_cmd(coordinatorFd, 0xFFFF, &action);
+    ssize_t rc = send_mtm_cmd(coordinatorFd, 0xFFFF, &action, kernel);
     return rc;
 }
 
@@ -354,7 +354,7 @@ ssize_t switchContactor(bool enable, uint8_t line) {
     request.opt = ZB_O_APS_ACKNOWLEDGE; // флаг для получения подтверждения с конечного устройства а не с первого хопа.
     request.rad = MAX_PACKET_HOPS;
     request.adl = 0x00;
-    ssize_t rc = send_zb_cmd(coordinatorFd, AF_DATA_REQUEST, &request);
+    ssize_t rc = send_zb_cmd(coordinatorFd, AF_DATA_REQUEST, &request, kernel);
     return rc;
 }
 
@@ -436,9 +436,9 @@ void mtmZigbeeProcessOutPacket() {
                                 config.max = *(uint16_t *) &mtmPkt[5];
 
                                 if (dstAddr == 0xffff) {
-                                    rc = send_mtm_cmd(coordinatorFd, dstAddr, &config);
+                                    rc = send_mtm_cmd(coordinatorFd, dstAddr, &config, kernel);
                                 } else {
-                                    rc = send_mtm_cmd_ext(coordinatorFd, dstAddr, &config);
+                                    rc = send_mtm_cmd_ext(coordinatorFd, dstAddr, &config, kernel);
                                 }
 
 #ifdef DEBUG
@@ -462,9 +462,9 @@ void mtmZigbeeProcessOutPacket() {
                                 }
 
                                 if (dstAddr == 0xFFFF) {
-                                    rc = send_mtm_cmd(coordinatorFd, dstAddr, &config_light);
+                                    rc = send_mtm_cmd(coordinatorFd, dstAddr, &config_light, kernel);
                                 } else {
-                                    rc = send_mtm_cmd_ext(coordinatorFd, dstAddr, &config_light);
+                                    rc = send_mtm_cmd_ext(coordinatorFd, dstAddr, &config_light, kernel);
                                 }
 
 #ifdef DEBUG
@@ -484,9 +484,9 @@ void mtmZigbeeProcessOutPacket() {
                                 current_time.time = *(uint16_t *) &mtmPkt[2];
 
                                 if (dstAddr == 0xFFFF) {
-                                    rc = send_mtm_cmd(coordinatorFd, dstAddr, &current_time);
+                                    rc = send_mtm_cmd(coordinatorFd, dstAddr, &current_time, kernel);
                                 } else {
-                                    rc = send_mtm_cmd_ext(coordinatorFd, dstAddr, &current_time);
+                                    rc = send_mtm_cmd_ext(coordinatorFd, dstAddr, &current_time, kernel);
                                 }
 
 #ifdef DEBUG
@@ -507,9 +507,9 @@ void mtmZigbeeProcessOutPacket() {
                                 action.data = *(uint16_t *) &mtmPkt[3];
 
                                 if (dstAddr == 0xFFFF) {
-                                    rc = send_mtm_cmd(coordinatorFd, dstAddr, &action);
+                                    rc = send_mtm_cmd(coordinatorFd, dstAddr, &action, kernel);
                                 } else {
-                                    rc = send_mtm_cmd_ext(coordinatorFd, dstAddr, &action);
+                                    rc = send_mtm_cmd_ext(coordinatorFd, dstAddr, &action, kernel);
                                 }
 
 #ifdef DEBUG
@@ -573,9 +573,9 @@ void mtmZigbeeProcessInPacket(uint8_t *pktBuff, uint32_t length) {
 
 #ifdef DEBUG
     char pktStr[2048] = {0};
-    kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] RAW packet", TAG);
+    kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] RAW in packet", TAG);
     for (int i = 0; i < length; i++) {
-        sprintf(&pktStr[i * 2], "%02X,", pktBuff[i]);
+        sprintf(&pktStr[i * 2], "%02X", pktBuff[i]);
     }
 
     kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] %s", TAG, pktStr);
@@ -792,7 +792,7 @@ int32_t mtmZigbeeInit(int32_t mode, uint8_t *path, uint32_t speed) {
     }
 
 
-    send_zb_cmd(coordinatorFd, ZB_SYSTEM_RESET, nullptr);
+    send_zb_cmd(coordinatorFd, ZB_SYSTEM_RESET, nullptr, kernel);
 
     sleep(1);
 
@@ -808,7 +808,7 @@ int32_t mtmZigbeeInit(int32_t mode, uint8_t *path, uint32_t speed) {
     af_register.app_in_cluster_list[0] = 0xFC00;
     af_register.app_num_out_clusters = 1;
     af_register.app_out_cluster_list[0] = 0xFC00;
-    ssize_t rc = send_zb_cmd(coordinatorFd, AF_REGISTER, &af_register);
+    ssize_t rc = send_zb_cmd(coordinatorFd, AF_REGISTER, &af_register, kernel);
 #ifdef DEBUG
     kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] rc=%ld", TAG, rc);
 #endif

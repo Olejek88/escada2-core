@@ -1,3 +1,6 @@
+#ifndef ESCADA_CORE_LOGS_H
+#define ESCADA_CORE_LOGS_H
+
 #include "const.h"
 
 #define    LOG_LEVEL_NONE        0
@@ -24,3 +27,5 @@ public:
 
     void ulogw(int loglevel, const char *string, ...);
 };
+
+#endif

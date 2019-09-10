@@ -77,6 +77,15 @@ int main(int argc, char *argv[]) {
     // ждём пока завершится dispatcher
     pthread_join(dispatcher_thread, nullptr);
 
+    // всем потокам проставляем статус "остановлен"
+    tim = time(nullptr);
+    char query[512] = {0};
+    sprintf(query, "UPDATE threads SET status=%d, changedAt=FROM_UNIXTIME(%lu)", 0, tim);
+    MYSQL_RES *result = dBase->sqlexec(query);
+    mysql_free_result(result);
+    currentKernelInstance.log.ulogw(LOG_LEVEL_ERROR, "[%s] Thread stopped from GUI", TAG);
+    currentKernelInstance.log.ulogw(LOG_LEVEL_ERROR, "[%s] Stopping thread", TAG);
+
     dBase->disconnect();
     delete dBase;
 
