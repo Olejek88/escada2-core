@@ -85,7 +85,7 @@ std::string getSChannelConfig(DBase *dBase, std::string *sChannelUuid) {
     res = dBase->sqlexec((char *) query);
     if (res) {
         nRows = mysql_num_rows(res);
-        if (nRows == 1) {
+        if (nRows > 0) {
             dBase->makeFieldsList(res);
             row = mysql_fetch_row(res);
             if (row) {
@@ -115,7 +115,7 @@ std::string findSChannel(DBase *dBase, uint8_t *deviceUuid, uint8_t regIdx, cons
     res = dBase->sqlexec((char *) query);
     if (res) {
         nRows = mysql_num_rows(res);
-        if (nRows == 1) {
+        if (nRows > 0) {
             dBase->makeFieldsList(res);
             row = mysql_fetch_row(res);
             if (row) {
@@ -204,7 +204,7 @@ std::string findMeasure(DBase *dBase, std::string *sChannelUuid, uint8_t regIdx)
     res = dBase->sqlexec((char *) query);
     if (res) {
         nRows = mysql_num_rows(res);
-        if (nRows == 1) {
+        if (nRows > 0) {
             dBase->makeFieldsList(res);
             row = mysql_fetch_row(res);
             if (row) {
@@ -403,11 +403,13 @@ void makeLightStatus(DBase *dBase, uint8_t *address, const uint8_t *packetBuffer
         // если нет, создать
         uuid_generate(newUuid);
         uuid_unparse_upper(newUuid, (char *) newUuidString);
-        if (!createSChannel(dBase, newUuidString, MTM_ZB_CHANNEL_LIGHT_TEMPERATURE_TITLE,
-                            MTM_ZB_CHANNEL_LIGHT_TEMPERATURE_IDX,
-                            deviceUuid, CHANNEL_T, createTime)) {
+        if (createSChannel(dBase, newUuidString, MTM_ZB_CHANNEL_LIGHT_TEMPERATURE_TITLE,
+                           MTM_ZB_CHANNEL_LIGHT_TEMPERATURE_IDX,
+                           deviceUuid, CHANNEL_T, createTime)) {
             kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] %s %s", TAG, "Неудалось канал измерение ",
                               MTM_ZB_CHANNEL_LIGHT_TEMPERATURE_TITLE);
+        } else {
+            sChannelUuid.assign((const char *) newUuidString, 36);
         }
     }
 
@@ -415,7 +417,7 @@ void makeLightStatus(DBase *dBase, uint8_t *address, const uint8_t *packetBuffer
     if (!sChannelUuid.empty()) {
         measureUuid = findMeasure(dBase, &sChannelUuid, MTM_ZB_CHANNEL_LIGHT_TEMPERATURE_IDX);
         if (!measureUuid.empty()) {
-            if (!updateMeasureValue(dBase, (uint8_t *) measureUuid.data(), value, createTime)) {
+            if (updateMeasureValue(dBase, (uint8_t *) measureUuid.data(), value, createTime)) {
                 kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] %s %s", TAG, "Не удалось обновить измерение",
                                   MTM_ZB_CHANNEL_LIGHT_TEMPERATURE_TITLE);
             }
@@ -423,8 +425,7 @@ void makeLightStatus(DBase *dBase, uint8_t *address, const uint8_t *packetBuffer
             // создать новое измерение для канала
             uuid_generate(newUuid);
             uuid_unparse_upper(newUuid, (char *) newUuidString);
-            if (!storeMeasureValue(dBase, newUuidString, &sChannelUuid, (double) value, createTime,
-                                   createTime)) {
+            if (storeMeasureValue(dBase, newUuidString, &sChannelUuid, (double) value, createTime, createTime)) {
                 kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] %s %s", TAG, "Не удалось сохранить измерение",
                                   MTM_ZB_CHANNEL_LIGHT_TEMPERATURE_TITLE);
             }
@@ -437,11 +438,13 @@ void makeLightStatus(DBase *dBase, uint8_t *address, const uint8_t *packetBuffer
         // если нет, создать
         uuid_generate(newUuid);
         uuid_unparse_upper(newUuid, (char *) newUuidString);
-        if (!createSChannel(dBase, newUuidString, MTM_ZB_CHANNEL_LIGHT_CURRENT_TITLE,
-                            MTM_ZB_CHANNEL_LIGHT_CURRENT_IDX,
-                            deviceUuid, CHANNEL_I, createTime)) {
+        if (createSChannel(dBase, newUuidString, MTM_ZB_CHANNEL_LIGHT_CURRENT_TITLE,
+                           MTM_ZB_CHANNEL_LIGHT_CURRENT_IDX,
+                           deviceUuid, CHANNEL_I, createTime)) {
             kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] %s %s", TAG, "Неудалось канал измерение ",
                               MTM_ZB_CHANNEL_LIGHT_CURRENT_TITLE);
+        } else {
+            sChannelUuid.assign((const char *) newUuidString, 36);
         }
     }
 
@@ -449,7 +452,7 @@ void makeLightStatus(DBase *dBase, uint8_t *address, const uint8_t *packetBuffer
     if (!sChannelUuid.empty()) {
         measureUuid = findMeasure(dBase, &sChannelUuid, MTM_ZB_CHANNEL_LIGHT_CURRENT_IDX);
         if (!measureUuid.empty()) {
-            if (!updateMeasureValue(dBase, (uint8_t *) measureUuid.data(), value, createTime)) {
+            if (updateMeasureValue(dBase, (uint8_t *) measureUuid.data(), value, createTime)) {
                 kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] %s %s", TAG, "Не удалось обновить измерение",
                                   MTM_ZB_CHANNEL_LIGHT_CURRENT_TITLE);
             }
@@ -457,8 +460,7 @@ void makeLightStatus(DBase *dBase, uint8_t *address, const uint8_t *packetBuffer
             // создать новое измерение для канала
             uuid_generate(newUuid);
             uuid_unparse_upper(newUuid, (char *) newUuidString);
-            if (!storeMeasureValue(dBase, newUuidString, &sChannelUuid, (double) value, createTime,
-                                   createTime)) {
+            if (storeMeasureValue(dBase, newUuidString, &sChannelUuid, (double) value, createTime, createTime)) {
                 kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] %s %s", TAG, "Не удалось сохранить измерение",
                                   MTM_ZB_CHANNEL_LIGHT_CURRENT_TITLE);
             }
@@ -471,11 +473,13 @@ void makeLightStatus(DBase *dBase, uint8_t *address, const uint8_t *packetBuffer
         // если нет, создать
         uuid_generate(newUuid);
         uuid_unparse_upper(newUuid, (char *) newUuidString);
-        if (!createSChannel(dBase, newUuidString, MTM_ZB_CHANNEL_LIGHT_STATUS_TITLE,
-                            MTM_ZB_CHANNEL_LIGHT_STATUS_IDX,
-                            deviceUuid, CHANNEL_STATUS, createTime)) {
+        if (createSChannel(dBase, newUuidString, MTM_ZB_CHANNEL_LIGHT_STATUS_TITLE,
+                           MTM_ZB_CHANNEL_LIGHT_STATUS_IDX,
+                           deviceUuid, CHANNEL_STATUS, createTime)) {
             kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] %s %s", TAG, "Неудалось канал измерение ",
                               MTM_ZB_CHANNEL_LIGHT_STATUS_TITLE);
+        } else {
+            sChannelUuid.assign((const char *) newUuidString, 36);
         }
     }
 
@@ -484,7 +488,7 @@ void makeLightStatus(DBase *dBase, uint8_t *address, const uint8_t *packetBuffer
     if (!sChannelUuid.empty()) {
         measureUuid = findMeasure(dBase, &sChannelUuid, MTM_ZB_CHANNEL_LIGHT_STATUS_IDX);
         if (!measureUuid.empty()) {
-            if (!updateMeasureValue(dBase, (uint8_t *) measureUuid.data(), value, createTime)) {
+            if (updateMeasureValue(dBase, (uint8_t *) measureUuid.data(), value, createTime)) {
                 kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] %s %s", TAG, "Не удалось обновить измерение",
                                   MTM_ZB_CHANNEL_LIGHT_STATUS_TITLE);
             }
@@ -492,8 +496,7 @@ void makeLightStatus(DBase *dBase, uint8_t *address, const uint8_t *packetBuffer
             // создать новое измерение для канала
             uuid_generate(newUuid);
             uuid_unparse_upper(newUuid, (char *) newUuidString);
-            if (!storeMeasureValue(dBase, newUuidString, &sChannelUuid, (double) value, createTime,
-                                   createTime)) {
+            if (storeMeasureValue(dBase, newUuidString, &sChannelUuid, (double) value, createTime, createTime)) {
                 kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] %s %s", TAG, "Не удалось сохранить измерение",
                                   MTM_ZB_CHANNEL_LIGHT_STATUS_TITLE);
             }
