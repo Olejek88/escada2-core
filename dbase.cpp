@@ -204,7 +204,8 @@ int8_t DBase::getFieldIndex(const char *fieldName) {
 }
 
 bool DBase::isError() {
-    return *mysql_error(mysql) == 0;
+    const char *err = mysql_error(mysql);
+    return *err != 0;
 }
 
 const char *DBase::getErrorString() {
