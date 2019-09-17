@@ -8,6 +8,7 @@
 #include <jsoncpp/json/json.h>
 #include <jsoncpp/json/value.h>
 #include <suninfo.h>
+#include <function.h>
 #include "LightFlags.h"
 
 extern Kernel *kernel;
@@ -16,14 +17,15 @@ extern bool isSunInit;
 extern bool isSunSet, isTwilightEnd, isTwilightStart, isSunRise;
 extern int coordinatorFd;
 extern std::map<std::string, LightFlags> lightFlags;
+extern std::string coordinatorUuid;
 
 void log_buffer_hex(uint8_t *buffer, size_t buffer_size) {
     uint8_t message[1024];
     for (int i = 0; i < buffer_size; i++) {
-        sprintf((char *) &message[i * 6], "0x%02x ", buffer[i]);
+        sprintf((char *) &message[i * 2], "%02x", buffer[i]);
     }
 
-    kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] %s", TAG, message);
+    kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] MTM packet: %s", TAG, message);
 }
 
 bool findDevice(DBase *dBase, uint8_t *addr, uint8_t *uuid) {
@@ -248,8 +250,8 @@ void makeCoordinatorStatus(DBase *dBase, uint8_t *address, const uint8_t *packet
         // если нет, создать
         uuid_generate(newUuid);
         uuid_unparse_upper(newUuid, (char *) newUuidString);
-        if (!createSChannel(dBase, newUuidString, MTM_ZB_CHANNEL_COORD_IN1_TITLE,
-                            MTM_ZB_CHANNEL_COORD_IN1_IDX, deviceUuid, CHANNEL_IN1, createTime)) {
+        if (createSChannel(dBase, newUuidString, MTM_ZB_CHANNEL_COORD_IN1_TITLE,
+                           MTM_ZB_CHANNEL_COORD_IN1_IDX, deviceUuid, CHANNEL_IN1, createTime)) {
             kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] %s %s", TAG, "Неудалось канал измерение",
                               MTM_ZB_CHANNEL_COORD_IN1_TITLE);
         } else {
@@ -275,7 +277,7 @@ void makeCoordinatorStatus(DBase *dBase, uint8_t *address, const uint8_t *packet
         value = value > threshold;
         measureUuid = findMeasure(dBase, &sChannelUuid, MTM_ZB_CHANNEL_COORD_IN1_IDX);
         if (!measureUuid.empty()) {
-            if (!updateMeasureValue(dBase, (uint8_t *) measureUuid.data(), value, createTime)) {
+            if (updateMeasureValue(dBase, (uint8_t *) measureUuid.data(), value, createTime)) {
                 kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] %s %s", TAG,
                                   "Не удалось обновить измерение", MTM_ZB_CHANNEL_COORD_IN1_TITLE);
             }
@@ -284,8 +286,7 @@ void makeCoordinatorStatus(DBase *dBase, uint8_t *address, const uint8_t *packet
             uuid_generate(newUuid);
             memset(newUuidString, 0, 37);
             uuid_unparse_upper(newUuid, (char *) newUuidString);
-            if (!storeMeasureValue(dBase, newUuidString, &sChannelUuid, (double) value, createTime,
-                                   createTime)) {
+            if (storeMeasureValue(dBase, newUuidString, &sChannelUuid, (double) value, createTime, createTime)) {
                 kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] %s %s", TAG,
                                   "Не удалось сохранить измерение", MTM_ZB_CHANNEL_COORD_IN1_TITLE);
             }
@@ -298,8 +299,8 @@ void makeCoordinatorStatus(DBase *dBase, uint8_t *address, const uint8_t *packet
         // если нет, создать
         uuid_generate(newUuid);
         uuid_unparse_upper(newUuid, (char *) newUuidString);
-        if (!createSChannel(dBase, newUuidString, MTM_ZB_CHANNEL_COORD_IN2_TITLE,
-                            MTM_ZB_CHANNEL_COORD_IN2_IDX, deviceUuid, CHANNEL_IN2, createTime)) {
+        if (createSChannel(dBase, newUuidString, MTM_ZB_CHANNEL_COORD_IN2_TITLE,
+                           MTM_ZB_CHANNEL_COORD_IN2_IDX, deviceUuid, CHANNEL_IN2, createTime)) {
             kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] %s %s", TAG, "Неудалось канал измерение",
                               MTM_ZB_CHANNEL_COORD_IN2_TITLE);
         } else {
@@ -325,7 +326,7 @@ void makeCoordinatorStatus(DBase *dBase, uint8_t *address, const uint8_t *packet
         value = value > threshold;
         measureUuid = findMeasure(dBase, &sChannelUuid, MTM_ZB_CHANNEL_COORD_IN2_IDX);
         if (!measureUuid.empty()) {
-            if (!updateMeasureValue(dBase, (uint8_t *) measureUuid.data(), value, createTime)) {
+            if (updateMeasureValue(dBase, (uint8_t *) measureUuid.data(), value, createTime)) {
                 kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] %s %s", TAG,
                                   "Не удалось обновить измерение", MTM_ZB_CHANNEL_COORD_IN2_TITLE);
             }
@@ -333,8 +334,8 @@ void makeCoordinatorStatus(DBase *dBase, uint8_t *address, const uint8_t *packet
             // создать новое измерение для канала
             uuid_generate(newUuid);
             uuid_unparse_upper(newUuid, (char *) newUuidString);
-            if (!storeMeasureValue(dBase, (uint8_t *) measureUuid.data(), &sChannelUuid, (double) value,
-                                   createTime, createTime)) {
+            if (storeMeasureValue(dBase, (uint8_t *) measureUuid.data(), &sChannelUuid, (double) value,
+                                  createTime, createTime)) {
                 kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] %s %s", TAG,
                                   "Не удалось сохранить измерение", MTM_ZB_CHANNEL_COORD_IN2_TITLE);
             }
@@ -347,9 +348,9 @@ void makeCoordinatorStatus(DBase *dBase, uint8_t *address, const uint8_t *packet
         // если нет, создать
         uuid_generate(newUuid);
         uuid_unparse_upper(newUuid, (char *) newUuidString);
-        if (!createSChannel(dBase, newUuidString, MTM_ZB_CHANNEL_COORD_DIGI1_TITLE,
-                            MTM_ZB_CHANNEL_COORD_DIGI1_IDX, deviceUuid, CHANNEL_DIGI1,
-                            createTime)) {
+        if (createSChannel(dBase, newUuidString, MTM_ZB_CHANNEL_COORD_DIGI1_TITLE,
+                           MTM_ZB_CHANNEL_COORD_DIGI1_IDX, deviceUuid, CHANNEL_DIGI1,
+                           createTime)) {
             kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] %s %s", TAG, "Неудалось канал измерение",
                               MTM_ZB_CHANNEL_COORD_DIGI1_TITLE);
         } else {
@@ -363,7 +364,7 @@ void makeCoordinatorStatus(DBase *dBase, uint8_t *address, const uint8_t *packet
         value = value >> 6; // NOLINT(hicpp-signed-bitwise)
         measureUuid = findMeasure(dBase, &sChannelUuid, MTM_ZB_CHANNEL_COORD_DIGI1_IDX);
         if (!measureUuid.empty()) {
-            if (!updateMeasureValue(dBase, (uint8_t *) measureUuid.data(), value, createTime)) {
+            if (updateMeasureValue(dBase, (uint8_t *) measureUuid.data(), value, createTime)) {
                 kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] %s %s", TAG,
                                   "Не удалось обновить измерение", MTM_ZB_CHANNEL_COORD_DIGI1_TITLE);
             }
@@ -371,8 +372,7 @@ void makeCoordinatorStatus(DBase *dBase, uint8_t *address, const uint8_t *packet
             // создать новое измерение для канала
             uuid_generate(newUuid);
             uuid_unparse_upper(newUuid, (char *) newUuidString);
-            if (!storeMeasureValue(dBase, newUuidString, &sChannelUuid, (double) value, createTime,
-                                   createTime)) {
+            if (storeMeasureValue(dBase, newUuidString, &sChannelUuid, (double) value, createTime, createTime)) {
                 kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] %s %s", TAG,
                                   "Не удалось сохранить измерение", MTM_ZB_CHANNEL_COORD_DIGI1_TITLE);
             }
@@ -502,9 +502,46 @@ void makeLightStatus(DBase *dBase, uint8_t *address, const uint8_t *packetBuffer
             }
         }
     }
+
+    // найти канал по устройству sensor_channel и regIdx (RSSI)
+    sChannelUuid = findSChannel(dBase, deviceUuid, MTM_ZB_CHANNEL_LIGHT_RSSI_IDX, CHANNEL_RSSI);
+    if (sChannelUuid.empty()) {
+        // если нет, создать
+        uuid_generate(newUuid);
+        uuid_unparse_upper(newUuid, (char *) newUuidString);
+        if (createSChannel(dBase, newUuidString, MTM_ZB_CHANNEL_LIGHT_RSSI_TITLE,
+                           MTM_ZB_CHANNEL_LIGHT_RSSI_IDX,
+                           deviceUuid, CHANNEL_RSSI, createTime)) {
+            kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] %s %s", TAG, "Неудалось канал измерение ",
+                              MTM_ZB_CHANNEL_LIGHT_RSSI_TITLE);
+        } else {
+            sChannelUuid.assign((const char *) newUuidString, 36);
+        }
+    }
+
+    // предположительно уровень сигнала идёт сразу за полезными данными и как бы невиден
+    // читаем байт по индексу "длина всего пакета"(без пяти служебных байт) + один стартовый байт пакета
+    value = packetBuffer[packetBuffer[1] + 1];
+    if (!sChannelUuid.empty()) {
+        measureUuid = findMeasure(dBase, &sChannelUuid, MTM_ZB_CHANNEL_LIGHT_RSSI_IDX);
+        if (!measureUuid.empty()) {
+            if (updateMeasureValue(dBase, (uint8_t *) measureUuid.data(), value, createTime)) {
+                kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] %s %s", TAG, "Не удалось обновить измерение",
+                                  MTM_ZB_CHANNEL_LIGHT_RSSI_TITLE);
+            }
+        } else {
+            // создать новое измерение для канала
+            uuid_generate(newUuid);
+            uuid_unparse_upper(newUuid, (char *) newUuidString);
+            if (storeMeasureValue(dBase, newUuidString, &sChannelUuid, (double) value, createTime, createTime)) {
+                kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] %s %s", TAG, "Не удалось сохранить измерение",
+                                  MTM_ZB_CHANNEL_LIGHT_RSSI_TITLE);
+            }
+        }
+    }
 }
 
-void checkAstroEvents(time_t currentTime, double lon, double lat) {
+void checkAstroEvents(time_t currentTime, double lon, double lat, DBase *dBase, int32_t threadId) {
     struct tm *ctm = localtime(&currentTime);
     double rise, set;
     double twilightStart, twilightEnd;
@@ -562,10 +599,27 @@ void checkAstroEvents(time_t currentTime, double lon, double lat) {
             // даём задержку для того чтоб стартанули модули в светильниках
             // т.к. неизвестно, питаются они через контактор или всё время под напряжением
             sleep(5);
-            switchAllLight(100);
+            ssize_t rc = switchAllLight(100);
+            if (rc == -1) {
+                kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] ERROR write to port", TAG);
+                // останавливаем поток с целью его последующего автоматического запуска и инициализации
+                mtmZigbeeStopThread(dBase, threadId);
+                AddDeviceRegister(*dBase, (char *) coordinatorUuid.data(),
+                                  (char *) "Ошибка записи в порт координатора");
+                return;
+            }
+
             // передаём команду "астро событие" "закат"
             action.data = (0x02 << 8 | 0x01); // NOLINT(hicpp-signed-bitwise)
-            ssize_t rc = send_mtm_cmd(coordinatorFd, 0xFFFF, &action, kernel);
+            rc = send_mtm_cmd(coordinatorFd, 0xFFFF, &action, kernel);
+            if (rc == -1) {
+                kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] ERROR write to port", TAG);
+                // останавливаем поток с целью его последующего автоматического запуска и инициализации
+                mtmZigbeeStopThread(dBase, threadId);
+                AddDeviceRegister(*dBase, (char *) coordinatorUuid.data(),
+                                  (char *) "Ошибка записи в порт координатора");
+                return;
+            }
 #ifdef DEBUG
             kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] rc=%ld", TAG, rc);
             kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] закат", TAG);
@@ -580,6 +634,14 @@ void checkAstroEvents(time_t currentTime, double lon, double lat) {
             // передаём команду "астро событие" "конец сумерек"
             action.data = (0x01 << 8 | 0x00); // NOLINT(hicpp-signed-bitwise)
             ssize_t rc = send_mtm_cmd(coordinatorFd, 0xFFFF, &action, kernel);
+            if (rc == -1) {
+                kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] ERROR write to port", TAG);
+                // останавливаем поток с целью его последующего автоматического запуска и инициализации
+                mtmZigbeeStopThread(dBase, threadId);
+                AddDeviceRegister(*dBase, (char *) coordinatorUuid.data(),
+                                  (char *) "Ошибка записи в порт координатора");
+                return;
+            }
 #ifdef DEBUG
             kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] rc=%ld", TAG, rc);
             kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] конец сумерек", TAG);
@@ -593,6 +655,14 @@ void checkAstroEvents(time_t currentTime, double lon, double lat) {
             // передаём команду "астро событие" "начало сумерек"
             action.data = (0x03 << 8 | 0x00); // NOLINT(hicpp-signed-bitwise)
             ssize_t rc = send_mtm_cmd(coordinatorFd, 0xFFFF, &action, kernel);
+            if (rc == -1) {
+                kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] ERROR write to port", TAG);
+                // останавливаем поток с целью его последующего автоматического запуска и инициализации
+                mtmZigbeeStopThread(dBase, threadId);
+                AddDeviceRegister(*dBase, (char *) coordinatorUuid.data(),
+                                  (char *) "Ошибка записи в порт координатора");
+                return;
+            }
 #ifdef DEBUG
             kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] rc=%ld", TAG, rc);
             kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] начало сумерек", TAG);
@@ -610,6 +680,14 @@ void checkAstroEvents(time_t currentTime, double lon, double lat) {
             // передаём команду "астро событие" "восход"
             action.data = (0x00 << 8 | 0x00); // NOLINT(hicpp-signed-bitwise)
             ssize_t rc = send_mtm_cmd(coordinatorFd, 0xFFFF, &action, kernel);
+            if (rc == -1) {
+                kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] ERROR write to port", TAG);
+                // останавливаем поток с целью его последующего автоматического запуска и инициализации
+                mtmZigbeeStopThread(dBase, threadId);
+                AddDeviceRegister(*dBase, (char *) coordinatorUuid.data(),
+                                  (char *) "Ошибка записи в порт координатора");
+                return;
+            }
 #ifdef DEBUG
             kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] rc=%ld", TAG, rc);
             kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] восход", TAG);
@@ -639,7 +717,7 @@ void checkAstroEvents(time_t currentTime, double lon, double lat) {
     }
 }
 
-void checkLightProgram(DBase *dBase, time_t currentTime, double lon, double lat) {
+void checkLightProgram(DBase *dBase, time_t currentTime, double lon, double lat, int32_t threadId) {
 //    struct tm ttm = {0};
 //    ttm.tm_year = 119;
 //    ttm.tm_mon = 7;
@@ -736,6 +814,14 @@ void checkLightProgram(DBase *dBase, time_t currentTime, double lon, double lat)
                 if (processed) {
                     lightFlags[address].setPeriod1Active();
                     rc = sendLightLevel((char *) address.data(), row[dBase->getFieldIndex("value1")]);
+                    if (rc == -1) {
+                        kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] ERROR write to port", TAG);
+                        // останавливаем поток с целью его последующего автоматического запуска и инициализации
+                        mtmZigbeeStopThread(dBase, threadId);
+                        AddDeviceRegister(*dBase, (char *) coordinatorUuid.data(),
+                                          (char *) "Ошибка записи в порт координатора");
+                        return;
+                    }
 #ifdef DEBUG
                     kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] checkTime: %ld", TAG, checkTime);
                     kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] rc=%ld", TAG, rc);
@@ -767,6 +853,14 @@ void checkLightProgram(DBase *dBase, time_t currentTime, double lon, double lat)
                 if (processed) {
                     lightFlags[address].setPeriod2Active();
                     rc = sendLightLevel((char *) address.data(), row[dBase->getFieldIndex("value2")]);
+                    if (rc == -1) {
+                        kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] ERROR write to port", TAG);
+                        // останавливаем поток с целью его последующего автоматического запуска и инициализации
+                        mtmZigbeeStopThread(dBase, threadId);
+                        AddDeviceRegister(*dBase, (char *) coordinatorUuid.data(),
+                                          (char *) "Ошибка записи в порт координатора");
+                        return;
+                    }
 #ifdef DEBUG
                     kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] checkTime: %ld", TAG, checkTime);
                     kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] rc=%ld", TAG, rc);
@@ -798,6 +892,14 @@ void checkLightProgram(DBase *dBase, time_t currentTime, double lon, double lat)
                 if (processed) {
                     lightFlags[address].setPeriod3Active();
                     rc = sendLightLevel((char *) address.data(), row[dBase->getFieldIndex("value3")]);
+                    if (rc == -1) {
+                        kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] ERROR write to port", TAG);
+                        // останавливаем поток с целью его последующего автоматического запуска и инициализации
+                        mtmZigbeeStopThread(dBase, threadId);
+                        AddDeviceRegister(*dBase, (char *) coordinatorUuid.data(),
+                                          (char *) "Ошибка записи в порт координатора");
+                        return;
+                    }
 #ifdef DEBUG
                     kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] checkTime: %ld", TAG, checkTime);
                     kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] rc=%ld", TAG, rc);
@@ -829,6 +931,14 @@ void checkLightProgram(DBase *dBase, time_t currentTime, double lon, double lat)
                 if (processed) {
                     lightFlags[address].setPeriod4Active();
                     rc = sendLightLevel((char *) address.data(), row[dBase->getFieldIndex("value4")]);
+                    if (rc == -1) {
+                        kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] ERROR write to port", TAG);
+                        // останавливаем поток с целью его последующего автоматического запуска и инициализации
+                        mtmZigbeeStopThread(dBase, threadId);
+                        AddDeviceRegister(*dBase, (char *) coordinatorUuid.data(),
+                                          (char *) "Ошибка записи в порт координатора");
+                        return;
+                    }
 #ifdef DEBUG
                     kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] checkTime: %ld", TAG, checkTime);
                     kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] rc=%ld", TAG, rc);
@@ -841,6 +951,14 @@ void checkLightProgram(DBase *dBase, time_t currentTime, double lon, double lat)
                 if (checkTime >= twilightStartTime && checkTime < sunRiseTime) {
                     lightFlags[address].setPeriod5Active();
                     rc = sendLightLevel((char *) address.data(), row[dBase->getFieldIndex("value5")]);
+                    if (rc == -1) {
+                        kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] ERROR write to port", TAG);
+                        // останавливаем поток с целью его последующего автоматического запуска и инициализации
+                        mtmZigbeeStopThread(dBase, threadId);
+                        AddDeviceRegister(*dBase, (char *) coordinatorUuid.data(),
+                                          (char *) "Ошибка записи в порт координатора");
+                        return;
+                    }
 #ifdef DEBUG
                     kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] %s period 5", TAG, address.data());
                     kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] checkTime: %llu", TAG, checkTime);
@@ -875,6 +993,14 @@ void checkLightProgram(DBase *dBase, time_t currentTime, double lon, double lat)
 
         if (isDay) {
             ssize_t rc = switchAllLight(0);
+            if (rc == -1) {
+                kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] ERROR write to port", TAG);
+                // останавливаем поток с целью его последующего автоматического запуска и инициализации
+                mtmZigbeeStopThread(dBase, threadId);
+                AddDeviceRegister(*dBase, (char *) coordinatorUuid.data(),
+                                  (char *) "Ошибка записи в порт координатора");
+                return;
+            }
 #ifdef DEBUG
             kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] Switch all lights off by program", TAG);
             kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] rc=%ld", TAG, rc);
@@ -894,4 +1020,15 @@ ssize_t sendLightLevel(char *addrString, char *level) {
     action.data = std::stoi(level);
     uint64_t addr = std::stoull(addrString, nullptr, 16);
     return send_mtm_cmd_ext(coordinatorFd, addr, &action, kernel);
+}
+
+void mtmZigbeeStopThread(DBase *dBase, int32_t threadId) {
+    char query[1024] = {0};
+    MYSQL_RES *res;
+    mtmZigbeeSetRun(false);
+    // поток "остановили"
+    sprintf(query, "UPDATE threads SET status=%d, changedAt=FROM_UNIXTIME(%lu) WHERE _id=%d", 0, time(nullptr),
+            threadId);
+    res = dBase->sqlexec((char *) query);
+    mysql_free_result(res);
 }

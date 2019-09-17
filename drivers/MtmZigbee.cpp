@@ -37,6 +37,8 @@ Kernel *kernel;
 bool isSunInit;
 bool isSunSet, isTwilightEnd, isTwilightStart, isSunRise;
 std::map<std::string, LightFlags> lightFlags;
+std::string coordinatorUuid;
+bool isCheckCoordinatorRespond = true;
 
 void *mtmZigbeeDeviceThread(void *pth) { // NOLINT
     uint16_t speed;
@@ -50,6 +52,7 @@ void *mtmZigbeeDeviceThread(void *pth) { // NOLINT
     port = (uint8_t *) malloc(portStrLen + 1);
     memset((void *) port, 0, portStrLen + 1);
     strcpy((char *) port, tInfo->port);
+    coordinatorUuid.assign(tInfo->device_uuid, 36);
 
     if (!mtmZigbeeStarted) {
         isSunInit = false;
@@ -62,7 +65,7 @@ void *mtmZigbeeDeviceThread(void *pth) { // NOLINT
         kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] device thread started", TAG);
         if (mtmZigbeeInit(MTM_ZIGBEE_COM_PORT, port, speed) == 0) {
             // запускаем цикл разбора пакетов
-            mtmZigbeePktListener(mtmZigBeeThreadId);
+            mtmZigbeePktListener(mtmZigbeeDBase, mtmZigBeeThreadId);
         }
     } else {
         kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] thread already started", TAG);
@@ -85,7 +88,7 @@ void *mtmZigbeeDeviceThread(void *pth) { // NOLINT
 }
 
 
-void mtmZigbeePktListener(int32_t threadId) {
+void mtmZigbeePktListener(DBase *dBase, int32_t threadId) {
     bool run = true;
     int64_t count;
     uint32_t i = 0;
@@ -100,7 +103,7 @@ void mtmZigbeePktListener(int32_t threadId) {
     bool isFrameData = false;
     uint8_t frameDataByteCount = 0;
     uint8_t fcs;
-    time_t currentTime, heartBeatTime = 0, syncTimeTime = 0, checkSensorTime = 0, checkAstroTime = 0, checkOutPacket = 0;
+    time_t currentTime, heartBeatTime = 0, syncTimeTime = 0, checkSensorTime = 0, checkAstroTime = 0, checkOutPacket = 0, checkCoordinatorTime = 0;
     struct tm *localTime;
 
     struct zb_pkt_item {
@@ -196,11 +199,6 @@ void mtmZigbeePktListener(int32_t threadId) {
                 isFrameData = false;
                 i = 0;
             }
-//        } else if (count == -1) {
-//            // порт видимо куда-то пропал, либо ещё какая-то ошибка
-//            kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] Error read data from port", TAG);
-//            kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] Stopping thread", TAG);
-//            return;
         } else {
             // есть свободное время, разбираем список полученных пакетов
             while (!SLIST_EMPTY(&zb_queue_head)) {
@@ -277,6 +275,14 @@ void mtmZigbeePktListener(int32_t threadId) {
                 localTime = localtime(&currentTime);
                 current_time.time = localTime->tm_hour * 60 + localTime->tm_min;
                 ssize_t rc = send_mtm_cmd(coordinatorFd, 0xFFFF, &current_time, kernel);
+                if (rc == -1) {
+                    kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] ERROR write to port", TAG);
+                    // останавливаем поток с целью его последующего автоматического запуска и инициализации
+                    mtmZigbeeStopThread(mtmZigbeeDBase, threadId);
+                    AddDeviceRegister(*mtmZigbeeDBase, (char *) coordinatorUuid.data(),
+                                      (char *) "Ошибка записи в порт координатора");
+                    return;
+                }
 #ifdef DEBUG
                 kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] Written %ld bytes.", TAG, rc);
 #endif
@@ -292,6 +298,58 @@ void mtmZigbeePktListener(int32_t threadId) {
                 req.dep = 0xE8;
                 req.cid = 0x0103;
                 ssize_t rc = send_zb_cmd(coordinatorFd, AF_DATA_REQUEST, &req, kernel);
+                if (rc == -1) {
+                    kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] ERROR write to port", TAG);
+                    // останавливаем поток с целью его последующего автоматического запуска и инициализации
+                    mtmZigbeeStopThread(mtmZigbeeDBase, threadId);
+                    AddDeviceRegister(*mtmZigbeeDBase, (char *) coordinatorUuid.data(),
+                                      (char *) "Ошибка записи в порт координатора");
+                    return;
+                }
+#ifdef DEBUG
+                kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] rc=%ld", TAG, rc);
+#endif
+            }
+
+            // получаем версию модуля, по полученному ответу понимаем что модуль работает
+            currentTime = time(nullptr);
+            if (currentTime - checkCoordinatorTime >= 15) {
+                if (!isCheckCoordinatorRespond) {
+                    // координатор не ответил
+                    kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] ERROR Coordinator not answer for rquest module version",
+                                      TAG);
+                    // останавливаем поток с целью его последующего автоматического запуска и инициализации
+                    mtmZigbeeStopThread(mtmZigbeeDBase, threadId);
+                    AddDeviceRegister(*mtmZigbeeDBase, (char *) coordinatorUuid.data(),
+                                      (char *) "Координатор не ответил на запрос");
+                    return;
+                }
+
+                // сбрасываем флаг полученного ответа от координатора
+                isCheckCoordinatorRespond = false;
+//                uint8_t buff[] = {
+//                        0xFE, 0x16, 0x48, 0x81, 0x00, 0x01, 0xE8, 0x00,
+//                        0xFF, 0xFF, 0x07, 0x06, 0x05, 0x04, 0x03, 0x02,
+//                        0x01, 0x00, 0x00, 0x00, 0x05, 0x01, 0x02, 0x03,
+//                        0x04, 0x05, 0x32
+//                };
+//                send_cmd(coordinatorFd, buff, sizeof(buff), kernel);
+
+                checkCoordinatorTime = currentTime;
+                zigbee_mt_cmd_af_data_request req = {0};
+                req.dst_addr = 0x0000;
+                req.sep = 0xE8;
+                req.dep = 0xE8;
+                req.cid = 0x0100;
+                ssize_t rc = send_zb_cmd(coordinatorFd, AF_DATA_REQUEST, &req, kernel);
+                if (rc == -1) {
+                    kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] ERROR write to port", TAG);
+                    // останавливаем поток с целью его последующего автоматического запуска и инициализации
+                    mtmZigbeeStopThread(mtmZigbeeDBase, threadId);
+                    AddDeviceRegister(*mtmZigbeeDBase, (char *) coordinatorUuid.data(),
+                                      (char *) "Ошибка записи в порт координатора");
+                    return;
+                }
 #ifdef DEBUG
                 kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] rc=%ld", TAG, rc);
 #endif
@@ -315,16 +373,16 @@ void mtmZigbeePktListener(int32_t threadId) {
                 }
 
                 // управление контактором, рассылка пакетов светильникам
-                checkAstroEvents(currentTime, lon, lat);
+                checkAstroEvents(currentTime, lon, lat, dBase, threadId);
 
                 // рассылка пакетов светильникам по параметрам заданным в программах
-                checkLightProgram(mtmZigbeeDBase, currentTime, lon, lat);
+                checkLightProgram(mtmZigbeeDBase, currentTime, lon, lat, threadId);
             }
 
             currentTime = time(nullptr);
             if (currentTime - checkOutPacket > 2) {
                 checkOutPacket = currentTime;
-                mtmZigbeeProcessOutPacket();
+                mtmZigbeeProcessOutPacket(threadId);
             }
 
             run = mtmZigbeeGetRun();
@@ -366,7 +424,7 @@ ssize_t resetCoordinator() {
     return 1;
 }
 
-void mtmZigbeeProcessOutPacket() {
+void mtmZigbeeProcessOutPacket(int32_t threadId) {
     uint8_t query[1024];
     MYSQL_RES *res;
     MYSQL_ROW row;
@@ -528,15 +586,21 @@ void mtmZigbeeProcessOutPacket() {
                                 break;
                             case MTM_CMD_TYPE_RESET_COORDINATOR:
 #ifdef DEBUG
-                                kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] send MTM_CMD_TYPE_RESET_COORDINATOR",
-                                                  TAG);
+                                kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] send MTM_CMD_TYPE_RESET_COORDINATOR", TAG);
                                 log_buffer_hex(mtmPkt, decoded);
 #endif
 
                                 rc = resetCoordinator();
+                                // останавливаем поток с целью его последующего автоматического запуска и инициализации
+                                mtmZigbeeStopThread(mtmZigbeeDBase, threadId);
+                                AddDeviceRegister(*mtmZigbeeDBase, (char *) coordinatorUuid.data(),
+                                                  (char *) "Получена команда сброса координатора");
+                                kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] Thread stopped by reset coordinator command",
+                                                  TAG);
+                                kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] Stopping thread", TAG);
                                 break;
                             default:
-                                rc = -1;
+                                rc = 0;
                                 break;
                         }
 
@@ -547,6 +611,14 @@ void mtmZigbeeProcessOutPacket() {
                             if (updRes) {
                                 mysql_free_result(updRes);
                             }
+                        } else if (rc == -1) {
+                            // ошибка записи в порт, останавливаем поток
+                            // останавливаем поток с целью его последующего автоматического запуска и инициализации
+                            mtmZigbeeStopThread(mtmZigbeeDBase, threadId);
+                            AddDeviceRegister(*mtmZigbeeDBase, (char *) coordinatorUuid.data(),
+                                              (char *) "Ошибка записи в порт координатора");
+                            kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] Thread stopped by error write to port", TAG);
+                            kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] Stopping thread", TAG);
                         }
                     }
                 }
@@ -555,7 +627,6 @@ void mtmZigbeeProcessOutPacket() {
 
         mysql_free_result(res);
     }
-
 }
 
 void mtmZigbeeProcessInPacket(uint8_t *pktBuff, uint32_t length) {
@@ -564,6 +635,7 @@ void mtmZigbeeProcessInPacket(uint8_t *pktBuff, uint32_t length) {
     uint8_t dstEndPoint;
     uint16_t cluster;
     uint8_t address[32];
+    uint8_t mtmLightStatusPktSize;
 
 #ifdef DEBUG
     uint8_t query[1024];
@@ -606,10 +678,18 @@ void mtmZigbeeProcessInPacket(uint8_t *pktBuff, uint32_t length) {
                             pktBuff[13], pktBuff[12], pktBuff[11], pktBuff[10]);
 
 #ifdef DEBUG
-                    kernel->log.ulogw(LOG_LEVEL_INFO, "get sensor data packet!!!!!");
+                    kernel->log.ulogw(LOG_LEVEL_INFO, "Get sensor data packet");
 #endif
 
                     makeCoordinatorStatus(mtmZigbeeDBase, address, pktBuff);
+                    break;
+
+                case MBEE_API_LOCAL_MODULE_VERSION_CLUSTER :
+                    // ни чего не проверяем, ответ получен, значит координатор работает
+                    isCheckCoordinatorRespond = true;
+#ifdef DEBUG
+                    kernel->log.ulogw(LOG_LEVEL_INFO, "Get module version packet");
+#endif
                     break;
                 default:
                     break;
@@ -631,10 +711,11 @@ void mtmZigbeeProcessInPacket(uint8_t *pktBuff, uint32_t length) {
             pktType = pktBuff[21];
             switch (pktType) {
                 case MTM_CMD_TYPE_STATUS:
-                    length = length - 33;
+                    // размер полезных данных в zb пакете
+                    mtmLightStatusPktSize = pktBuff[20];
 #ifdef DEBUG
                     kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] MTM_CMD_TYPE_STATUS", TAG);
-                    log_buffer_hex(&pktBuff[21], length + 12);
+                    log_buffer_hex(&pktBuff[21], mtmLightStatusPktSize);
 #endif
 
                     memset(address, 0, 32);
@@ -648,7 +729,7 @@ void mtmZigbeeProcessInPacket(uint8_t *pktBuff, uint32_t length) {
                                                      reinterpret_cast<const uint8_t *>((size_t) &pktBuff[21]));
                 base64_encode_final(&b64_ctx, reinterpret_cast<char *>(resultBuff + encoded_bytes));
 #elif __USE_GNU
-                    encoded_bytes = base64_encode_update(&b64_ctx, resultBuff, length + 12, &pktBuff[21]);
+                    encoded_bytes = base64_encode_update(&b64_ctx, resultBuff, mtmLightStatusPktSize, &pktBuff[21]);
                     base64_encode_final(&b64_ctx, resultBuff + encoded_bytes);
 #endif
 
@@ -662,8 +743,8 @@ void mtmZigbeeProcessInPacket(uint8_t *pktBuff, uint32_t length) {
                         mysql_free_result(res);
                     }
 #endif
-
-                    for (uint8_t statusIdx = 0; statusIdx < length / 2; statusIdx++) {
+                    // из размера пакета вычитаем два байта заголовка, восемь байт адреса, два байта флагов аварии
+                    for (uint8_t statusIdx = 0; statusIdx < (mtmLightStatusPktSize - 12) / 2; statusIdx++) {
                         switch (statusIdx) {
                             case MTM_DEVICE_LIGHT :
                                 makeLightStatus(mtmZigbeeDBase, address, pktBuff);
@@ -712,6 +793,7 @@ void mtmZigbeeProcessInPacket(uint8_t *pktBuff, uint32_t length) {
 
 int32_t mtmZigbeeInit(int32_t mode, uint8_t *path, uint32_t speed) {
     struct termios serialPortSettings{};
+    ssize_t rc;
 
     // TODO: видимо нужно как-то проверить что всё путём с соединением.
     mtmZigbeeDBase = new DBase();
@@ -770,7 +852,7 @@ int32_t mtmZigbeeInit(int32_t mode, uint8_t *path, uint32_t speed) {
         serialPortSettings.c_cflag &= ~CSIZE;    /* Clears the mask for setting the data size             */ // NOLINT(hicpp-signed-bitwise)
         serialPortSettings.c_cflag |= CS8; // NOLINT(hicpp-signed-bitwise)
         serialPortSettings.c_cflag &= ~CRTSCTS;
-        serialPortSettings.c_cflag |= CREAD | CLOCAL; // NOLINT(hicpp-signed-bitwise)
+        serialPortSettings.c_cflag |= (CREAD | CLOCAL); // NOLINT(hicpp-signed-bitwise)
 
         serialPortSettings.c_iflag &= ~(IXON | IXOFF | IXANY); // NOLINT(hicpp-signed-bitwise)
         serialPortSettings.c_lflag &= ~(ICANON | ECHO | ECHOE | ISIG | ECHONL);   // NOLINT(hicpp-signed-bitwise)
@@ -792,7 +874,15 @@ int32_t mtmZigbeeInit(int32_t mode, uint8_t *path, uint32_t speed) {
     }
 
 
-    send_zb_cmd(coordinatorFd, ZB_SYSTEM_RESET, nullptr, kernel);
+    rc = send_zb_cmd(coordinatorFd, ZB_SYSTEM_RESET, nullptr, kernel);
+    if (rc == -1) {
+        kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] ERROR write to port", TAG);
+        // останавливаем поток с целью его последующего автоматического запуска и инициализации
+        mtmZigbeeStopThread(mtmZigbeeDBase, mtmZigBeeThreadId);
+        AddDeviceRegister(*mtmZigbeeDBase, (char *) coordinatorUuid.data(),
+                          (char *) "Ошибка записи в порт координатора");
+        return -5;
+    }
 
     sleep(1);
 
@@ -808,7 +898,15 @@ int32_t mtmZigbeeInit(int32_t mode, uint8_t *path, uint32_t speed) {
     af_register.app_in_cluster_list[0] = 0xFC00;
     af_register.app_num_out_clusters = 1;
     af_register.app_out_cluster_list[0] = 0xFC00;
-    ssize_t rc = send_zb_cmd(coordinatorFd, AF_REGISTER, &af_register, kernel);
+    rc = send_zb_cmd(coordinatorFd, AF_REGISTER, &af_register, kernel);
+    if (rc == -1) {
+        kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] ERROR write to port", TAG);
+        // останавливаем поток с целью его последующего автоматического запуска и инициализации
+        mtmZigbeeStopThread(mtmZigbeeDBase, mtmZigBeeThreadId);
+        AddDeviceRegister(*mtmZigbeeDBase, (char *) coordinatorUuid.data(),
+                          (char *) "Ошибка записи в порт координатора");
+        return -5;
+    }
 #ifdef DEBUG
     kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] rc=%ld", TAG, rc);
 #endif

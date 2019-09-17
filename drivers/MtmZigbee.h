@@ -13,6 +13,7 @@
 #define CHANNEL_IN1 "5D8A3557-6DB1-401B-9326-388F03714E48"
 #define CHANNEL_IN2 "066C4553-EA7A-4DB9-8E25-98192EF659A3"
 #define CHANNEL_DIGI1 "3D597483-F547-438C-A284-85E0F2C5C480"
+#define CHANNEL_RSSI "06F2D619-CB5A-4561-82DF-4C87DF06C6FE"
 
 #define MTM_ZB_CHANNEL_COORD_IN1_IDX 0
 #define MTM_ZB_CHANNEL_COORD_IN1_TITLE "IN1"
@@ -27,12 +28,14 @@
 #define MTM_ZB_CHANNEL_LIGHT_CURRENT_TITLE "Мощность"
 #define MTM_ZB_CHANNEL_LIGHT_STATUS_IDX 0
 #define MTM_ZB_CHANNEL_LIGHT_STATUS_TITLE "Статус"
+#define MTM_ZB_CHANNEL_LIGHT_RSSI_IDX 0
+#define MTM_ZB_CHANNEL_LIGHT_RSSI_TITLE "RSSI"
 
 void *mtmZigbeeDeviceThread(void *device);
 
 int32_t mtmZigbeeInit(int32_t mode, uint8_t *path, uint32_t speed);
 
-void mtmZigbeePktListener(int32_t threadId);
+void mtmZigbeePktListener(DBase *dBase, int32_t threadId);
 
 speed_t mtmZigbeeGetSpeed(uint32_t speed);
 
@@ -42,7 +45,7 @@ void mtmZigbeeSetRun(bool val);
 
 void mtmZigbeeProcessInPacket(uint8_t *pktBuff, uint32_t length);
 
-void mtmZigbeeProcessOutPacket();
+void mtmZigbeeProcessOutPacket(int32_t threadId);
 
 bool findDevice(DBase *dBase, uint8_t *addr, uint8_t *uuid);
 
@@ -73,10 +76,12 @@ void makeLightStatus(DBase *dBase, uint8_t *address, const uint8_t *packetBuffer
 
 std::string getSChannelConfig(DBase *dBase, std::string *sChannelUuid);
 
-void checkAstroEvents(time_t currentTime, double lon = 0, double lat = 0);
+void checkAstroEvents(time_t currentTime, double lon, double lat, DBase *dBase, int32_t threadId);
 
-void checkLightProgram(DBase *dBase, time_t currentTime, double lon, double lat);
+void checkLightProgram(DBase *dBase, time_t currentTime, double lon, double lat, int32_t threadId);
 
 ssize_t sendLightLevel(char *addrString, char *level);
+
+void mtmZigbeeStopThread(DBase *dBase, int32_t threadId);
 
 #endif //ESCADA_CORE_MTMZIGBEE_H
