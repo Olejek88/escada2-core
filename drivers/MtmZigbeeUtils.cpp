@@ -502,6 +502,43 @@ void makeLightStatus(DBase *dBase, uint8_t *address, const uint8_t *packetBuffer
             }
         }
     }
+
+    // найти канал по устройству sensor_channel и regIdx (RSSI)
+    sChannelUuid = findSChannel(dBase, deviceUuid, MTM_ZB_CHANNEL_LIGHT_RSSI_IDX, CHANNEL_RSSI);
+    if (sChannelUuid.empty()) {
+        // если нет, создать
+        uuid_generate(newUuid);
+        uuid_unparse_upper(newUuid, (char *) newUuidString);
+        if (createSChannel(dBase, newUuidString, MTM_ZB_CHANNEL_LIGHT_RSSI_TITLE,
+                           MTM_ZB_CHANNEL_LIGHT_RSSI_IDX,
+                           deviceUuid, CHANNEL_RSSI, createTime)) {
+            kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] %s %s", TAG, "Неудалось канал измерение ",
+                              MTM_ZB_CHANNEL_LIGHT_RSSI_TITLE);
+        } else {
+            sChannelUuid.assign((const char *) newUuidString, 36);
+        }
+    }
+
+    // предположительно уровень сигнала идёт сразу за полезными данными и как бы невиден
+    // читаем байт по индексу "длина всего пакета"(без пяти служебных байт) + один стартовый байт пакета
+    value = packetBuffer[packetBuffer[1] + 1];
+    if (!sChannelUuid.empty()) {
+        measureUuid = findMeasure(dBase, &sChannelUuid, MTM_ZB_CHANNEL_LIGHT_RSSI_IDX);
+        if (!measureUuid.empty()) {
+            if (updateMeasureValue(dBase, (uint8_t *) measureUuid.data(), value, createTime)) {
+                kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] %s %s", TAG, "Не удалось обновить измерение",
+                                  MTM_ZB_CHANNEL_LIGHT_RSSI_TITLE);
+            }
+        } else {
+            // создать новое измерение для канала
+            uuid_generate(newUuid);
+            uuid_unparse_upper(newUuid, (char *) newUuidString);
+            if (storeMeasureValue(dBase, newUuidString, &sChannelUuid, (double) value, createTime, createTime)) {
+                kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] %s %s", TAG, "Не удалось сохранить измерение",
+                                  MTM_ZB_CHANNEL_LIGHT_RSSI_TITLE);
+            }
+        }
+    }
 }
 
 void checkAstroEvents(time_t currentTime, double lon, double lat, DBase *dBase, int32_t threadId) {
