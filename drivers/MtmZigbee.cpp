@@ -38,6 +38,7 @@ bool isSunInit;
 bool isSunSet, isTwilightEnd, isTwilightStart, isSunRise;
 std::map<std::string, LightFlags> lightFlags;
 std::string coordinatorUuid;
+bool isCheckCoordinatorRespond = true;
 
 void *mtmZigbeeDeviceThread(void *pth) { // NOLINT
     uint16_t speed;
@@ -102,7 +103,7 @@ void mtmZigbeePktListener(DBase *dBase, int32_t threadId) {
     bool isFrameData = false;
     uint8_t frameDataByteCount = 0;
     uint8_t fcs;
-    time_t currentTime, heartBeatTime = 0, syncTimeTime = 0, checkSensorTime = 0, checkAstroTime = 0, checkOutPacket = 0;
+    time_t currentTime, heartBeatTime = 0, syncTimeTime = 0, checkSensorTime = 0, checkAstroTime = 0, checkOutPacket = 0, checkCoordinatorTime = 0;
     struct tm *localTime;
 
     struct zb_pkt_item {
@@ -296,6 +297,50 @@ void mtmZigbeePktListener(DBase *dBase, int32_t threadId) {
                 req.sep = 0xE8;
                 req.dep = 0xE8;
                 req.cid = 0x0103;
+                ssize_t rc = send_zb_cmd(coordinatorFd, AF_DATA_REQUEST, &req, kernel);
+                if (rc == -1) {
+                    kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] ERROR write to port", TAG);
+                    // останавливаем поток с целью его последующего автоматического запуска и инициализации
+                    mtmZigbeeStopThread(mtmZigbeeDBase, threadId);
+                    AddDeviceRegister(*mtmZigbeeDBase, (char *) coordinatorUuid.data(),
+                                      (char *) "Ошибка записи в порт координатора");
+                    return;
+                }
+#ifdef DEBUG
+                kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] rc=%ld", TAG, rc);
+#endif
+            }
+
+            // получаем версию модуля, по полученному ответу понимаем что модуль работает
+            currentTime = time(nullptr);
+            if (currentTime - checkCoordinatorTime >= 15) {
+                if (!isCheckCoordinatorRespond) {
+                    // координатор не ответил
+                    kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] ERROR Coordinator not answer for rquest module version",
+                                      TAG);
+                    // останавливаем поток с целью его последующего автоматического запуска и инициализации
+                    mtmZigbeeStopThread(mtmZigbeeDBase, threadId);
+                    AddDeviceRegister(*mtmZigbeeDBase, (char *) coordinatorUuid.data(),
+                                      (char *) "Координатор не ответил на запрос");
+                    return;
+                }
+
+                // сбрасываем флаг полученного ответа от координатора
+                isCheckCoordinatorRespond = false;
+//                uint8_t buff[] = {
+//                        0xFE, 0x16, 0x48, 0x81, 0x00, 0x01, 0xE8, 0x00,
+//                        0xFF, 0xFF, 0x07, 0x06, 0x05, 0x04, 0x03, 0x02,
+//                        0x01, 0x00, 0x00, 0x00, 0x05, 0x01, 0x02, 0x03,
+//                        0x04, 0x05, 0x32
+//                };
+//                send_cmd(coordinatorFd, buff, sizeof(buff), kernel);
+
+                checkCoordinatorTime = currentTime;
+                zigbee_mt_cmd_af_data_request req = {0};
+                req.dst_addr = 0x0000;
+                req.sep = 0xE8;
+                req.dep = 0xE8;
+                req.cid = 0x0100;
                 ssize_t rc = send_zb_cmd(coordinatorFd, AF_DATA_REQUEST, &req, kernel);
                 if (rc == -1) {
                     kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] ERROR write to port", TAG);
@@ -633,10 +678,18 @@ void mtmZigbeeProcessInPacket(uint8_t *pktBuff, uint32_t length) {
                             pktBuff[13], pktBuff[12], pktBuff[11], pktBuff[10]);
 
 #ifdef DEBUG
-                    kernel->log.ulogw(LOG_LEVEL_INFO, "get sensor data packet!!!!!");
+                    kernel->log.ulogw(LOG_LEVEL_INFO, "Get sensor data packet");
 #endif
 
                     makeCoordinatorStatus(mtmZigbeeDBase, address, pktBuff);
+                    break;
+
+                case MBEE_API_LOCAL_MODULE_VERSION_CLUSTER :
+                    // ни чего не проверяем, ответ получен, значит координатор работает
+                    isCheckCoordinatorRespond = true;
+#ifdef DEBUG
+                    kernel->log.ulogw(LOG_LEVEL_INFO, "Get module version packet");
+#endif
                     break;
                 default:
                     break;
