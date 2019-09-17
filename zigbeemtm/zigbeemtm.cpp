@@ -240,7 +240,8 @@ ssize_t send_cmd(int fd, uint8_t *buffer, size_t size, Kernel *kernel) {
         if (writen >= 0) {
             count += writen;
         } else {
-            return -1;
+            // ошибка записи в порт
+            return writen;
         }
     }
 
