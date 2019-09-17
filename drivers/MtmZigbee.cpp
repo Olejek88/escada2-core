@@ -590,6 +590,7 @@ void mtmZigbeeProcessInPacket(uint8_t *pktBuff, uint32_t length) {
     uint8_t dstEndPoint;
     uint16_t cluster;
     uint8_t address[32];
+    uint8_t mtmLightStatusPktSize;
 
 #ifdef DEBUG
     uint8_t query[1024];
@@ -657,10 +658,11 @@ void mtmZigbeeProcessInPacket(uint8_t *pktBuff, uint32_t length) {
             pktType = pktBuff[21];
             switch (pktType) {
                 case MTM_CMD_TYPE_STATUS:
-                    length = length - 33;
+                    // размер полезных данных в zb пакете
+                    mtmLightStatusPktSize = pktBuff[20];
 #ifdef DEBUG
                     kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] MTM_CMD_TYPE_STATUS", TAG);
-                    log_buffer_hex(&pktBuff[21], length + 12);
+                    log_buffer_hex(&pktBuff[21], mtmLightStatusPktSize);
 #endif
 
                     memset(address, 0, 32);
@@ -674,7 +676,7 @@ void mtmZigbeeProcessInPacket(uint8_t *pktBuff, uint32_t length) {
                                                      reinterpret_cast<const uint8_t *>((size_t) &pktBuff[21]));
                 base64_encode_final(&b64_ctx, reinterpret_cast<char *>(resultBuff + encoded_bytes));
 #elif __USE_GNU
-                    encoded_bytes = base64_encode_update(&b64_ctx, resultBuff, length + 12, &pktBuff[21]);
+                    encoded_bytes = base64_encode_update(&b64_ctx, resultBuff, mtmLightStatusPktSize, &pktBuff[21]);
                     base64_encode_final(&b64_ctx, resultBuff + encoded_bytes);
 #endif
 
@@ -688,8 +690,8 @@ void mtmZigbeeProcessInPacket(uint8_t *pktBuff, uint32_t length) {
                         mysql_free_result(res);
                     }
 #endif
-
-                    for (uint8_t statusIdx = 0; statusIdx < length / 2; statusIdx++) {
+                    // из размера пакета вычитаем два байта заголовка, восемь байт адреса, два байта флагов аварии
+                    for (uint8_t statusIdx = 0; statusIdx < (mtmLightStatusPktSize - 12) / 2; statusIdx++) {
                         switch (statusIdx) {
                             case MTM_DEVICE_LIGHT :
                                 makeLightStatus(mtmZigbeeDBase, address, pktBuff);

@@ -22,10 +22,10 @@ extern std::string coordinatorUuid;
 void log_buffer_hex(uint8_t *buffer, size_t buffer_size) {
     uint8_t message[1024];
     for (int i = 0; i < buffer_size; i++) {
-        sprintf((char *) &message[i * 6], "0x%02x ", buffer[i]);
+        sprintf((char *) &message[i * 2], "%02x", buffer[i]);
     }
 
-    kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] %s", TAG, message);
+    kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] MTM packet: %s", TAG, message);
 }
 
 bool findDevice(DBase *dBase, uint8_t *addr, uint8_t *uuid) {
