@@ -250,8 +250,8 @@ void makeCoordinatorStatus(DBase *dBase, uint8_t *address, const uint8_t *packet
         // если нет, создать
         uuid_generate(newUuid);
         uuid_unparse_upper(newUuid, (char *) newUuidString);
-        if (!createSChannel(dBase, newUuidString, MTM_ZB_CHANNEL_COORD_IN1_TITLE,
-                            MTM_ZB_CHANNEL_COORD_IN1_IDX, deviceUuid, CHANNEL_IN1, createTime)) {
+        if (createSChannel(dBase, newUuidString, MTM_ZB_CHANNEL_COORD_IN1_TITLE,
+                           MTM_ZB_CHANNEL_COORD_IN1_IDX, deviceUuid, CHANNEL_IN1, createTime)) {
             kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] %s %s", TAG, "Неудалось канал измерение",
                               MTM_ZB_CHANNEL_COORD_IN1_TITLE);
         } else {
@@ -277,7 +277,7 @@ void makeCoordinatorStatus(DBase *dBase, uint8_t *address, const uint8_t *packet
         value = value > threshold;
         measureUuid = findMeasure(dBase, &sChannelUuid, MTM_ZB_CHANNEL_COORD_IN1_IDX);
         if (!measureUuid.empty()) {
-            if (!updateMeasureValue(dBase, (uint8_t *) measureUuid.data(), value, createTime)) {
+            if (updateMeasureValue(dBase, (uint8_t *) measureUuid.data(), value, createTime)) {
                 kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] %s %s", TAG,
                                   "Не удалось обновить измерение", MTM_ZB_CHANNEL_COORD_IN1_TITLE);
             }
@@ -286,8 +286,7 @@ void makeCoordinatorStatus(DBase *dBase, uint8_t *address, const uint8_t *packet
             uuid_generate(newUuid);
             memset(newUuidString, 0, 37);
             uuid_unparse_upper(newUuid, (char *) newUuidString);
-            if (!storeMeasureValue(dBase, newUuidString, &sChannelUuid, (double) value, createTime,
-                                   createTime)) {
+            if (storeMeasureValue(dBase, newUuidString, &sChannelUuid, (double) value, createTime, createTime)) {
                 kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] %s %s", TAG,
                                   "Не удалось сохранить измерение", MTM_ZB_CHANNEL_COORD_IN1_TITLE);
             }
@@ -300,8 +299,8 @@ void makeCoordinatorStatus(DBase *dBase, uint8_t *address, const uint8_t *packet
         // если нет, создать
         uuid_generate(newUuid);
         uuid_unparse_upper(newUuid, (char *) newUuidString);
-        if (!createSChannel(dBase, newUuidString, MTM_ZB_CHANNEL_COORD_IN2_TITLE,
-                            MTM_ZB_CHANNEL_COORD_IN2_IDX, deviceUuid, CHANNEL_IN2, createTime)) {
+        if (createSChannel(dBase, newUuidString, MTM_ZB_CHANNEL_COORD_IN2_TITLE,
+                           MTM_ZB_CHANNEL_COORD_IN2_IDX, deviceUuid, CHANNEL_IN2, createTime)) {
             kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] %s %s", TAG, "Неудалось канал измерение",
                               MTM_ZB_CHANNEL_COORD_IN2_TITLE);
         } else {
@@ -327,7 +326,7 @@ void makeCoordinatorStatus(DBase *dBase, uint8_t *address, const uint8_t *packet
         value = value > threshold;
         measureUuid = findMeasure(dBase, &sChannelUuid, MTM_ZB_CHANNEL_COORD_IN2_IDX);
         if (!measureUuid.empty()) {
-            if (!updateMeasureValue(dBase, (uint8_t *) measureUuid.data(), value, createTime)) {
+            if (updateMeasureValue(dBase, (uint8_t *) measureUuid.data(), value, createTime)) {
                 kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] %s %s", TAG,
                                   "Не удалось обновить измерение", MTM_ZB_CHANNEL_COORD_IN2_TITLE);
             }
@@ -335,8 +334,8 @@ void makeCoordinatorStatus(DBase *dBase, uint8_t *address, const uint8_t *packet
             // создать новое измерение для канала
             uuid_generate(newUuid);
             uuid_unparse_upper(newUuid, (char *) newUuidString);
-            if (!storeMeasureValue(dBase, (uint8_t *) measureUuid.data(), &sChannelUuid, (double) value,
-                                   createTime, createTime)) {
+            if (storeMeasureValue(dBase, (uint8_t *) measureUuid.data(), &sChannelUuid, (double) value,
+                                  createTime, createTime)) {
                 kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] %s %s", TAG,
                                   "Не удалось сохранить измерение", MTM_ZB_CHANNEL_COORD_IN2_TITLE);
             }
@@ -349,9 +348,9 @@ void makeCoordinatorStatus(DBase *dBase, uint8_t *address, const uint8_t *packet
         // если нет, создать
         uuid_generate(newUuid);
         uuid_unparse_upper(newUuid, (char *) newUuidString);
-        if (!createSChannel(dBase, newUuidString, MTM_ZB_CHANNEL_COORD_DIGI1_TITLE,
-                            MTM_ZB_CHANNEL_COORD_DIGI1_IDX, deviceUuid, CHANNEL_DIGI1,
-                            createTime)) {
+        if (createSChannel(dBase, newUuidString, MTM_ZB_CHANNEL_COORD_DIGI1_TITLE,
+                           MTM_ZB_CHANNEL_COORD_DIGI1_IDX, deviceUuid, CHANNEL_DIGI1,
+                           createTime)) {
             kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] %s %s", TAG, "Неудалось канал измерение",
                               MTM_ZB_CHANNEL_COORD_DIGI1_TITLE);
         } else {
@@ -365,7 +364,7 @@ void makeCoordinatorStatus(DBase *dBase, uint8_t *address, const uint8_t *packet
         value = value >> 6; // NOLINT(hicpp-signed-bitwise)
         measureUuid = findMeasure(dBase, &sChannelUuid, MTM_ZB_CHANNEL_COORD_DIGI1_IDX);
         if (!measureUuid.empty()) {
-            if (!updateMeasureValue(dBase, (uint8_t *) measureUuid.data(), value, createTime)) {
+            if (updateMeasureValue(dBase, (uint8_t *) measureUuid.data(), value, createTime)) {
                 kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] %s %s", TAG,
                                   "Не удалось обновить измерение", MTM_ZB_CHANNEL_COORD_DIGI1_TITLE);
             }
@@ -373,8 +372,7 @@ void makeCoordinatorStatus(DBase *dBase, uint8_t *address, const uint8_t *packet
             // создать новое измерение для канала
             uuid_generate(newUuid);
             uuid_unparse_upper(newUuid, (char *) newUuidString);
-            if (!storeMeasureValue(dBase, newUuidString, &sChannelUuid, (double) value, createTime,
-                                   createTime)) {
+            if (storeMeasureValue(dBase, newUuidString, &sChannelUuid, (double) value, createTime, createTime)) {
                 kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] %s %s", TAG,
                                   "Не удалось сохранить измерение", MTM_ZB_CHANNEL_COORD_DIGI1_TITLE);
             }
