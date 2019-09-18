@@ -334,7 +334,7 @@ void makeCoordinatorStatus(DBase *dBase, uint8_t *address, const uint8_t *packet
             // создать новое измерение для канала
             uuid_generate(newUuid);
             uuid_unparse_upper(newUuid, (char *) newUuidString);
-            if (storeMeasureValue(dBase, (uint8_t *) measureUuid.data(), &sChannelUuid, (double) value,
+            if (storeMeasureValue(dBase, newUuidString, &sChannelUuid, (double) value,
                                   createTime, createTime)) {
                 kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] %s %s", TAG,
                                   "Не удалось сохранить измерение", MTM_ZB_CHANNEL_COORD_IN2_TITLE);
