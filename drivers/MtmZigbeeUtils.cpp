@@ -432,17 +432,17 @@ void makeLightStatus(DBase *dBase, uint8_t *address, const uint8_t *packetBuffer
         }
     }
 
-    // найти канал по устройству sensor_channel и regIdx (Ток светильника)
-    sChannelUuid = findSChannel(dBase, deviceUuid, MTM_ZB_CHANNEL_LIGHT_CURRENT_IDX, CHANNEL_I);
+    // найти канал по устройству sensor_channel и regIdx (Потребляемая мощность светильника)
+    sChannelUuid = findSChannel(dBase, deviceUuid, MTM_ZB_CHANNEL_LIGHT_POWER_IDX, CHANNEL_W);
     if (sChannelUuid.empty()) {
         // если нет, создать
         uuid_generate(newUuid);
         uuid_unparse_upper(newUuid, (char *) newUuidString);
-        if (createSChannel(dBase, newUuidString, MTM_ZB_CHANNEL_LIGHT_CURRENT_TITLE,
-                           MTM_ZB_CHANNEL_LIGHT_CURRENT_IDX,
-                           deviceUuid, CHANNEL_I, createTime)) {
+        if (createSChannel(dBase, newUuidString, MTM_ZB_CHANNEL_LIGHT_POWER_TITLE,
+                           MTM_ZB_CHANNEL_LIGHT_POWER_IDX,
+                           deviceUuid, CHANNEL_W, createTime)) {
             kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] %s %s", TAG, "Неудалось канал измерение ",
-                              MTM_ZB_CHANNEL_LIGHT_CURRENT_TITLE);
+                              MTM_ZB_CHANNEL_LIGHT_POWER_TITLE);
         } else {
             sChannelUuid.assign((const char *) newUuidString, 36);
         }
@@ -450,11 +450,11 @@ void makeLightStatus(DBase *dBase, uint8_t *address, const uint8_t *packetBuffer
 
     value = packetBuffer[33];
     if (!sChannelUuid.empty()) {
-        measureUuid = findMeasure(dBase, &sChannelUuid, MTM_ZB_CHANNEL_LIGHT_CURRENT_IDX);
+        measureUuid = findMeasure(dBase, &sChannelUuid, MTM_ZB_CHANNEL_LIGHT_POWER_IDX);
         if (!measureUuid.empty()) {
             if (updateMeasureValue(dBase, (uint8_t *) measureUuid.data(), value, createTime)) {
                 kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] %s %s", TAG, "Не удалось обновить измерение",
-                                  MTM_ZB_CHANNEL_LIGHT_CURRENT_TITLE);
+                                  MTM_ZB_CHANNEL_LIGHT_POWER_TITLE);
             }
         } else {
             // создать новое измерение для канала
@@ -462,7 +462,7 @@ void makeLightStatus(DBase *dBase, uint8_t *address, const uint8_t *packetBuffer
             uuid_unparse_upper(newUuid, (char *) newUuidString);
             if (storeMeasureValue(dBase, newUuidString, &sChannelUuid, (double) value, createTime, createTime)) {
                 kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] %s %s", TAG, "Не удалось сохранить измерение",
-                                  MTM_ZB_CHANNEL_LIGHT_CURRENT_TITLE);
+                                  MTM_ZB_CHANNEL_LIGHT_POWER_TITLE);
             }
         }
     }
