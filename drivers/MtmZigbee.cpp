@@ -380,7 +380,7 @@ void mtmZigbeeProcessOutPacket() {
     unsigned long *lengths;
     long flen;
     uint8_t tmpAddr[1024];
-    uint8_t tmpData[1024];
+    char tmpData[1024];
     uint8_t mtmPkt[512];
     uint64_t dstAddr;
     ssize_t rc;
@@ -945,7 +945,7 @@ void makeCoordinatorStatus(uint8_t *address, const uint8_t *packetBuffer) {
 }
 
 bool findMeasure(uint8_t *sChannelUuid, uint8_t regIdx, uint8_t *measureUuid) {
-    ulong nRows;
+    unsigned long long nRows;
     uint32_t nFields;
     MYSQL_FIELD *field;
     int32_t fieldUuidIdx = -1;
@@ -1147,7 +1147,7 @@ void mtmZigbeeSetRun(bool val) {
 }
 
 bool findSChannel(uint8_t *deviceUuid, uint8_t regIdx, const char *measureType, uint8_t *sChannelUuid) {
-    ulong nRows;
+    unsigned long long nRows;
     uint32_t nFields;
     MYSQL_FIELD *field;
     int32_t fieldUuidIdx = -1;
@@ -1255,7 +1255,7 @@ bool createSChannel(uint8_t *uuid, const char *channelTitle, uint8_t sensorIndex
 }
 
 bool findDevice(uint8_t *addr, uint8_t *uuid) {
-    ulong nRows;
+    unsigned long long nRows;
     uint32_t nFields;
     MYSQL_FIELD *field;
     int32_t fieldUuidIdx = -1;

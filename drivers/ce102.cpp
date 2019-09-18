@@ -262,6 +262,7 @@ int DeviceCE::ReadDataCurrentCE() {
     }
     if (this->q_attempt==10) {
         AddDeviceRegister(dBase, this->uuid, (char *)" отсутствие связи с устройством");
+
     }
     return 0;
 }
@@ -274,7 +275,7 @@ int DeviceCE::ReadAllArchiveCE(uint16_t tp) {
     uint8_t data[400], count = 0;
     char date[20], param[20];
     float fl;
-    uint8_t code, vsk = 0;
+    //uint8_t code, vsk = 0;
     time_t tims, tim;
     tims = time(&tims);
     tims = time(&tims);
@@ -298,7 +299,7 @@ int DeviceCE::ReadAllArchiveCE(uint16_t tp) {
             count = 0;
             for (int r = 0; r < 40; r++) {
                 if (data[r] == 0x28 && count < 5) {
-                    lRs = static_cast<bool>(sscanf((const char *) data + r, "(%s)", param));
+                    //lRs = static_cast<bool>(sscanf((const char *) data + r, "(%s)", param));
                     fl = static_cast<float>(atof(param));
                     sprintf(date, "%04d%02d01000000", tt->tm_year + 1900, tt->tm_mon+1);
                     if (chan != nullptr) {
@@ -350,7 +351,7 @@ int DeviceCE::ReadAllArchiveCE(uint16_t tp) {
             count = 0;
             for (int r = 0; r < 40; r++) {
                 if (data[r] == 0x28 && count < 5) {
-                    lRs = static_cast<bool>(sscanf((const char *) data + r, "(%s)", param));
+                    //lRs = static_cast<bool>(sscanf((const char *) data + r, "(%s)", param));
                     fl = static_cast<float>(atof(param));
                     sprintf(date, "%04d%02d%02d000000", tt->tm_year + 1900, tt->tm_mon + 1, tt->tm_mday);
                     currentKernelInstance.log.ulogw(LOG_LEVEL_INFO, "[303][%s] [%f] [%s]", chan, fl, date);
@@ -372,7 +373,7 @@ int DeviceCE::ReadAllArchiveCE(uint16_t tp) {
             count = 0;
             for (int r = 0; r < 40; r++) {
                 if (data[r] == 0x28 && count < 5) {
-                    lRs = static_cast<bool>(sscanf((const char *) data + r, "(%s)", param));
+                    //lRs = static_cast<bool>(sscanf((const char *) data + r, "(%s)", param));
                     fl = static_cast<float>(atof(param));
                     sprintf(date, "%04d%02d%02d000000", tt->tm_year + 1900, tt->tm_mon + 1, tt->tm_mday);
                     currentKernelInstance.log.ulogw(LOG_LEVEL_INFO, "[303][%s] [%f] [%s]", chan, fl, date);
