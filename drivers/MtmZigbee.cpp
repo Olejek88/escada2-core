@@ -38,7 +38,7 @@ bool isSunInit;
 bool isSunSet, isTwilightEnd, isTwilightStart, isSunRise;
 std::map<std::string, LightFlags> lightFlags;
 std::string coordinatorUuid;
-bool isCheckCoordinatorRespond = true;
+bool isCheckCoordinatorRespond;
 
 void *mtmZigbeeDeviceThread(void *pth) { // NOLINT
     uint16_t speed;
@@ -60,6 +60,7 @@ void *mtmZigbeeDeviceThread(void *pth) { // NOLINT
         isTwilightEnd = false;
         isTwilightStart = false;
         isSunRise = false;
+        isCheckCoordinatorRespond = true;
 
         mtmZigbeeStarted = true;
         kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] device thread started", TAG);
