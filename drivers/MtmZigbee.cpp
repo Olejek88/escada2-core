@@ -913,7 +913,7 @@ int32_t mtmZigbeeInit(int32_t mode, uint8_t *path, uint32_t speed) {
 #endif
 
     // тестовый пакет с состоянием светильника
-//    uint8_t buff[] = {
+//    uint8_t buff0[] = {
 //            0xfe,
 //            0x1f, 0x44, 0x81,
 //            0x00, 0x00,
@@ -926,7 +926,10 @@ int32_t mtmZigbeeInit(int32_t mode, uint8_t *path, uint32_t speed) {
 //            0x0e,
 //            0x01, 0x00, 0x07, 0x06, 0x05, 0x04, 0x03, 0x02, 0x01, 0x00, 0x01, 0x00, 0x42, 0x4D,
 //            0x05
+//    };
+//    send_cmd(coordinatorFd, buff0, sizeof(buff0), kernel);
 
+//    uint8_t buff1[] = {
 //            0xFE,
 //            0x24, 0x44, 0x81,
 //            0x00, 0x00, 0x00, 0xFC,
@@ -935,7 +938,10 @@ int32_t mtmZigbeeInit(int32_t mode, uint8_t *path, uint32_t speed) {
 //            0x06, 0x05, 0x04, 0x03, 0x02, 0x01, 0x00, 0x00,
 //            0x00, 0x6E, 0x00, 0x50, 0x03, 0x84, 0x1D, 0x07,
 //            0x00
+//    };
+//    send_cmd(coordinatorFd, buff1, sizeof(buff1), kernel);
 
+//    uint8_t buff2[] = {
 //            0xFE, 0x2E, 0x48, 0x81, 0x03, 0x01, 0xE8, 0x00,
 //            0xFF, 0xFF,
 //            0x96, 0x97, 0xAD, 0x04, 0x00, 0x4B, 0x12, 0x00,
@@ -945,7 +951,7 @@ int32_t mtmZigbeeInit(int32_t mode, uint8_t *path, uint32_t speed) {
 //            0xCC, 0x05, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
 //            0x00, 0x00, 0x13
 //    };
-//    send_cmd(coordinatorFd, buff, sizeof(buff), kernel);
+//    send_cmd(coordinatorFd, buff2, sizeof(buff2), kernel);
 
     return 0;
 }
