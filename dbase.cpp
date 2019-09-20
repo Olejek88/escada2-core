@@ -90,6 +90,8 @@ MYSQL_RES *DBase::sqlexec(const char *query) {
 bool DBase::StoreData(uint16_t type, uint16_t parameter, double value, char *data, char *channelUuid) {
     MYSQL_RES *pRes;
     MYSQL_ROW row;
+    Kernel &currentKernelInstance = Kernel::Instance();
+
     char query[500];
 
     if (type == TYPE_CURRENTS || type == TYPE_TOTAL_CURRENT) {
@@ -127,7 +129,8 @@ bool DBase::StoreData(uint16_t type, uint16_t parameter, double value, char *dat
         //printf("%s = %p\n", query, pRes);
         if (pRes && (row = mysql_fetch_row(pRes))) {
             mysql_free_result(pRes);
-            if (atof(row[4]) <= 0 || atof(row[4]) > 1000) {
+            currentKernelInstance.log.ulogw(LOG_LEVEL_INFO, "%s %f",row[3],atof(row[3]));
+            if (atof(row[3]) <= 0 || atof(row[3]) > 1000) {
                 // printf("U row=%ld\n", row);
                 sprintf(query,
                         "UPDATE data SET value=%f, date=date, changedAt=CURRENT_TIMESTAMP() WHERE type='%d' AND sensorChannelUuid='%s' AND parameter='%d' AND date='%s'",
