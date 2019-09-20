@@ -6,6 +6,7 @@ add_definitions(-std=c++11)
 
 include_directories(.)
 include_directories(version)
+include_directories(zigbeemtm)
 
 # TODO: сделать проверку на тип системы на которой производится сборка
 
@@ -41,7 +42,10 @@ add_executable(escada_core
         drivers/ce102.cpp
         drivers/ce102.h
         tinyxml2.cpp
-        tinyxml2.h TypeThread.cpp TypeThread.h drivers/MtmZigbee.cpp drivers/MtmZigbee.h function.cpp suninfo.cpp suninfo.h)
+        tinyxml2.h TypeThread.cpp TypeThread.h drivers/MtmZigbee.cpp drivers/MtmZigbee.h function.cpp
+        suninfo.cpp suninfo.h
+        drivers/MtmZigbeeUtils.cpp LightFlags.cpp LightFlags.h
+        zigbeemtm/zigbeemtm.cpp)
 
 #target_link_libraries(escada_core /usr/local/lib/libmysqlclient.dylib)
 #target_link_libraries(escada_core /usr/local/lib/libmysqlcppconn.dylib)
@@ -51,9 +55,6 @@ target_link_libraries(escada_core pthread)
 target_link_libraries(escada_core gtop-2.0)
 target_link_libraries(escada_core nettle)
 target_link_libraries(escada_core uuid)
-
-include_directories(external/zigbeemtm)
-add_subdirectory(external/zigbeemtm)
-target_link_libraries(escada_core zigbeemtm)
+target_link_libraries(escada_core jsoncpp)
 
 set_target_properties(escada_core PROPERTIES RUNTIME_OUTPUT_DIRECTORY ./build)

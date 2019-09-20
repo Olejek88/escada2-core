@@ -65,8 +65,11 @@ int DBase::openConnection() {
 }
 
 int DBase::disconnect() {
-    if (mysql) mysql_close(mysql);
-    mysql_library_end();
+    if (mysql) {
+        mysql_thread_end();
+        mysql_close(mysql);
+    }
+
     return OK;
 }
 
@@ -112,6 +115,10 @@ bool DBase::StoreData(uint16_t type, uint16_t parameter, double value, char *dat
             mysql_free_result(pRes);
         }
 
+        if (pRes) {
+            mysql_free_result(pRes);
+        }
+
         return true;
     } else {
         sprintf(query, "SELECT * FROM data WHERE sensorChannelUuid='%s' AND type=%d AND date='%s' AND parameter=%d",
@@ -129,6 +136,10 @@ bool DBase::StoreData(uint16_t type, uint16_t parameter, double value, char *dat
                 mysql_free_result(pRes);
             }
         } else {
+            if (pRes) {
+                mysql_free_result(pRes);
+            }
+
 //            printf("I row=%ld %s\n", row, mysql_error(mysql));
             uuid_t newUuid;
             char newUuidString[37] = {0};
@@ -196,7 +207,8 @@ int8_t DBase::getFieldIndex(const char *fieldName) {
 }
 
 bool DBase::isError() {
-    return *mysql_error(mysql) == 0;
+    const char *err = mysql_error(mysql);
+    return *err != 0;
 }
 
 const char *DBase::getErrorString() {

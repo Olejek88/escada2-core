@@ -34,7 +34,6 @@ uint32_t baudrate(uint32_t baud) {
 //---------------------------------------------------------------------------------------------------
 bool UpdateThreads(DBase dBase, int thread_id, uint8_t type, uint8_t status, char *deviceUuid) {
     MYSQL_RES *res;
-    MYSQL_ROW row;
     char query[500], types[40];
     time_t current_time = time(nullptr);
 
@@ -62,7 +61,7 @@ bool UpdateThreads(DBase dBase, int thread_id, uint8_t type, uint8_t status, cha
     sprintf(query, "SELECT * FROM threads WHERE _id=%d", thread_id);
     printf("%s\n", query);
     res = dBase.sqlexec(query);
-    if (res && (row = mysql_fetch_row(res))) {
+    if (res && mysql_fetch_row(res)) {
         mysql_free_result(res);
         if (deviceUuid) {
             sprintf(query,
@@ -74,15 +73,10 @@ bool UpdateThreads(DBase dBase, int thread_id, uint8_t type, uint8_t status, cha
                     status, types, current_time, current_time, thread_id);
         }
 
-        res = dBase.sqlexec(query);
         printf("%s\n", query);
+        res = dBase.sqlexec(query);
     }
 
-    if (res) {
-        mysql_free_result(res);
-    }
-
-    res = dBase.sqlexec(query);
     if (res) {
         mysql_free_result(res);
     }
