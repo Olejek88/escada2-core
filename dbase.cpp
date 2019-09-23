@@ -89,6 +89,9 @@ MYSQL_RES *DBase::sqlexec(const char *query) {
 // function store archive data to database
 bool DBase::StoreData(uint16_t type, uint16_t parameter, double value, char *data, char *channelUuid) {
     MYSQL_RES *pRes;
+    MYSQL_ROW row;
+    Kernel &currentKernelInstance = Kernel::Instance();
+
     char query[500];
 
     if (type == TYPE_CURRENTS || type == TYPE_TOTAL_CURRENT) {
@@ -124,14 +127,17 @@ bool DBase::StoreData(uint16_t type, uint16_t parameter, double value, char *dat
                 channelUuid, type, data, parameter);
         pRes = sqlexec(query);
         //printf("%s = %p\n", query, pRes);
-        if (pRes && mysql_fetch_row(pRes)) {
+        if (pRes && (row = mysql_fetch_row(pRes))) {
             mysql_free_result(pRes);
-//            printf("U row=%ld\n", row);
-            sprintf(query,
-                    "UPDATE data SET value=%f, date=date, changedAt=CURRENT_TIMESTAMP() WHERE type='%d' AND sensorChannelUuid='%s' AND parameter='%d' AND date='%s'",
-                    value, type, channelUuid, parameter, data);
-            //pRes = sqlexec(query);
-            //mysql_free_result(pRes);
+            currentKernelInstance.log.ulogw(LOG_LEVEL_INFO, "%s %f",row[3],atof(row[3]));
+            if (atof(row[3]) <= 0 || atof(row[3]) > 1000) {
+                // printf("U row=%ld\n", row);
+                sprintf(query,
+                        "UPDATE data SET value=%f, date=date, changedAt=CURRENT_TIMESTAMP() WHERE type='%d' AND sensorChannelUuid='%s' AND parameter='%d' AND date='%s'",
+                        value, type, channelUuid, parameter, data);
+                pRes = sqlexec(query);
+                mysql_free_result(pRes);
+            }
         } else {
             if (pRes) {
                 mysql_free_result(pRes);
