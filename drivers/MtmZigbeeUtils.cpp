@@ -518,10 +518,44 @@ void makeLightStatus(DBase *dBase, uint8_t *address, const uint8_t *packetBuffer
             sChannelUuid.assign((const char *) newUuidString, 36);
         }
     }
+}
 
-    // предположительно уровень сигнала идёт сразу за полезными данными и как бы невиден
-    // читаем байт по индексу "длина всего пакета"(без пяти служебных байт) + один стартовый байт пакета
-    value = packetBuffer[packetBuffer[1] + 1];
+void makeLightRssiStatus(DBase *dBase, uint8_t *address, const uint8_t *packetBuffer) {
+    uint8_t deviceUuid[37];
+    std::string sChannelUuid;
+    uuid_t newUuid;
+    uint8_t newUuidString[37] = {0};
+    std::string measureUuid;
+    time_t createTime = time(nullptr);
+    int8_t value;
+
+    memset(deviceUuid, 0, 37);
+    if (!findDevice(dBase, address, deviceUuid)) {
+        kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] %s %s", TAG, "Неудалось найти устройство с адресом", address);
+        return;
+    }
+
+    // найти канал по устройству sensor_channel и regIdx (RSSI)
+    sChannelUuid = findSChannel(dBase, deviceUuid, MTM_ZB_CHANNEL_LIGHT_RSSI_IDX, CHANNEL_RSSI);
+    if (sChannelUuid.empty()) {
+        // если нет, создать
+        uuid_generate(newUuid);
+        uuid_unparse_upper(newUuid, (char *) newUuidString);
+        if (createSChannel(dBase, newUuidString, MTM_ZB_CHANNEL_LIGHT_RSSI_TITLE, MTM_ZB_CHANNEL_LIGHT_RSSI_IDX,
+                           deviceUuid, CHANNEL_RSSI, createTime)) {
+            kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] %s %s", TAG, "Неудалось канал измерение ",
+                              MTM_ZB_CHANNEL_LIGHT_RSSI_TITLE);
+        } else {
+            sChannelUuid.assign((const char *) newUuidString, 36);
+        }
+    }
+
+    // уровень сигнала идёт в младшем байте статуса второго устройства
+    // 0-30 байт служебная информация zb
+    // 31-32 alert
+    // 33,34 power,temp
+    // 35,36 rssi,
+    value = packetBuffer[35];
     if (!sChannelUuid.empty()) {
         measureUuid = findMeasure(dBase, &sChannelUuid, MTM_ZB_CHANNEL_LIGHT_RSSI_IDX);
         if (!measureUuid.empty()) {

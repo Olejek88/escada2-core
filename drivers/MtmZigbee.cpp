@@ -750,7 +750,9 @@ void mtmZigbeeProcessInPacket(uint8_t *pktBuff, uint32_t length) {
                             case MTM_DEVICE_LIGHT :
                                 makeLightStatus(mtmZigbeeDBase, address, pktBuff);
                                 break;
-                            case 1 :
+                            case MTM_DEVICE_RSSI :
+                                makeLightRssiStatus(mtmZigbeeDBase, address, pktBuff);
+                                break;
                             case 2 :
                             case 3 :
                             case 4 :
