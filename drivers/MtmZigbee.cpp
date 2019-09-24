@@ -104,7 +104,8 @@ void mtmZigbeePktListener(DBase *dBase, int32_t threadId) {
     bool isFrameData = false;
     uint8_t frameDataByteCount = 0;
     uint8_t fcs;
-    time_t currentTime, heartBeatTime = 0, syncTimeTime = 0, checkSensorTime = 0, checkAstroTime = 0, checkOutPacket = 0, checkCoordinatorTime = 0;
+    time_t currentTime, heartBeatTime = 0, syncTimeTime = 0, checkSensorTime = 0, checkAstroTime = 0,
+            checkOutPacket = 0, checkCoordinatorTime = 0, checkLinkState = 0;
     struct tm *localTime;
 
     struct zb_pkt_item {
@@ -378,6 +379,14 @@ void mtmZigbeePktListener(DBase *dBase, int32_t threadId) {
 
                 // рассылка пакетов светильникам по параметрам заданным в программах
                 checkLightProgram(mtmZigbeeDBase, currentTime, lon, lat, threadId);
+            }
+
+            currentTime = time(nullptr);
+            if (currentTime - checkLinkState > 10) {
+                checkLinkState = currentTime;
+                if (isSunSet && isSunInit) {
+                    mtmCheckLinkState(mtmZigbeeDBase);
+                }
             }
 
             currentTime = time(nullptr);
@@ -750,7 +759,9 @@ void mtmZigbeeProcessInPacket(uint8_t *pktBuff, uint32_t length) {
                             case MTM_DEVICE_LIGHT :
                                 makeLightStatus(mtmZigbeeDBase, address, pktBuff);
                                 break;
-                            case 1 :
+                            case MTM_DEVICE_RSSI :
+                                makeLightRssiStatus(mtmZigbeeDBase, address, pktBuff);
+                                break;
                             case 2 :
                             case 3 :
                             case 4 :

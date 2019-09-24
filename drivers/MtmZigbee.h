@@ -86,4 +86,8 @@ ssize_t sendLightLevel(char *addrString, char *level);
 
 void mtmZigbeeStopThread(DBase *dBase, int32_t threadId);
 
+void makeLightRssiStatus(DBase *dBase, uint8_t *address, const uint8_t *packetBuffer);
+
+void mtmCheckLinkState(DBase *dBase);
+
 #endif //ESCADA_CORE_MTMZIGBEE_H
