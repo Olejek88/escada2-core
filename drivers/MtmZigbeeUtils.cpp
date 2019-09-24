@@ -10,6 +10,7 @@
 #include <suninfo.h>
 #include <function.h>
 #include "LightFlags.h"
+#include "main.h"
 
 extern Kernel *kernel;
 extern uint8_t TAG[];
@@ -1064,5 +1065,47 @@ void mtmZigbeeStopThread(DBase *dBase, int32_t threadId) {
     sprintf(query, "UPDATE threads SET status=%d, changedAt=FROM_UNIXTIME(%lu) WHERE _id=%d", 0, time(nullptr),
             threadId);
     res = dBase->sqlexec((char *) query);
+    mysql_free_result(res);
+}
+
+void mtmCheckLinkState(DBase *dBase) {
+    int linkTimeOut = 60;
+    char query[1024];
+    MYSQL_RES *res;
+    // для всех светильников от которых не было пакетов со статусом более linkTimeOut секунд,
+    // а статус был "В порядке", устанавливаем статус "Нет связи"
+    sprintf(query, "UPDATE device set deviceStatusUuid='%s', changedAt=current_timestamp() where\n"
+                   "    device.uuid in (SELECT sct.deviceUuid FROM sensor_channel as sct\n"
+                   "    LEFT JOIN data as mt on mt.sensorChannelUuid=sct.uuid\n"
+                   "    WHERE (timestampdiff(second,  mt.changedAt, current_timestamp()) > %d OR mt.changedAt IS NULL)\n"
+                   "    group by sct.deviceUuid)\n"
+                   "    AND device.deviceTypeUuid IN ('%s', '%s')\n"
+                   "    AND device.deviceStatusUuid='%s'", DEVICE_STATUS_NO_CONNECT, linkTimeOut, DEVICE_TYPE_ZB_LIGHT,
+            DEVICE_TYPE_ZB_COORDINATOR, DEVICE_STATUS_WORK);
+    res = dBase->sqlexec(query);
+    mysql_free_result(res);
+
+    // для всех светильников от которых были получены пакеты со статусом менее 30 секунд назад,
+    // а статус был "Нет связи", устанавливаем статус "В порядке"
+    sprintf(query, "UPDATE device set deviceStatusUuid='%s', changedAt=current_timestamp() where\n"
+                   "    device.uuid in (SELECT sct.deviceUuid FROM sensor_channel as sct\n"
+                   "    LEFT JOIN data as mt on mt.sensorChannelUuid=sct.uuid\n"
+                   "    WHERE (timestampdiff(second,  mt.changedAt, current_timestamp()) < %d)\n"
+                   "    group by sct.deviceUuid)\n"
+                   "    AND device.deviceTypeUuid IN ('%s', '%s')\n"
+                   "    AND device.deviceStatusUuid='%s'", DEVICE_STATUS_WORK, linkTimeOut, DEVICE_TYPE_ZB_LIGHT,
+            DEVICE_TYPE_ZB_COORDINATOR, DEVICE_STATUS_NO_CONNECT);
+    res = dBase->sqlexec(query);
+    mysql_free_result(res);
+
+    // для всех устройств у которых нет каналов измерения (светильники zb, координатор) ставим нет связи
+    sprintf(query, "UPDATE device set deviceStatusUuid='%s', changedAt=current_timestamp()\n"
+                   "    WHERE device.uuid NOT IN (\n"
+                   "    SELECT sct.deviceUuid FROM sensor_channel AS sct GROUP BY sct.deviceUuid\n"
+                   "    )\n"
+                   "    AND device.deviceTypeUuid IN ('%s', '%s')\n"
+                   "    AND device.deviceStatusUuid='%s'", DEVICE_STATUS_NO_CONNECT, DEVICE_TYPE_ZB_LIGHT,
+            DEVICE_TYPE_ZB_COORDINATOR, DEVICE_STATUS_WORK);
+    res = dBase->sqlexec(query);
     mysql_free_result(res);
 }
