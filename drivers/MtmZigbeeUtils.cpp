@@ -521,7 +521,7 @@ void makeLightStatus(DBase *dBase, uint8_t *address, const uint8_t *packetBuffer
     }
 }
 
-void makeLightRssiStatus(DBase *dBase, uint8_t *address, const uint8_t *packetBuffer) {
+void makeLightRssiHopsStatus(DBase *dBase, uint8_t *address, const uint8_t *packetBuffer) {
     uint8_t deviceUuid[37];
     std::string sChannelUuid;
     uuid_t newUuid;
@@ -555,7 +555,7 @@ void makeLightRssiStatus(DBase *dBase, uint8_t *address, const uint8_t *packetBu
     // 0-30 байт служебная информация zb
     // 31-32 alert
     // 33,34 power,temp
-    // 35,36 rssi,
+    // 35,36 rssi,hop count
     value = packetBuffer[35];
     if (!sChannelUuid.empty()) {
         measureUuid = findMeasure(dBase, &sChannelUuid, MTM_ZB_CHANNEL_LIGHT_RSSI_IDX);
@@ -571,6 +571,41 @@ void makeLightRssiStatus(DBase *dBase, uint8_t *address, const uint8_t *packetBu
             if (storeMeasureValue(dBase, newUuidString, &sChannelUuid, (double) value, createTime, createTime)) {
                 kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] %s %s", TAG, "Не удалось сохранить измерение",
                                   MTM_ZB_CHANNEL_LIGHT_RSSI_TITLE);
+            }
+        }
+    }
+
+    // найти канал по устройству sensor_channel и regIdx (Hop count)
+    sChannelUuid = findSChannel(dBase, deviceUuid, MTM_ZB_CHANNEL_LIGHT_HOP_COUNT_IDX, CHANNEL_HOP_COUNT);
+    if (sChannelUuid.empty()) {
+        // если нет, создать
+        uuid_generate(newUuid);
+        uuid_unparse_upper(newUuid, (char *) newUuidString);
+        if (createSChannel(dBase, newUuidString, MTM_ZB_CHANNEL_LIGHT_HOP_COUNT_TITLE,
+                           MTM_ZB_CHANNEL_LIGHT_HOP_COUNT_IDX,
+                           deviceUuid, CHANNEL_HOP_COUNT, createTime)) {
+            kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] %s %s", TAG, "Неудалось канал измерение ",
+                              MTM_ZB_CHANNEL_LIGHT_HOP_COUNT_TITLE);
+        } else {
+            sChannelUuid.assign((const char *) newUuidString, 36);
+        }
+    }
+
+    value = packetBuffer[36];
+    if (!sChannelUuid.empty()) {
+        measureUuid = findMeasure(dBase, &sChannelUuid, MTM_ZB_CHANNEL_LIGHT_HOP_COUNT_IDX);
+        if (!measureUuid.empty()) {
+            if (updateMeasureValue(dBase, (uint8_t *) measureUuid.data(), value, createTime)) {
+                kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] %s %s", TAG, "Не удалось обновить измерение",
+                                  MTM_ZB_CHANNEL_LIGHT_HOP_COUNT_TITLE);
+            }
+        } else {
+            // создать новое измерение для канала
+            uuid_generate(newUuid);
+            uuid_unparse_upper(newUuid, (char *) newUuidString);
+            if (storeMeasureValue(dBase, newUuidString, &sChannelUuid, (double) value, createTime, createTime)) {
+                kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] %s %s", TAG, "Не удалось сохранить измерение",
+                                  MTM_ZB_CHANNEL_LIGHT_HOP_COUNT_TITLE);
             }
         }
     }
