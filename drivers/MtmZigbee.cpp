@@ -402,9 +402,7 @@ void mtmZigbeePktListener(DBase *dBase, int32_t threadId) {
             currentTime = time(nullptr);
             if (currentTime - checkLinkState > 10) {
                 checkLinkState = currentTime;
-                if (isSunSet && isSunInit) {
-                    mtmCheckLinkState(mtmZigbeeDBase);
-                }
+                mtmCheckLinkState(mtmZigbeeDBase);
             }
 
             currentTime = time(nullptr);

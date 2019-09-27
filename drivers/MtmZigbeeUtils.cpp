@@ -1160,6 +1160,35 @@ void mtmCheckLinkState(DBase *dBase) {
     int linkTimeOut = 60;
     char query[1024];
     MYSQL_RES *res;
+    MYSQL_ROW row;
+    int nRows;
+    int contactorState = 0; // считаем что контактор всегда включен, даже если его нет
+
+    // проверяем сотояние контактора, если он включен, тогда следим за состоянием светильников
+    sprintf(query, "SELECT mt.* FROM device AS dt\n"
+                   "LEFT JOIN sensor_channel AS sct ON sct.deviceUuid=dt.uuid\n"
+                   "LEFT JOIN data AS mt ON mt.sensorChannelUuid=sct.uuid\n"
+                   "WHERE dt.deviceTypeUuid='%s'\n"
+                   "AND sct.measureTypeUuid='%s'", DEVICE_TYPE_ZB_COORDINATOR, CHANNEL_IN2);
+    res = dBase->sqlexec(query);
+    if (res) {
+        nRows = mysql_num_rows(res);
+        if (nRows > 0) {
+            dBase->makeFieldsList(res);
+            row = mysql_fetch_row(res);
+            if (row) {
+                contactorState = std::stoi(std::string(row[dBase->getFieldIndex("value")]));
+            }
+        }
+
+        mysql_free_result(res);
+    }
+
+    // если контактор не включен, ни чего не делаем
+    if (contactorState != 0) {
+        return;
+    }
+
     // для всех светильников от которых не было пакетов со статусом более linkTimeOut секунд,
     // а статус был "В порядке", устанавливаем статус "Нет связи"
     sprintf(query, "UPDATE device set deviceStatusUuid='%s', changedAt=current_timestamp() where\n"
