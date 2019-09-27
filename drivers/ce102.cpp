@@ -106,11 +106,12 @@ void *ceDeviceThread(void *pth) {
                             currentKernelInstance->log.ulogw(LOG_LEVEL_INFO, "[303] ReadDataCurrent (%d)",
                                                              deviceCE->id);
                             UpdateThreads(*dBase, id, 0, 1, deviceCE->uuid);
-                            if (currentKernelInstance->current_time->tm_min > 5) {
+                            if (currentKernelInstance->current_time->tm_min > 50 &&
+                                    currentKernelInstance->current_time->tm_hour > 5) {
                                 UpdateThreads(*dBase, id, 1, 1, deviceCE->uuid);
                                 currentKernelInstance->log.ulogw(LOG_LEVEL_INFO, "[303] ReadDataArchive (%d)",
                                                                  deviceCE->id);
-                                deviceCE->ReadAllArchiveCE(12);
+                                deviceCE->ReadAllArchiveCE(5);
                             }
                             deviceCE->ReadDataCurrentCE();
                             if (work == 0) {
@@ -262,6 +263,12 @@ int DeviceCE::ReadDataCurrentCE() {
             }
         }
     }
+
+    lRs = send_ce(SN, 0, date, 0);
+    if (lRs) result = this->read_ce(data, 0);
+    lRs = send_ce(OPEN_PREV, 0, date, 0);
+    if (lRs) result = this->read_ce(data, 0);
+
     lRs = send_ce(CURRENT_U, 0, date, READ_PARAMETERS);
     if (lRs) result = this->read_ce(data, 0);
     if (result > 0) {
@@ -279,6 +286,12 @@ int DeviceCE::ReadDataCurrentCE() {
             }
         }
     }
+
+    lRs = send_ce(SN, 0, date, 0);
+    if (lRs) result = this->read_ce(data, 0);
+    lRs = send_ce(OPEN_PREV, 0, date, 0);
+    if (lRs) result = this->read_ce(data, 0);
+
     lRs = send_ce(CURRENT_F, 0, date, READ_PARAMETERS);
     if (lRs) result = this->read_ce(data, 0);
     if (result > 0) {
@@ -295,6 +308,11 @@ int DeviceCE::ReadDataCurrentCE() {
         }
     }
 
+    lRs = send_ce(SN, 0, date, 0);
+    if (lRs) result = this->read_ce(data, 0);
+    lRs = send_ce(OPEN_PREV, 0, date, 0);
+    if (lRs) result = this->read_ce(data, 0);
+
     lRs = send_ce(CURRENT_WS, 0, date, READ_PARAMETERS);
     if (lRs) result = this->read_ce(data, 0);
     if (result > 0) {
@@ -310,6 +328,11 @@ int DeviceCE::ReadDataCurrentCE() {
             }
         }
     }
+
+    lRs = send_ce(SN, 0, date, 0);
+    if (lRs) result = this->read_ce(data, 0);
+    lRs = send_ce(OPEN_PREV, 0, date, 0);
+    if (lRs) result = this->read_ce(data, 0);
 
     lRs = send_ce(CURRENT_I, 0, date, READ_PARAMETERS);
     if (lRs) result = this->read_ce(data, 0);
