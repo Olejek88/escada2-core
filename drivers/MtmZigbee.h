@@ -93,4 +93,6 @@ void makeLightRssiHopsStatus(DBase *dBase, uint8_t *address, const uint8_t *pack
 
 void mtmCheckLinkState(DBase *dBase);
 
+void makeCoordinatorTemperature(DBase *dBase, uint8_t *address, const uint8_t *packetBuffer);
+
 #endif //ESCADA_CORE_MTMZIGBEE_H
