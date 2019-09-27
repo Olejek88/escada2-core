@@ -38,7 +38,7 @@ bool isSunInit;
 bool isSunSet, isTwilightEnd, isTwilightStart, isSunRise;
 std::map<std::string, LightFlags> lightFlags;
 std::string coordinatorUuid;
-bool isCheckCoordinatorRespond = true;
+bool isCheckCoordinatorRespond;
 
 void *mtmZigbeeDeviceThread(void *pth) { // NOLINT
     uint16_t speed;
@@ -60,6 +60,7 @@ void *mtmZigbeeDeviceThread(void *pth) { // NOLINT
         isTwilightEnd = false;
         isTwilightStart = false;
         isSunRise = false;
+        isCheckCoordinatorRespond = true;
 
         mtmZigbeeStarted = true;
         kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] device thread started", TAG);
@@ -103,7 +104,8 @@ void mtmZigbeePktListener(DBase *dBase, int32_t threadId) {
     bool isFrameData = false;
     uint8_t frameDataByteCount = 0;
     uint8_t fcs;
-    time_t currentTime, heartBeatTime = 0, syncTimeTime = 0, checkSensorTime = 0, checkAstroTime = 0, checkOutPacket = 0, checkCoordinatorTime = 0;
+    time_t currentTime, heartBeatTime = 0, syncTimeTime = 0, checkSensorTime = 0, checkAstroTime = 0,
+            checkOutPacket = 0, checkCoordinatorTime = 0, checkLinkState = 0;
     struct tm *localTime;
 
     struct zb_pkt_item {
@@ -296,8 +298,26 @@ void mtmZigbeePktListener(DBase *dBase, int32_t threadId) {
                 req.dst_addr = 0x0000;
                 req.sep = 0xE8;
                 req.dep = 0xE8;
-                req.cid = 0x0103;
+                req.cid = MBEE_API_LOCAL_IOSTATUS_CLUSTER;
                 ssize_t rc = send_zb_cmd(coordinatorFd, AF_DATA_REQUEST, &req, kernel);
+                if (rc == -1) {
+                    kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] ERROR write to port", TAG);
+                    // останавливаем поток с целью его последующего автоматического запуска и инициализации
+                    mtmZigbeeStopThread(mtmZigbeeDBase, threadId);
+                    AddDeviceRegister(*mtmZigbeeDBase, (char *) coordinatorUuid.data(),
+                                      (char *) "Ошибка записи в порт координатора");
+                    return;
+                }
+#ifdef DEBUG
+                kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] rc=%ld", TAG, rc);
+#endif
+
+                req = {0};
+                req.dst_addr = 0x0000;
+                req.sep = 0xE8;
+                req.dep = 0xE8;
+                req.cid = MBEE_API_GET_TEMP_CLUSTER;
+                rc = send_zb_cmd(coordinatorFd, AF_DATA_REQUEST, &req, kernel);
                 if (rc == -1) {
                     kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] ERROR write to port", TAG);
                     // останавливаем поток с целью его последующего автоматического запуска и инициализации
@@ -377,6 +397,12 @@ void mtmZigbeePktListener(DBase *dBase, int32_t threadId) {
 
                 // рассылка пакетов светильникам по параметрам заданным в программах
                 checkLightProgram(mtmZigbeeDBase, currentTime, lon, lat, threadId);
+            }
+
+            currentTime = time(nullptr);
+            if (currentTime - checkLinkState > 10) {
+                checkLinkState = currentTime;
+                mtmCheckLinkState(mtmZigbeeDBase);
             }
 
             currentTime = time(nullptr);
@@ -691,6 +717,21 @@ void mtmZigbeeProcessInPacket(uint8_t *pktBuff, uint32_t length) {
                     kernel->log.ulogw(LOG_LEVEL_INFO, "Get module version packet");
 #endif
                     break;
+
+                case MBEE_API_GET_TEMP_CLUSTER :
+                    // температура модуля zigbee
+                    memset(address, 0, 32);
+                    sprintf((char *) address, "%02X%02X%02X%02X%02X%02X%02X%02X",
+                            pktBuff[17], pktBuff[16], pktBuff[15], pktBuff[14],
+                            pktBuff[13], pktBuff[12], pktBuff[11], pktBuff[10]);
+
+#ifdef DEBUG
+                    kernel->log.ulogw(LOG_LEVEL_INFO, "Get temperature data packet");
+#endif
+
+                    makeCoordinatorTemperature(mtmZigbeeDBase, address, pktBuff);
+                    break;
+
                 default:
                     break;
             }
@@ -749,7 +790,9 @@ void mtmZigbeeProcessInPacket(uint8_t *pktBuff, uint32_t length) {
                             case MTM_DEVICE_LIGHT :
                                 makeLightStatus(mtmZigbeeDBase, address, pktBuff);
                                 break;
-                            case 1 :
+                            case MTM_DEVICE_RSSI :
+                                makeLightRssiHopsStatus(mtmZigbeeDBase, address, pktBuff);
+                                break;
                             case 2 :
                             case 3 :
                             case 4 :
@@ -912,7 +955,7 @@ int32_t mtmZigbeeInit(int32_t mode, uint8_t *path, uint32_t speed) {
 #endif
 
     // тестовый пакет с состоянием светильника
-//    uint8_t buff[] = {
+//    uint8_t buff0[] = {
 //            0xfe,
 //            0x1f, 0x44, 0x81,
 //            0x00, 0x00,
@@ -925,7 +968,10 @@ int32_t mtmZigbeeInit(int32_t mode, uint8_t *path, uint32_t speed) {
 //            0x0e,
 //            0x01, 0x00, 0x07, 0x06, 0x05, 0x04, 0x03, 0x02, 0x01, 0x00, 0x01, 0x00, 0x42, 0x4D,
 //            0x05
+//    };
+//    send_cmd(coordinatorFd, buff0, sizeof(buff0), kernel);
 
+//    uint8_t buff1[] = {
 //            0xFE,
 //            0x24, 0x44, 0x81,
 //            0x00, 0x00, 0x00, 0xFC,
@@ -935,7 +981,28 @@ int32_t mtmZigbeeInit(int32_t mode, uint8_t *path, uint32_t speed) {
 //            0x00, 0x6E, 0x00, 0x50, 0x03, 0x84, 0x1D, 0x07,
 //            0x00
 //    };
-//    send_cmd(coordinatorFd, buff, sizeof(buff), kernel);
+//    send_cmd(coordinatorFd, buff1, sizeof(buff1), kernel);
+
+//    uint8_t buff2[] = {
+//            0xFE, 0x2E, 0x48, 0x81, 0x03, 0x01, 0xE8, 0x00,
+//            0xFF, 0xFF,
+//            0x96, 0x97, 0xAD, 0x04, 0x00, 0x4B, 0x12, 0x00,
+//            0x00, 0x00, 0x1D, 0x02, 0xF5, 0x1A,
+//            0x01, 0x21, 0x00, 0x00, 0xFF, 0x01, 0xC0, 0x0F,
+//            0xBE, 0x01, 0xFF, 0x07, 0x00, 0x00, 0x87, 0x07,
+//            0xCC, 0x05, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+//            0x00, 0x00, 0x13
+//    };
+//    send_cmd(coordinatorFd, buff2, sizeof(buff2), kernel);
+
+//    uint8_t buff2[] = { // пакет с температурой
+//            0xFE, 0x13, 0x48, 0x81, 0x09, 0x02, 0xE8, 0x00, 0xFF, 0xFF,
+//            0x96, 0x97, 0xAD, 0x04, 0x00, 0x4B, 0x12, 0x00,
+//            0x00, 0x00,
+//            0x02, 0xBB, 0x05,
+//            0x74
+//    };
+//    send_cmd(coordinatorFd, buff2, sizeof(buff2), kernel);
 
     return 0;
 }

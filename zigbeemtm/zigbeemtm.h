@@ -58,6 +58,7 @@ enum {
 #define MBEE_API_DIGITAL_LINE7 0x0007
 
 #define MTM_DEVICE_LIGHT 0x0000
+#define MTM_DEVICE_RSSI 0x0001
 
 // команда mt
 //typedef struct _zigbee_mt_cmd {

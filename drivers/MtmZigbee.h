@@ -14,6 +14,7 @@
 #define CHANNEL_IN2 "066C4553-EA7A-4DB9-8E25-98192EF659A3"
 #define CHANNEL_DIGI1 "3D597483-F547-438C-A284-85E0F2C5C480"
 #define CHANNEL_RSSI "06F2D619-CB5A-4561-82DF-4C87DF06C6FE"
+#define CHANNEL_HOP_COUNT "74656AFD-F536-49AE-A71A-83F0EEE9C912"
 
 #define MTM_ZB_CHANNEL_COORD_IN1_IDX 0
 #define MTM_ZB_CHANNEL_COORD_IN1_TITLE "IN1"
@@ -25,11 +26,15 @@
 #define MTM_ZB_CHANNEL_LIGHT_TEMPERATURE_IDX 0
 #define MTM_ZB_CHANNEL_LIGHT_TEMPERATURE_TITLE "Температура"
 #define MTM_ZB_CHANNEL_LIGHT_CURRENT_IDX 0
-#define MTM_ZB_CHANNEL_LIGHT_CURRENT_TITLE "Мощность"
+#define MTM_ZB_CHANNEL_LIGHT_CURRENT_TITLE "Ток"
 #define MTM_ZB_CHANNEL_LIGHT_STATUS_IDX 0
 #define MTM_ZB_CHANNEL_LIGHT_STATUS_TITLE "Статус"
 #define MTM_ZB_CHANNEL_LIGHT_RSSI_IDX 0
 #define MTM_ZB_CHANNEL_LIGHT_RSSI_TITLE "RSSI"
+#define MTM_ZB_CHANNEL_LIGHT_POWER_IDX 0
+#define MTM_ZB_CHANNEL_LIGHT_POWER_TITLE "Мощность"
+#define MTM_ZB_CHANNEL_LIGHT_HOP_COUNT_IDX 0
+#define MTM_ZB_CHANNEL_LIGHT_HOP_COUNT_TITLE "Hops"
 
 void *mtmZigbeeDeviceThread(void *device);
 
@@ -83,5 +88,11 @@ void checkLightProgram(DBase *dBase, time_t currentTime, double lon, double lat,
 ssize_t sendLightLevel(char *addrString, char *level);
 
 void mtmZigbeeStopThread(DBase *dBase, int32_t threadId);
+
+void makeLightRssiHopsStatus(DBase *dBase, uint8_t *address, const uint8_t *packetBuffer);
+
+void mtmCheckLinkState(DBase *dBase);
+
+void makeCoordinatorTemperature(DBase *dBase, uint8_t *address, const uint8_t *packetBuffer);
 
 #endif //ESCADA_CORE_MTMZIGBEE_H

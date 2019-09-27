@@ -10,6 +10,7 @@
 #include <suninfo.h>
 #include <function.h>
 #include "LightFlags.h"
+#include "main.h"
 
 extern Kernel *kernel;
 extern uint8_t TAG[];
@@ -334,7 +335,7 @@ void makeCoordinatorStatus(DBase *dBase, uint8_t *address, const uint8_t *packet
             // создать новое измерение для канала
             uuid_generate(newUuid);
             uuid_unparse_upper(newUuid, (char *) newUuidString);
-            if (storeMeasureValue(dBase, (uint8_t *) measureUuid.data(), &sChannelUuid, (double) value,
+            if (storeMeasureValue(dBase, newUuidString, &sChannelUuid, (double) value,
                                   createTime, createTime)) {
                 kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] %s %s", TAG,
                                   "Не удалось сохранить измерение", MTM_ZB_CHANNEL_COORD_IN2_TITLE);
@@ -432,17 +433,17 @@ void makeLightStatus(DBase *dBase, uint8_t *address, const uint8_t *packetBuffer
         }
     }
 
-    // найти канал по устройству sensor_channel и regIdx (Ток светильника)
-    sChannelUuid = findSChannel(dBase, deviceUuid, MTM_ZB_CHANNEL_LIGHT_CURRENT_IDX, CHANNEL_I);
+    // найти канал по устройству sensor_channel и regIdx (Потребляемая мощность светильника)
+    sChannelUuid = findSChannel(dBase, deviceUuid, MTM_ZB_CHANNEL_LIGHT_POWER_IDX, CHANNEL_W);
     if (sChannelUuid.empty()) {
         // если нет, создать
         uuid_generate(newUuid);
         uuid_unparse_upper(newUuid, (char *) newUuidString);
-        if (createSChannel(dBase, newUuidString, MTM_ZB_CHANNEL_LIGHT_CURRENT_TITLE,
-                           MTM_ZB_CHANNEL_LIGHT_CURRENT_IDX,
-                           deviceUuid, CHANNEL_I, createTime)) {
+        if (createSChannel(dBase, newUuidString, MTM_ZB_CHANNEL_LIGHT_POWER_TITLE,
+                           MTM_ZB_CHANNEL_LIGHT_POWER_IDX,
+                           deviceUuid, CHANNEL_W, createTime)) {
             kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] %s %s", TAG, "Неудалось канал измерение ",
-                              MTM_ZB_CHANNEL_LIGHT_CURRENT_TITLE);
+                              MTM_ZB_CHANNEL_LIGHT_POWER_TITLE);
         } else {
             sChannelUuid.assign((const char *) newUuidString, 36);
         }
@@ -450,11 +451,11 @@ void makeLightStatus(DBase *dBase, uint8_t *address, const uint8_t *packetBuffer
 
     value = packetBuffer[33];
     if (!sChannelUuid.empty()) {
-        measureUuid = findMeasure(dBase, &sChannelUuid, MTM_ZB_CHANNEL_LIGHT_CURRENT_IDX);
+        measureUuid = findMeasure(dBase, &sChannelUuid, MTM_ZB_CHANNEL_LIGHT_POWER_IDX);
         if (!measureUuid.empty()) {
             if (updateMeasureValue(dBase, (uint8_t *) measureUuid.data(), value, createTime)) {
                 kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] %s %s", TAG, "Не удалось обновить измерение",
-                                  MTM_ZB_CHANNEL_LIGHT_CURRENT_TITLE);
+                                  MTM_ZB_CHANNEL_LIGHT_POWER_TITLE);
             }
         } else {
             // создать новое измерение для канала
@@ -462,7 +463,7 @@ void makeLightStatus(DBase *dBase, uint8_t *address, const uint8_t *packetBuffer
             uuid_unparse_upper(newUuid, (char *) newUuidString);
             if (storeMeasureValue(dBase, newUuidString, &sChannelUuid, (double) value, createTime, createTime)) {
                 kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] %s %s", TAG, "Не удалось сохранить измерение",
-                                  MTM_ZB_CHANNEL_LIGHT_CURRENT_TITLE);
+                                  MTM_ZB_CHANNEL_LIGHT_POWER_TITLE);
             }
         }
     }
@@ -518,10 +519,44 @@ void makeLightStatus(DBase *dBase, uint8_t *address, const uint8_t *packetBuffer
             sChannelUuid.assign((const char *) newUuidString, 36);
         }
     }
+}
 
-    // предположительно уровень сигнала идёт сразу за полезными данными и как бы невиден
-    // читаем байт по индексу "длина всего пакета"(без пяти служебных байт) + один стартовый байт пакета
-    value = packetBuffer[packetBuffer[1] + 1];
+void makeLightRssiHopsStatus(DBase *dBase, uint8_t *address, const uint8_t *packetBuffer) {
+    uint8_t deviceUuid[37];
+    std::string sChannelUuid;
+    uuid_t newUuid;
+    uint8_t newUuidString[37] = {0};
+    std::string measureUuid;
+    time_t createTime = time(nullptr);
+    int8_t value;
+
+    memset(deviceUuid, 0, 37);
+    if (!findDevice(dBase, address, deviceUuid)) {
+        kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] %s %s", TAG, "Неудалось найти устройство с адресом", address);
+        return;
+    }
+
+    // найти канал по устройству sensor_channel и regIdx (RSSI)
+    sChannelUuid = findSChannel(dBase, deviceUuid, MTM_ZB_CHANNEL_LIGHT_RSSI_IDX, CHANNEL_RSSI);
+    if (sChannelUuid.empty()) {
+        // если нет, создать
+        uuid_generate(newUuid);
+        uuid_unparse_upper(newUuid, (char *) newUuidString);
+        if (createSChannel(dBase, newUuidString, MTM_ZB_CHANNEL_LIGHT_RSSI_TITLE, MTM_ZB_CHANNEL_LIGHT_RSSI_IDX,
+                           deviceUuid, CHANNEL_RSSI, createTime)) {
+            kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] %s %s", TAG, "Неудалось канал измерение ",
+                              MTM_ZB_CHANNEL_LIGHT_RSSI_TITLE);
+        } else {
+            sChannelUuid.assign((const char *) newUuidString, 36);
+        }
+    }
+
+    // уровень сигнала идёт в младшем байте статуса второго устройства
+    // 0-30 байт служебная информация zb
+    // 31-32 alert
+    // 33,34 power,temp
+    // 35,36 rssi,hop count
+    value = packetBuffer[35];
     if (!sChannelUuid.empty()) {
         measureUuid = findMeasure(dBase, &sChannelUuid, MTM_ZB_CHANNEL_LIGHT_RSSI_IDX);
         if (!measureUuid.empty()) {
@@ -536,6 +571,94 @@ void makeLightStatus(DBase *dBase, uint8_t *address, const uint8_t *packetBuffer
             if (storeMeasureValue(dBase, newUuidString, &sChannelUuid, (double) value, createTime, createTime)) {
                 kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] %s %s", TAG, "Не удалось сохранить измерение",
                                   MTM_ZB_CHANNEL_LIGHT_RSSI_TITLE);
+            }
+        }
+    }
+
+    // найти канал по устройству sensor_channel и regIdx (Hop count)
+    sChannelUuid = findSChannel(dBase, deviceUuid, MTM_ZB_CHANNEL_LIGHT_HOP_COUNT_IDX, CHANNEL_HOP_COUNT);
+    if (sChannelUuid.empty()) {
+        // если нет, создать
+        uuid_generate(newUuid);
+        uuid_unparse_upper(newUuid, (char *) newUuidString);
+        if (createSChannel(dBase, newUuidString, MTM_ZB_CHANNEL_LIGHT_HOP_COUNT_TITLE,
+                           MTM_ZB_CHANNEL_LIGHT_HOP_COUNT_IDX,
+                           deviceUuid, CHANNEL_HOP_COUNT, createTime)) {
+            kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] %s %s", TAG, "Неудалось канал измерение ",
+                              MTM_ZB_CHANNEL_LIGHT_HOP_COUNT_TITLE);
+        } else {
+            sChannelUuid.assign((const char *) newUuidString, 36);
+        }
+    }
+
+    value = packetBuffer[36];
+    if (!sChannelUuid.empty()) {
+        measureUuid = findMeasure(dBase, &sChannelUuid, MTM_ZB_CHANNEL_LIGHT_HOP_COUNT_IDX);
+        if (!measureUuid.empty()) {
+            if (updateMeasureValue(dBase, (uint8_t *) measureUuid.data(), value, createTime)) {
+                kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] %s %s", TAG, "Не удалось обновить измерение",
+                                  MTM_ZB_CHANNEL_LIGHT_HOP_COUNT_TITLE);
+            }
+        } else {
+            // создать новое измерение для канала
+            uuid_generate(newUuid);
+            uuid_unparse_upper(newUuid, (char *) newUuidString);
+            if (storeMeasureValue(dBase, newUuidString, &sChannelUuid, (double) value, createTime, createTime)) {
+                kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] %s %s", TAG, "Не удалось сохранить измерение",
+                                  MTM_ZB_CHANNEL_LIGHT_HOP_COUNT_TITLE);
+            }
+        }
+    }
+}
+
+void makeCoordinatorTemperature(DBase *dBase, uint8_t *address, const uint8_t *packetBuffer) {
+    uint8_t deviceUuid[37];
+    std::string sChannelUuid;
+    uuid_t newUuid;
+    uint8_t newUuidString[37] = {0};
+    std::string measureUuid;
+    time_t createTime = time(nullptr);
+    int8_t value;
+
+    memset(deviceUuid, 0, 37);
+    if (!findDevice(dBase, address, deviceUuid)) {
+        kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] %s %s", TAG, "Неудалось найти устройство с адресом", address);
+        return;
+    }
+
+    // найти канал по устройству sensor_channel и regIdx (температрута)
+    sChannelUuid = findSChannel(dBase, deviceUuid, MTM_ZB_CHANNEL_LIGHT_TEMPERATURE_IDX, CHANNEL_T);
+    if (sChannelUuid.empty()) {
+        // если нет, создать
+        uuid_generate(newUuid);
+        uuid_unparse_upper(newUuid, (char *) newUuidString);
+        if (createSChannel(dBase, newUuidString, MTM_ZB_CHANNEL_LIGHT_TEMPERATURE_TITLE,
+                           MTM_ZB_CHANNEL_LIGHT_TEMPERATURE_IDX,
+                           deviceUuid, CHANNEL_T, createTime)) {
+            kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] %s %s", TAG, "Неудалось канал измерение ",
+                              MTM_ZB_CHANNEL_LIGHT_TEMPERATURE_TITLE);
+        } else {
+            sChannelUuid.assign((const char *) newUuidString, 36);
+        }
+    }
+
+    // температура лежит в двух байтах начиная с 21-го
+    uint16_t tempCount = *(uint16_t *) &packetBuffer[21];
+    value = (int8_t) ((tempCount - 1480) / 4.5) + 25;
+    if (!sChannelUuid.empty()) {
+        measureUuid = findMeasure(dBase, &sChannelUuid, MTM_ZB_CHANNEL_LIGHT_TEMPERATURE_IDX);
+        if (!measureUuid.empty()) {
+            if (updateMeasureValue(dBase, (uint8_t *) measureUuid.data(), value, createTime)) {
+                kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] %s %s", TAG, "Не удалось обновить измерение",
+                                  MTM_ZB_CHANNEL_LIGHT_TEMPERATURE_TITLE);
+            }
+        } else {
+            // создать новое измерение для канала
+            uuid_generate(newUuid);
+            uuid_unparse_upper(newUuid, (char *) newUuidString);
+            if (storeMeasureValue(dBase, newUuidString, &sChannelUuid, (double) value, createTime, createTime)) {
+                kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] %s %s", TAG, "Не удалось сохранить измерение",
+                                  MTM_ZB_CHANNEL_LIGHT_TEMPERATURE_TITLE);
             }
         }
     }
@@ -1030,5 +1153,76 @@ void mtmZigbeeStopThread(DBase *dBase, int32_t threadId) {
     sprintf(query, "UPDATE threads SET status=%d, changedAt=FROM_UNIXTIME(%lu) WHERE _id=%d", 0, time(nullptr),
             threadId);
     res = dBase->sqlexec((char *) query);
+    mysql_free_result(res);
+}
+
+void mtmCheckLinkState(DBase *dBase) {
+    int linkTimeOut = 60;
+    char query[1024];
+    MYSQL_RES *res;
+    MYSQL_ROW row;
+    int nRows;
+    int contactorState = 0; // считаем что контактор всегда включен, даже если его нет
+
+    // проверяем сотояние контактора, если он включен, тогда следим за состоянием светильников
+    sprintf(query, "SELECT mt.* FROM device AS dt\n"
+                   "LEFT JOIN sensor_channel AS sct ON sct.deviceUuid=dt.uuid\n"
+                   "LEFT JOIN data AS mt ON mt.sensorChannelUuid=sct.uuid\n"
+                   "WHERE dt.deviceTypeUuid='%s'\n"
+                   "AND sct.measureTypeUuid='%s'", DEVICE_TYPE_ZB_COORDINATOR, CHANNEL_IN2);
+    res = dBase->sqlexec(query);
+    if (res) {
+        nRows = mysql_num_rows(res);
+        if (nRows > 0) {
+            dBase->makeFieldsList(res);
+            row = mysql_fetch_row(res);
+            if (row) {
+                contactorState = std::stoi(std::string(row[dBase->getFieldIndex("value")]));
+            }
+        }
+
+        mysql_free_result(res);
+    }
+
+    // если контактор не включен, ни чего не делаем
+    if (contactorState != 0) {
+        return;
+    }
+
+    // для всех светильников от которых не было пакетов со статусом более linkTimeOut секунд,
+    // а статус был "В порядке", устанавливаем статус "Нет связи"
+    sprintf(query, "UPDATE device set deviceStatusUuid='%s', changedAt=current_timestamp() where\n"
+                   "    device.uuid in (SELECT sct.deviceUuid FROM sensor_channel as sct\n"
+                   "    LEFT JOIN data as mt on mt.sensorChannelUuid=sct.uuid\n"
+                   "    WHERE (timestampdiff(second,  mt.changedAt, current_timestamp()) > %d OR mt.changedAt IS NULL)\n"
+                   "    group by sct.deviceUuid)\n"
+                   "    AND device.deviceTypeUuid IN ('%s', '%s')\n"
+                   "    AND device.deviceStatusUuid='%s'", DEVICE_STATUS_NO_CONNECT, linkTimeOut, DEVICE_TYPE_ZB_LIGHT,
+            DEVICE_TYPE_ZB_COORDINATOR, DEVICE_STATUS_WORK);
+    res = dBase->sqlexec(query);
+    mysql_free_result(res);
+
+    // для всех светильников от которых были получены пакеты со статусом менее 30 секунд назад,
+    // а статус был "Нет связи", устанавливаем статус "В порядке"
+    sprintf(query, "UPDATE device set deviceStatusUuid='%s', changedAt=current_timestamp() where\n"
+                   "    device.uuid in (SELECT sct.deviceUuid FROM sensor_channel as sct\n"
+                   "    LEFT JOIN data as mt on mt.sensorChannelUuid=sct.uuid\n"
+                   "    WHERE (timestampdiff(second,  mt.changedAt, current_timestamp()) < %d)\n"
+                   "    group by sct.deviceUuid)\n"
+                   "    AND device.deviceTypeUuid IN ('%s', '%s')\n"
+                   "    AND device.deviceStatusUuid='%s'", DEVICE_STATUS_WORK, linkTimeOut, DEVICE_TYPE_ZB_LIGHT,
+            DEVICE_TYPE_ZB_COORDINATOR, DEVICE_STATUS_NO_CONNECT);
+    res = dBase->sqlexec(query);
+    mysql_free_result(res);
+
+    // для всех устройств у которых нет каналов измерения (светильники zb, координатор) ставим нет связи
+    sprintf(query, "UPDATE device set deviceStatusUuid='%s', changedAt=current_timestamp()\n"
+                   "    WHERE device.uuid NOT IN (\n"
+                   "    SELECT sct.deviceUuid FROM sensor_channel AS sct GROUP BY sct.deviceUuid\n"
+                   "    )\n"
+                   "    AND device.deviceTypeUuid IN ('%s', '%s')\n"
+                   "    AND device.deviceStatusUuid='%s'", DEVICE_STATUS_NO_CONNECT, DEVICE_TYPE_ZB_LIGHT,
+            DEVICE_TYPE_ZB_COORDINATOR, DEVICE_STATUS_WORK);
+    res = dBase->sqlexec(query);
     mysql_free_result(res);
 }

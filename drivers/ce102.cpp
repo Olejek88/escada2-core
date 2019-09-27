@@ -254,6 +254,7 @@ int DeviceCE::ReadDataCurrentCE() {
             chan = dBase->GetChannel(const_cast<char *>(CHANNEL_W), 1, this->uuid);
             if (chan != nullptr) {
                 this->q_attempt = 0;
+                //currentKernelInstance->log.ulogw(LOG_LEVEL_INFO, "[%s %s]",this->uuid, DEVICE_STATUS_WORK);
                 UpdateDeviceStatus(this->uuid, DEVICE_STATUS_WORK);
                 currentKernelInstance->log.ulogw(LOG_LEVEL_INFO, "[303][%s][%s] W=[%f]", chan, param, fl);
                 dBase->StoreData(TYPE_CURRENTS, 0, fl, nullptr, chan);
@@ -831,8 +832,9 @@ uint16_t DeviceCE::read_ce(uint8_t *dat, uint8_t type) {
 //---------------------------------------------------------------------------------------------------
 bool UpdateDeviceStatus(char *deviceUuid, char const *deviceStatusUuid) {
     char query[500];
+    MYSQL_RES *pRes;
     sprintf(query, "UPDATE device SET deviceStatusUuid='%s', changedAt=CURRENT_TIMESTAMP() WHERE uuid='%s'",
                     deviceStatusUuid,deviceUuid);
     currentKernelInstance->log.ulogw(LOG_LEVEL_INFO, "[%s]",query);
-    dBase->sqlexec(query);
+    pRes = dBase->sqlexec(query);
 }
