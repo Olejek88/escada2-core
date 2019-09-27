@@ -298,8 +298,26 @@ void mtmZigbeePktListener(DBase *dBase, int32_t threadId) {
                 req.dst_addr = 0x0000;
                 req.sep = 0xE8;
                 req.dep = 0xE8;
-                req.cid = 0x0103;
+                req.cid = MBEE_API_LOCAL_IOSTATUS_CLUSTER;
                 ssize_t rc = send_zb_cmd(coordinatorFd, AF_DATA_REQUEST, &req, kernel);
+                if (rc == -1) {
+                    kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] ERROR write to port", TAG);
+                    // останавливаем поток с целью его последующего автоматического запуска и инициализации
+                    mtmZigbeeStopThread(mtmZigbeeDBase, threadId);
+                    AddDeviceRegister(*mtmZigbeeDBase, (char *) coordinatorUuid.data(),
+                                      (char *) "Ошибка записи в порт координатора");
+                    return;
+                }
+#ifdef DEBUG
+                kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] rc=%ld", TAG, rc);
+#endif
+
+                req = {0};
+                req.dst_addr = 0x0000;
+                req.sep = 0xE8;
+                req.dep = 0xE8;
+                req.cid = MBEE_API_GET_TEMP_CLUSTER;
+                rc = send_zb_cmd(coordinatorFd, AF_DATA_REQUEST, &req, kernel);
                 if (rc == -1) {
                     kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] ERROR write to port", TAG);
                     // останавливаем поток с целью его последующего автоматического запуска и инициализации
@@ -384,9 +402,7 @@ void mtmZigbeePktListener(DBase *dBase, int32_t threadId) {
             currentTime = time(nullptr);
             if (currentTime - checkLinkState > 10) {
                 checkLinkState = currentTime;
-                if (isSunSet && isSunInit) {
-                    mtmCheckLinkState(mtmZigbeeDBase);
-                }
+                mtmCheckLinkState(mtmZigbeeDBase);
             }
 
             currentTime = time(nullptr);
@@ -701,6 +717,21 @@ void mtmZigbeeProcessInPacket(uint8_t *pktBuff, uint32_t length) {
                     kernel->log.ulogw(LOG_LEVEL_INFO, "Get module version packet");
 #endif
                     break;
+
+                case MBEE_API_GET_TEMP_CLUSTER :
+                    // температура модуля zigbee
+                    memset(address, 0, 32);
+                    sprintf((char *) address, "%02X%02X%02X%02X%02X%02X%02X%02X",
+                            pktBuff[17], pktBuff[16], pktBuff[15], pktBuff[14],
+                            pktBuff[13], pktBuff[12], pktBuff[11], pktBuff[10]);
+
+#ifdef DEBUG
+                    kernel->log.ulogw(LOG_LEVEL_INFO, "Get temperature data packet");
+#endif
+
+                    makeCoordinatorTemperature(mtmZigbeeDBase, address, pktBuff);
+                    break;
+
                 default:
                     break;
             }
@@ -961,6 +992,15 @@ int32_t mtmZigbeeInit(int32_t mode, uint8_t *path, uint32_t speed) {
 //            0xBE, 0x01, 0xFF, 0x07, 0x00, 0x00, 0x87, 0x07,
 //            0xCC, 0x05, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
 //            0x00, 0x00, 0x13
+//    };
+//    send_cmd(coordinatorFd, buff2, sizeof(buff2), kernel);
+
+//    uint8_t buff2[] = { // пакет с температурой
+//            0xFE, 0x13, 0x48, 0x81, 0x09, 0x02, 0xE8, 0x00, 0xFF, 0xFF,
+//            0x96, 0x97, 0xAD, 0x04, 0x00, 0x4B, 0x12, 0x00,
+//            0x00, 0x00,
+//            0x02, 0xBB, 0x05,
+//            0x74
 //    };
 //    send_cmd(coordinatorFd, buff2, sizeof(buff2), kernel);
 
