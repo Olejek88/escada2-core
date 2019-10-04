@@ -281,7 +281,7 @@ void mtmZigbeePktListener(DBase *dBase, int32_t threadId) {
                     kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] ERROR write to port", TAG);
                     // останавливаем поток с целью его последующего автоматического запуска и инициализации
                     mtmZigbeeStopThread(mtmZigbeeDBase, threadId);
-                    AddDeviceRegister(*mtmZigbeeDBase, (char *) coordinatorUuid.data(),
+                    AddDeviceRegister(mtmZigbeeDBase, (char *) coordinatorUuid.data(),
                                       (char *) "Ошибка записи в порт координатора");
                     return;
                 }
@@ -304,7 +304,7 @@ void mtmZigbeePktListener(DBase *dBase, int32_t threadId) {
                     kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] ERROR write to port", TAG);
                     // останавливаем поток с целью его последующего автоматического запуска и инициализации
                     mtmZigbeeStopThread(mtmZigbeeDBase, threadId);
-                    AddDeviceRegister(*mtmZigbeeDBase, (char *) coordinatorUuid.data(),
+                    AddDeviceRegister(mtmZigbeeDBase, (char *) coordinatorUuid.data(),
                                       (char *) "Ошибка записи в порт координатора");
                     return;
                 }
@@ -322,7 +322,7 @@ void mtmZigbeePktListener(DBase *dBase, int32_t threadId) {
                     kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] ERROR write to port", TAG);
                     // останавливаем поток с целью его последующего автоматического запуска и инициализации
                     mtmZigbeeStopThread(mtmZigbeeDBase, threadId);
-                    AddDeviceRegister(*mtmZigbeeDBase, (char *) coordinatorUuid.data(),
+                    AddDeviceRegister(mtmZigbeeDBase, (char *) coordinatorUuid.data(),
                                       (char *) "Ошибка записи в порт координатора");
                     return;
                 }
@@ -340,7 +340,7 @@ void mtmZigbeePktListener(DBase *dBase, int32_t threadId) {
                                       TAG);
                     // останавливаем поток с целью его последующего автоматического запуска и инициализации
                     mtmZigbeeStopThread(mtmZigbeeDBase, threadId);
-                    AddDeviceRegister(*mtmZigbeeDBase, (char *) coordinatorUuid.data(),
+                    AddDeviceRegister(mtmZigbeeDBase, (char *) coordinatorUuid.data(),
                                       (char *) "Координатор не ответил на запрос");
                     return;
                 }
@@ -366,7 +366,7 @@ void mtmZigbeePktListener(DBase *dBase, int32_t threadId) {
                     kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] ERROR write to port", TAG);
                     // останавливаем поток с целью его последующего автоматического запуска и инициализации
                     mtmZigbeeStopThread(mtmZigbeeDBase, threadId);
-                    AddDeviceRegister(*mtmZigbeeDBase, (char *) coordinatorUuid.data(),
+                    AddDeviceRegister(mtmZigbeeDBase, (char *) coordinatorUuid.data(),
                                       (char *) "Ошибка записи в порт координатора");
                     return;
                 }
@@ -609,6 +609,11 @@ void mtmZigbeeProcessOutPacket(int32_t threadId) {
 #endif
 
                                 rc = switchContactor(mtmPkt[3], mtmPkt[2]);
+                                char message[1024];
+                                sprintf(message, "Получена команда %s реле контактора.",
+                                        mtmPkt[3] == 0 ? "выключения" : "включения");
+                                kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] %s", TAG, message);
+                                AddDeviceRegister(mtmZigbeeDBase, (char *) coordinatorUuid.data(), message);
                                 break;
                             case MTM_CMD_TYPE_RESET_COORDINATOR:
 #ifdef DEBUG
@@ -619,7 +624,7 @@ void mtmZigbeeProcessOutPacket(int32_t threadId) {
                                 rc = resetCoordinator();
                                 // останавливаем поток с целью его последующего автоматического запуска и инициализации
                                 mtmZigbeeStopThread(mtmZigbeeDBase, threadId);
-                                AddDeviceRegister(*mtmZigbeeDBase, (char *) coordinatorUuid.data(),
+                                AddDeviceRegister(mtmZigbeeDBase, (char *) coordinatorUuid.data(),
                                                   (char *) "Получена команда сброса координатора");
                                 kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] Thread stopped by reset coordinator command",
                                                   TAG);
@@ -641,7 +646,7 @@ void mtmZigbeeProcessOutPacket(int32_t threadId) {
                             // ошибка записи в порт, останавливаем поток
                             // останавливаем поток с целью его последующего автоматического запуска и инициализации
                             mtmZigbeeStopThread(mtmZigbeeDBase, threadId);
-                            AddDeviceRegister(*mtmZigbeeDBase, (char *) coordinatorUuid.data(),
+                            AddDeviceRegister(mtmZigbeeDBase, (char *) coordinatorUuid.data(),
                                               (char *) "Ошибка записи в порт координатора");
                             kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] Thread stopped by error write to port", TAG);
                             kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] Stopping thread", TAG);
@@ -922,7 +927,7 @@ int32_t mtmZigbeeInit(int32_t mode, uint8_t *path, uint32_t speed) {
         kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] ERROR write to port", TAG);
         // останавливаем поток с целью его последующего автоматического запуска и инициализации
         mtmZigbeeStopThread(mtmZigbeeDBase, mtmZigBeeThreadId);
-        AddDeviceRegister(*mtmZigbeeDBase, (char *) coordinatorUuid.data(),
+        AddDeviceRegister(mtmZigbeeDBase, (char *) coordinatorUuid.data(),
                           (char *) "Ошибка записи в порт координатора");
         return -5;
     }
@@ -946,7 +951,7 @@ int32_t mtmZigbeeInit(int32_t mode, uint8_t *path, uint32_t speed) {
         kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] ERROR write to port", TAG);
         // останавливаем поток с целью его последующего автоматического запуска и инициализации
         mtmZigbeeStopThread(mtmZigbeeDBase, mtmZigBeeThreadId);
-        AddDeviceRegister(*mtmZigbeeDBase, (char *) coordinatorUuid.data(),
+        AddDeviceRegister(mtmZigbeeDBase, (char *) coordinatorUuid.data(),
                           (char *) "Ошибка записи в порт координатора");
         return -5;
     }
