@@ -111,7 +111,7 @@ void *ceDeviceThread(void *pth) {
                                 UpdateThreads(*dBase, id, 1, 1, deviceCE->uuid);
                                 currentKernelInstance->log.ulogw(LOG_LEVEL_INFO, "[303] ReadDataArchive (%d)",
                                                                  deviceCE->id);
-                                deviceCE->ReadAllArchiveCE(5);
+                                deviceCE->ReadAllArchiveCE(3);
                             }
                             deviceCE->ReadDataCurrentCE();
                             if (work == 0) {
@@ -401,7 +401,7 @@ int DeviceCE::ReadAllArchiveCE(uint16_t tp) {
             count = 0;
             for (int r = 0; r < 40; r++) {
                 if (data[r] == 0x28 && count < 5) {
-                    //lRs = static_cast<bool>(sscanf((const char *) data + r, "(%s)", param));
+                    static_cast<bool>(sscanf((const char *) data + r, "(%s)", param));
                     this->q_attempt = 0;
                     fl = static_cast<float>(atof(param));
                     sprintf(date, "%04d%02d01000000", tt->tm_year + 1900, tt->tm_mon + 1);
@@ -426,7 +426,7 @@ int DeviceCE::ReadAllArchiveCE(uint16_t tp) {
             count = 0;
             for (int r = 0; r < 40; r++) {
                 if (data[r] == 0x28 && count < 5) {
-                    //lRs = static_cast<bool>(sscanf((const char *) data + r, "(%s)", param));
+                    static_cast<bool>(sscanf((const char *) data + r, "(%s)", param));
                     this->q_attempt = 0;
                     fl = static_cast<float>(atof(param));
                     sprintf(date, "%04d%02d01000000", tt->tm_year + 1900, tt->tm_mon + 1);
@@ -458,7 +458,7 @@ int DeviceCE::ReadAllArchiveCE(uint16_t tp) {
             count = 0;
             for (int r = 0; r < 40; r++) {
                 if (data[r] == 0x28 && count < 5) {
-                    //lRs = static_cast<bool>(sscanf((const char *) data + r, "(%s)", param));
+                    static_cast<bool>(sscanf((const char *) data + r, "(%s)", param));
                     this->q_attempt = 0;
                     fl = static_cast<float>(atof(param));
                     sprintf(date, "%04d%02d%02d000000", tt->tm_year + 1900, tt->tm_mon + 1, tt->tm_mday);
@@ -484,7 +484,7 @@ int DeviceCE::ReadAllArchiveCE(uint16_t tp) {
             count = 0;
             for (int r = 0; r < 40; r++) {
                 if (data[r] == 0x28 && count < 5) {
-                    //lRs = static_cast<bool>(sscanf((const char *) data + r, "(%s)", param));
+                    static_cast<bool>(sscanf((const char *) data + r, "(%s)", param));
                     this->q_attempt = 0;
                     fl = static_cast<float>(atof(param));
                     sprintf(date, "%04d%02d%02d000000", tt->tm_year + 1900, tt->tm_mon + 1, tt->tm_mday);
