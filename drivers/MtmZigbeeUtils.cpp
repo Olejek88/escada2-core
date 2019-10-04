@@ -237,11 +237,13 @@ void makeCoordinatorStatus(DBase *dBase, uint8_t *address, const uint8_t *packet
     int threshold;
     Json::Reader reader;
     Json::Value obj;
+    char message[1024];
 
     memset(deviceUuid, 0, 37);
     if (!findDevice(dBase, address, deviceUuid)) {
-        kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] %s %s", TAG, "Неудалось найти устройство с адресом", address);
-        // TODO: отправить сообщение в журнал
+        sprintf(message, "Неудалось найти устройство с адресом %s", address);
+        kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] %s %s", TAG, "%s", message);
+        AddDeviceRegister(dBase, (char *) coordinatorUuid.data(), message);
         return;
     }
 
@@ -349,11 +351,14 @@ void makeLightStatus(DBase *dBase, uint8_t *address, const uint8_t *packetBuffer
     std::string measureUuid;
     time_t createTime = time(nullptr);
     int8_t value;
+    char message[1024];
 
     memset(deviceUuid, 0, 37);
     if (!findDevice(dBase, address, deviceUuid)) {
         kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] %s %s", TAG, "Неудалось найти устройство с адресом", address);
-        // TODO: отправить сообщение в журнал
+        sprintf(message, "Неудалось найти устройство с адресом %s", address);
+        kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] %s %s", TAG, "%s", message);
+        AddDeviceRegister(dBase, (char *) coordinatorUuid.data(), message);
         return;
     }
 
@@ -430,11 +435,14 @@ void makeLightRssiHopsStatus(DBase *dBase, uint8_t *address, const uint8_t *pack
     std::string measureUuid;
     time_t createTime = time(nullptr);
     int8_t value;
+    char message[1024];
 
     memset(deviceUuid, 0, 37);
     if (!findDevice(dBase, address, deviceUuid)) {
         kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] %s %s", TAG, "Неудалось найти устройство с адресом", address);
-        // TODO: отправить сообщение в журнал
+        sprintf(message, "Неудалось найти устройство с адресом %s", address);
+        kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] %s %s", TAG, "%s", message);
+        AddDeviceRegister(dBase, (char *) coordinatorUuid.data(), message);
         return;
     }
 
@@ -495,11 +503,14 @@ void makeCoordinatorTemperature(DBase *dBase, uint8_t *address, const uint8_t *p
     std::string measureUuid;
     time_t createTime = time(nullptr);
     int8_t value;
+    char message[1024];
 
     memset(deviceUuid, 0, 37);
     if (!findDevice(dBase, address, deviceUuid)) {
         kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] %s %s", TAG, "Неудалось найти устройство с адресом", address);
-        // TODO: отправить сообщение в журнал
+        sprintf(message, "Неудалось найти устройство с адресом %s", address);
+        kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] %s %s", TAG, "%s", message);
+        AddDeviceRegister(dBase, (char *) coordinatorUuid.data(), message);
         return;
     }
 
@@ -590,7 +601,7 @@ void checkAstroEvents(time_t currentTime, double lon, double lat, DBase *dBase, 
                 kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] ERROR write to port", TAG);
                 // останавливаем поток с целью его последующего автоматического запуска и инициализации
                 mtmZigbeeStopThread(dBase, threadId);
-                AddDeviceRegister(*dBase, (char *) coordinatorUuid.data(),
+                AddDeviceRegister(dBase, (char *) coordinatorUuid.data(),
                                   (char *) "Ошибка записи в порт координатора");
                 return;
             }
@@ -602,7 +613,7 @@ void checkAstroEvents(time_t currentTime, double lon, double lat, DBase *dBase, 
                 kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] ERROR write to port", TAG);
                 // останавливаем поток с целью его последующего автоматического запуска и инициализации
                 mtmZigbeeStopThread(dBase, threadId);
-                AddDeviceRegister(*dBase, (char *) coordinatorUuid.data(),
+                AddDeviceRegister(dBase, (char *) coordinatorUuid.data(),
                                   (char *) "Ошибка записи в порт координатора");
                 return;
             }
@@ -624,7 +635,7 @@ void checkAstroEvents(time_t currentTime, double lon, double lat, DBase *dBase, 
                 kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] ERROR write to port", TAG);
                 // останавливаем поток с целью его последующего автоматического запуска и инициализации
                 mtmZigbeeStopThread(dBase, threadId);
-                AddDeviceRegister(*dBase, (char *) coordinatorUuid.data(),
+                AddDeviceRegister(dBase, (char *) coordinatorUuid.data(),
                                   (char *) "Ошибка записи в порт координатора");
                 return;
             }
@@ -645,7 +656,7 @@ void checkAstroEvents(time_t currentTime, double lon, double lat, DBase *dBase, 
                 kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] ERROR write to port", TAG);
                 // останавливаем поток с целью его последующего автоматического запуска и инициализации
                 mtmZigbeeStopThread(dBase, threadId);
-                AddDeviceRegister(*dBase, (char *) coordinatorUuid.data(),
+                AddDeviceRegister(dBase, (char *) coordinatorUuid.data(),
                                   (char *) "Ошибка записи в порт координатора");
                 return;
             }
@@ -670,7 +681,7 @@ void checkAstroEvents(time_t currentTime, double lon, double lat, DBase *dBase, 
                 kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] ERROR write to port", TAG);
                 // останавливаем поток с целью его последующего автоматического запуска и инициализации
                 mtmZigbeeStopThread(dBase, threadId);
-                AddDeviceRegister(*dBase, (char *) coordinatorUuid.data(),
+                AddDeviceRegister(dBase, (char *) coordinatorUuid.data(),
                                   (char *) "Ошибка записи в порт координатора");
                 return;
             }
@@ -805,7 +816,7 @@ void checkLightProgram(DBase *dBase, time_t currentTime, double lon, double lat,
                         kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] ERROR write to port", TAG);
                         // останавливаем поток с целью его последующего автоматического запуска и инициализации
                         mtmZigbeeStopThread(dBase, threadId);
-                        AddDeviceRegister(*dBase, (char *) coordinatorUuid.data(),
+                        AddDeviceRegister(dBase, (char *) coordinatorUuid.data(),
                                           (char *) "Ошибка записи в порт координатора");
                         return;
                     }
@@ -844,7 +855,7 @@ void checkLightProgram(DBase *dBase, time_t currentTime, double lon, double lat,
                         kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] ERROR write to port", TAG);
                         // останавливаем поток с целью его последующего автоматического запуска и инициализации
                         mtmZigbeeStopThread(dBase, threadId);
-                        AddDeviceRegister(*dBase, (char *) coordinatorUuid.data(),
+                        AddDeviceRegister(dBase, (char *) coordinatorUuid.data(),
                                           (char *) "Ошибка записи в порт координатора");
                         return;
                     }
@@ -883,7 +894,7 @@ void checkLightProgram(DBase *dBase, time_t currentTime, double lon, double lat,
                         kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] ERROR write to port", TAG);
                         // останавливаем поток с целью его последующего автоматического запуска и инициализации
                         mtmZigbeeStopThread(dBase, threadId);
-                        AddDeviceRegister(*dBase, (char *) coordinatorUuid.data(),
+                        AddDeviceRegister(dBase, (char *) coordinatorUuid.data(),
                                           (char *) "Ошибка записи в порт координатора");
                         return;
                     }
@@ -922,7 +933,7 @@ void checkLightProgram(DBase *dBase, time_t currentTime, double lon, double lat,
                         kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] ERROR write to port", TAG);
                         // останавливаем поток с целью его последующего автоматического запуска и инициализации
                         mtmZigbeeStopThread(dBase, threadId);
-                        AddDeviceRegister(*dBase, (char *) coordinatorUuid.data(),
+                        AddDeviceRegister(dBase, (char *) coordinatorUuid.data(),
                                           (char *) "Ошибка записи в порт координатора");
                         return;
                     }
@@ -942,7 +953,7 @@ void checkLightProgram(DBase *dBase, time_t currentTime, double lon, double lat,
                         kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] ERROR write to port", TAG);
                         // останавливаем поток с целью его последующего автоматического запуска и инициализации
                         mtmZigbeeStopThread(dBase, threadId);
-                        AddDeviceRegister(*dBase, (char *) coordinatorUuid.data(),
+                        AddDeviceRegister(dBase, (char *) coordinatorUuid.data(),
                                           (char *) "Ошибка записи в порт координатора");
                         return;
                     }
@@ -962,7 +973,8 @@ void checkLightProgram(DBase *dBase, time_t currentTime, double lon, double lat,
 #ifdef DEBUG
                     kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] %s period day", TAG, address.data());
                     kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] checkTime: %llu", TAG, checkTime);
-                    kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] rc=%ld", TAG, rc);
+                    // TODO: разобраться - должен я здесь отправлять какие-то команды?
+//                    kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] rc=%ld", TAG, rc);
 #endif
                 }
             }
@@ -984,7 +996,7 @@ void checkLightProgram(DBase *dBase, time_t currentTime, double lon, double lat,
                 kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] ERROR write to port", TAG);
                 // останавливаем поток с целью его последующего автоматического запуска и инициализации
                 mtmZigbeeStopThread(dBase, threadId);
-                AddDeviceRegister(*dBase, (char *) coordinatorUuid.data(),
+                AddDeviceRegister(dBase, (char *) coordinatorUuid.data(),
                                   (char *) "Ошибка записи в порт координатора");
                 return;
             }

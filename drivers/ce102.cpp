@@ -360,7 +360,7 @@ int DeviceCE::ReadDataCurrentCE() {
     }
 
     if (this->q_attempt == 10) {
-        AddDeviceRegister(*dBase, this->uuid, (char *) " отсутствие связи с устройством");
+        AddDeviceRegister(dBase, this->uuid, (char *) " отсутствие связи с устройством");
         UpdateDeviceStatus(this->uuid, DEVICE_STATUS_NO_CONNECT);
     }
 
