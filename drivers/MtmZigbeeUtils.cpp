@@ -1085,11 +1085,15 @@ void mtmZigbeeStopThread(DBase *dBase, int32_t threadId) {
 
 void mtmCheckLinkState(DBase *dBase) {
     int linkTimeOut = 60;
+    // TODO: изменить фиксированный массив на std::string так как устройств будет много, строка запроса будет большой.
     char query[1024];
     MYSQL_RES *res;
     MYSQL_ROW row;
     int nRows;
     int contactorState = 0; // считаем что контактор всегда включен, даже если его нет
+    bool firstItem;
+    std::string inParamList;
+    char message[1024];
 
     // проверяем сотояние контактора, если он включен, тогда следим за состоянием светильников
     sprintf(query, "SELECT mt.* FROM device AS dt\n"
@@ -1116,31 +1120,87 @@ void mtmCheckLinkState(DBase *dBase) {
         return;
     }
 
-    // TODO: для всех устройств попавших в выборку для изменения статуса нужно сгенерировать сообщения в device_register
-
     // для всех светильников от которых не было пакетов со статусом более linkTimeOut секунд,
     // а статус был "В порядке", устанавливаем статус "Нет связи"
-    sprintf(query, "UPDATE device set deviceStatusUuid='%s', changedAt=current_timestamp() where\n"
-                   "    device.uuid in (SELECT sct.deviceUuid FROM sensor_channel as sct\n"
+    // для этого, сначала выбираем все устройства которые будут менять статус
+    sprintf(query, ""
+                   "SELECT dt.uuid, dt.address FROM device AS dt\n"
+                   "    LEFT JOIN sensor_channel as sct on sct.deviceUuid=dt.uuid\n"
                    "    LEFT JOIN data as mt on mt.sensorChannelUuid=sct.uuid\n"
                    "    WHERE (timestampdiff(second,  mt.changedAt, current_timestamp()) > %d OR mt.changedAt IS NULL)\n"
-                   "    group by sct.deviceUuid)\n"
-                   "    AND device.deviceTypeUuid IN ('%s', '%s')\n"
-                   "    AND device.deviceStatusUuid='%s'", DEVICE_STATUS_NO_CONNECT, linkTimeOut,
-            DEVICE_TYPE_ZB_LIGHT, DEVICE_TYPE_ZB_COORDINATOR, DEVICE_STATUS_WORK);
+                   "    AND dt.deviceTypeUuid IN ('%s', '%s')\n"
+                   "    AND dt.deviceStatusUuid='%s'\n"
+                   "    GROUP BY dt.uuid\n", linkTimeOut, DEVICE_TYPE_ZB_LIGHT, DEVICE_TYPE_ZB_COORDINATOR,
+            DEVICE_STATUS_WORK);
+    res = dBase->sqlexec(query);
+    firstItem = true;
+    if (res) {
+        nRows = mysql_num_rows(res);
+        if (nRows > 0) {
+            dBase->makeFieldsList(res);
+            while ((row = mysql_fetch_row(res)) != nullptr) {
+                if (row) {
+                    if (firstItem) {
+                        firstItem = false;
+                        inParamList = "'" + std::string(row[dBase->getFieldIndex("uuid")]) + "'";
+                    } else {
+                        inParamList += ", '" + std::string(row[dBase->getFieldIndex("uuid")]) + "'";
+                    }
+
+                    sprintf(message, "Устройство изменило статус на \"Нет связи\" (%s)",
+                            row[dBase->getFieldIndex("address")]);
+                    AddDeviceRegister(dBase, (char *) std::string(row[dBase->getFieldIndex("uuid")]).data(), message);
+                }
+            }
+        }
+
+        mysql_free_result(res);
+    }
+
+    sprintf(query, "UPDATE device SET deviceStatusUuid='%s', changedAt=current_timestamp() WHERE\n"
+                   "    device.uuid in (%s)\n", DEVICE_STATUS_NO_CONNECT, inParamList.data());
+//    kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] update query: %s", TAG, query);
     res = dBase->sqlexec(query);
     mysql_free_result(res);
 
     // для всех светильников от которых были получены пакеты со статусом менее 30 секунд назад,
     // а статус был "Нет связи", устанавливаем статус "В порядке"
-    sprintf(query, "UPDATE device set deviceStatusUuid='%s', changedAt=current_timestamp() where\n"
-                   "    device.uuid in (SELECT sct.deviceUuid FROM sensor_channel as sct\n"
+    sprintf(query, "SELECT dt.uuid, dt.address FROM device AS dt\n"
+                   "    LEFT JOIN sensor_channel AS sct ON sct.deviceUuid=dt.uuid\n"
                    "    LEFT JOIN data as mt on mt.sensorChannelUuid=sct.uuid\n"
                    "    WHERE (timestampdiff(second,  mt.changedAt, current_timestamp()) < %d)\n"
-                   "    group by sct.deviceUuid)\n"
-                   "    AND device.deviceTypeUuid IN ('%s', '%s')\n"
-                   "    AND device.deviceStatusUuid='%s'", DEVICE_STATUS_WORK, linkTimeOut, DEVICE_TYPE_ZB_LIGHT,
-            DEVICE_TYPE_ZB_COORDINATOR, DEVICE_STATUS_NO_CONNECT);
+                   "    AND dt.deviceTypeUuid IN ('%s', '%s')\n"
+                   "    AND dt.deviceStatusUuid='%s'\n"
+                   "    GROUP BY dt.uuid", linkTimeOut, DEVICE_TYPE_ZB_LIGHT, DEVICE_TYPE_ZB_COORDINATOR,
+            DEVICE_STATUS_NO_CONNECT);
+    res = dBase->sqlexec(query);
+    firstItem = true;
+    if (res) {
+        nRows = mysql_num_rows(res);
+        if (nRows > 0) {
+            dBase->makeFieldsList(res);
+            while ((row = mysql_fetch_row(res)) != nullptr) {
+                if (row) {
+                    if (firstItem) {
+                        firstItem = false;
+                        inParamList = "'" + std::string(row[dBase->getFieldIndex("uuid")]) + "'";
+                    } else {
+                        inParamList += ", '" + std::string(row[dBase->getFieldIndex("uuid")]) + "'";
+                    }
+
+                    sprintf(message, "Устройство изменило статус на \"В порядке\" (%s)",
+                            row[dBase->getFieldIndex("address")]);
+                    AddDeviceRegister(dBase, (char *) std::string(row[dBase->getFieldIndex("uuid")]).data(), message);
+                }
+            }
+        }
+
+        mysql_free_result(res);
+    }
+
+    sprintf(query, "UPDATE device SET deviceStatusUuid='%s', changedAt=current_timestamp() WHERE\n"
+                   "    device.uuid in (%s)\n", DEVICE_STATUS_WORK, inParamList.data());
+//    kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] update query: %s", TAG, query);
     res = dBase->sqlexec(query);
     mysql_free_result(res);
 
