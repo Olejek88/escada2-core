@@ -1149,7 +1149,7 @@ void mtmCheckLinkState(DBase *dBase) {
 
                     sprintf(message, "Устройство изменило статус на \"Нет связи\" (%s)",
                             row[dBase->getFieldIndex("address")]);
-                    AddDeviceRegister(dBase, (char *) coordinatorUuid.data(), message);
+                    AddDeviceRegister(dBase, (char *) std::string(row[dBase->getFieldIndex("uuid")]).data(), message);
                 }
             }
         }
@@ -1190,7 +1190,7 @@ void mtmCheckLinkState(DBase *dBase) {
 
                     sprintf(message, "Устройство изменило статус на \"В порядке\" (%s)",
                             row[dBase->getFieldIndex("address")]);
-                    AddDeviceRegister(dBase, (char *) coordinatorUuid.data(), message);
+                    AddDeviceRegister(dBase, (char *) std::string(row[dBase->getFieldIndex("uuid")]).data(), message);
                 }
             }
         }
