@@ -1159,12 +1159,14 @@ void mtmCheckLinkState(DBase *dBase) {
         mysql_free_result(res);
     }
 
-    query = "UPDATE device SET deviceStatusUuid='" + std::string(DEVICE_STATUS_NO_CONNECT) +
-            "', changedAt=current_timestamp() ";
-    query.append("WHERE device.uuid IN (" + inParamList + ")");
-//    kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] update to not link query: %s", TAG, query.data());
-    res = dBase->sqlexec(query.data());
-    mysql_free_result(res);
+    if (!inParamList.empty()) {
+        query = "UPDATE device SET deviceStatusUuid='" + std::string(DEVICE_STATUS_NO_CONNECT) +
+                "', changedAt=current_timestamp() ";
+        query.append("WHERE device.uuid IN (" + inParamList + ")");
+//        kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] update to not link query: %s", TAG, query.data());
+        res = dBase->sqlexec(query.data());
+        mysql_free_result(res);
+    }
 
     // для всех светильников от которых были получены пакеты со статусом менее 30 секунд назад,
     // а статус был "Нет связи", устанавливаем статус "В порядке"
@@ -1180,6 +1182,7 @@ void mtmCheckLinkState(DBase *dBase) {
 //    kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] select to work query: %s", TAG, query.data());
     res = dBase->sqlexec(query.data());
     firstItem = true;
+    inParamList.clear();
     if (res) {
         nRows = mysql_num_rows(res);
         if (nRows > 0) {
@@ -1203,12 +1206,14 @@ void mtmCheckLinkState(DBase *dBase) {
         mysql_free_result(res);
     }
 
-    query = "UPDATE device SET deviceStatusUuid='" + std::string(DEVICE_STATUS_WORK) +
-            "', changedAt=current_timestamp() ";
-    query.append("WHERE device.uuid IN (" + inParamList + ")");
-//    kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] update to work query: %s", TAG, query.data());
-    res = dBase->sqlexec(query.data());
-    mysql_free_result(res);
+    if (!inParamList.empty()) {
+        query = "UPDATE device SET deviceStatusUuid='" + std::string(DEVICE_STATUS_WORK) +
+                "', changedAt=current_timestamp() ";
+        query.append("WHERE device.uuid IN (" + inParamList + ")");
+//        kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] update to work query: %s", TAG, query.data());
+        res = dBase->sqlexec(query.data());
+        mysql_free_result(res);
+    }
 
     // для всех устройств у которых нет каналов измерения (светильники zb, координатор) ставим нет связи
     query = "UPDATE device set deviceStatusUuid='" + std::string(DEVICE_STATUS_NO_CONNECT) +
