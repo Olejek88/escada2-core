@@ -147,14 +147,19 @@ void *dispatcher(void *thread_arg) {
                     if (typeThreads[th].work > 0)
                         pRc = pthread_create(&thr, nullptr, ceDeviceThread, (void *) &typeThreads[th]);
                 } else if (strncasecmp("8CF354DB-6FC2-4256-A24E-3E497BA99589", typeThreads[th].deviceType, 36) == 0) {
-                    if (typeThreads[th].work > 0)
+                    if (typeThreads[th].work > 0) {
                         pRc = pthread_create(&zb_thr, nullptr, mtmZigbeeDeviceThread, (void *) &typeThreads[th]);
+                        if (pRc != 0) {
+                            // TODO: реализовать аппаратный сброс координатора
+                        }
+                    }
                 } else {
                     pRc = 0;
                 }
 
                 if (pRc != 0) {
-                    currentKernelInstance.log.ulogw(LOG_LEVEL_ERROR, "error create %s thread", typeThreads[th].title);
+                    currentKernelInstance.log.ulogw(LOG_LEVEL_ERROR, "error create %s thread. error code = %d",
+                                                    typeThreads[th].title, pRc);
                 }
             }
         }
