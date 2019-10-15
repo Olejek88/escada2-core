@@ -336,7 +336,7 @@ void mtmZigbeePktListener(DBase *dBase, int32_t threadId) {
             if (currentTime - checkCoordinatorTime >= 15) {
                 if (!isCheckCoordinatorRespond) {
                     // координатор не ответил
-                    kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] ERROR Coordinator not answer for rquest module version",
+                    kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] ERROR Coordinator not answer for request module version",
                                       TAG);
                     // останавливаем поток с целью его последующего автоматического запуска и инициализации
                     mtmZigbeeStopThread(mtmZigbeeDBase, threadId);
