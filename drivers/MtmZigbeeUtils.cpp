@@ -1156,9 +1156,11 @@ void mtmCheckLinkState(DBase *dBase) {
     query.append("LEFT JOIN data AS mt ON mt.sensorChannelUuid=sct.uuid ");
     query.append(
             "WHERE (timestampdiff(second,  mt.changedAt, current_timestamp()) > " + std::to_string(linkTimeOut) + " ");
-    query.append(" OR mt.changedAt IS NULL) ");
+    query.append("OR mt.changedAt IS NULL) ");
     query.append("AND dt.deviceTypeUuid IN ('" + std::string(DEVICE_TYPE_ZB_LIGHT) + "', '" +
                  std::string(DEVICE_TYPE_ZB_COORDINATOR) + "') ");
+    query.append("AND sct.measureTypeUuid IN ('" + std::string(CHANNEL_STATUS) + "', '" +
+                 std::string(CHANNEL_RELAY_STATE) + "') ");
     query.append("AND dt.deviceStatusUuid='" + std::string(DEVICE_STATUS_WORK) + "' ");
     query.append("GROUP BY dt.uuid");
 //    kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] select to not link query: %s", TAG, query.data());
@@ -1205,6 +1207,8 @@ void mtmCheckLinkState(DBase *dBase) {
                  ") ");
     query.append("AND dt.deviceTypeUuid IN ('" + std::string(DEVICE_TYPE_ZB_LIGHT) + "', '" +
                  std::string(DEVICE_TYPE_ZB_COORDINATOR) + "') ");
+    query.append("AND sct.measureTypeUuid IN ('" + std::string(CHANNEL_STATUS) + "', '" +
+                 std::string(CHANNEL_RELAY_STATE) + "') ");
     query.append("AND dt.deviceStatusUuid='" + std::string(DEVICE_STATUS_NO_CONNECT) + "' ");
     query.append("GROUP BY dt.uuid");
 //    kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] select to work query: %s", TAG, query.data());
