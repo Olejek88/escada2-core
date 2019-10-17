@@ -632,25 +632,29 @@ void checkAstroEvents(time_t currentTime, double lon, double lat, DBase *dBase, 
             isTwilightEnd = false;
             isTwilightStart = false;
             isSunRise = false;
-            // включаем контактор, зажигаем светильники, отправляем команду "закат"
+
+            // включаем контактор
             switchContactor(true, MBEE_API_DIGITAL_LINE7);
             char message[1024];
-            sprintf(message, "Включено реле контактора.");
+            sprintf(message, "Наступил закат, включаем реле контактора.");
             kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] %s", TAG, message);
             AddDeviceRegister(dBase, (char *) coordinatorUuid.data(), message);
 
             // даём задержку для того чтоб стартанули модули в светильниках
             // т.к. неизвестно, питаются они через контактор или всё время под напряжением
             sleep(5);
-            ssize_t rc = switchAllLight(100);
-            if (rc == -1) {
-                kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] ERROR write to port", TAG);
-                // останавливаем поток с целью его последующего автоматического запуска и инициализации
-                mtmZigbeeStopThread(dBase, threadId);
-                AddDeviceRegister(dBase, (char *) coordinatorUuid.data(),
-                                  (char *) "Ошибка записи в порт координатора");
-                return;
-            }
+
+            // зажигаем светильники
+            ssize_t rc;
+//            rc = switchAllLight(100);
+//            if (rc == -1) {
+//                kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] ERROR write to port", TAG);
+//                // останавливаем поток с целью его последующего автоматического запуска и инициализации
+//                mtmZigbeeStopThread(dBase, threadId);
+//                AddDeviceRegister(dBase, (char *) coordinatorUuid.data(),
+//                                  (char *) "Ошибка записи в порт координатора");
+//                return;
+//            }
 
             // передаём команду "астро событие" "закат"
             action.data = (0x02 << 8 | 0x01); // NOLINT(hicpp-signed-bitwise)
@@ -674,6 +678,17 @@ void checkAstroEvents(time_t currentTime, double lon, double lat, DBase *dBase, 
             isTwilightStart = false;
             isSunRise = false;
 
+            // включаем контактор
+            switchContactor(true, MBEE_API_DIGITAL_LINE7);
+            char message[1024];
+            sprintf(message, "Наступил конец сумерек, включаем реле контактора.");
+            kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] %s", TAG, message);
+            AddDeviceRegister(dBase, (char *) coordinatorUuid.data(), message);
+
+            // даём задержку для того чтоб стартанули модули в светильниках
+            // т.к. неизвестно, питаются они через контактор или всё время под напряжением
+            sleep(5);
+
             // передаём команду "астро событие" "конец сумерек"
             action.data = (0x01 << 8 | 0x00); // NOLINT(hicpp-signed-bitwise)
             ssize_t rc = send_mtm_cmd(coordinatorFd, 0xFFFF, &action, kernel);
@@ -695,6 +710,18 @@ void checkAstroEvents(time_t currentTime, double lon, double lat, DBase *dBase, 
             isTwilightEnd = false;
             isTwilightStart = true;
             isSunRise = false;
+
+            // включаем контактор
+            switchContactor(true, MBEE_API_DIGITAL_LINE7);
+            char message[1024];
+            sprintf(message, "Наступило начало сумерек, включаем реле контактора.");
+            kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] %s", TAG, message);
+            AddDeviceRegister(dBase, (char *) coordinatorUuid.data(), message);
+
+            // даём задержку для того чтоб стартанули модули в светильниках
+            // т.к. неизвестно, питаются они через контактор или всё время под напряжением
+            sleep(5);
+
             // передаём команду "астро событие" "начало сумерек"
             action.data = (0x03 << 8 | 0x00); // NOLINT(hicpp-signed-bitwise)
             ssize_t rc = send_mtm_cmd(coordinatorFd, 0xFFFF, &action, kernel);
@@ -716,10 +743,11 @@ void checkAstroEvents(time_t currentTime, double lon, double lat, DBase *dBase, 
             isTwilightEnd = false;
             isTwilightStart = false;
             isSunRise = true;
+
             // выключаем контактор, гасим светильники, отправляем команду "восход"
             switchContactor(false, MBEE_API_DIGITAL_LINE7);
             char message[1024];
-            sprintf(message, "Выключено реле контактора.");
+            sprintf(message, "Наступил восход, выключаем реле контактора.");
             kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] %s", TAG, message);
             AddDeviceRegister(dBase, (char *) coordinatorUuid.data(), message);
 
@@ -1093,6 +1121,7 @@ void mtmCheckLinkState(DBase *dBase) {
     bool firstItem;
     std::string inParamList;
     char message[1024];
+    std::string devType;
 
     // проверяем сотояние контактора, если он включен, тогда следим за состоянием светильников
     query = "SELECT mt.* FROM device AS dt ";
@@ -1123,14 +1152,17 @@ void mtmCheckLinkState(DBase *dBase) {
     // для всех светильников от которых не было пакетов со статусом более linkTimeOut секунд,
     // а статус был "В порядке", устанавливаем статус "Нет связи"
     // для этого, сначала выбираем все устройства которые будут менять статус
-    query = "SELECT dt.uuid, dt.address FROM device AS dt ";
+    query = "SELECT dt.uuid, dt.address as devAddr, nt.address as nodeAddr, dt.deviceTypeUuid FROM device AS dt ";
+    query.append("LEFT JOIN node AS nt ON nt.uuid=dt.nodeUuid ");
     query.append("LEFT JOIN sensor_channel AS sct ON sct.deviceUuid=dt.uuid ");
     query.append("LEFT JOIN data AS mt ON mt.sensorChannelUuid=sct.uuid ");
     query.append(
             "WHERE (timestampdiff(second,  mt.changedAt, current_timestamp()) > " + std::to_string(linkTimeOut) + " ");
-    query.append(" OR mt.changedAt IS NULL) ");
+    query.append("OR mt.changedAt IS NULL) ");
     query.append("AND dt.deviceTypeUuid IN ('" + std::string(DEVICE_TYPE_ZB_LIGHT) + "', '" +
                  std::string(DEVICE_TYPE_ZB_COORDINATOR) + "') ");
+    query.append("AND sct.measureTypeUuid IN ('" + std::string(CHANNEL_STATUS) + "', '" +
+                 std::string(CHANNEL_RELAY_STATE) + "') ");
     query.append("AND dt.deviceStatusUuid='" + std::string(DEVICE_STATUS_WORK) + "' ");
     query.append("GROUP BY dt.uuid");
 //    kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] select to not link query: %s", TAG, query.data());
@@ -1149,8 +1181,10 @@ void mtmCheckLinkState(DBase *dBase) {
                         inParamList += ", '" + std::string(row[dBase->getFieldIndex("uuid")]) + "'";
                     }
 
+                    devType = row[dBase->getFieldIndex("deviceTypeUuid")];
                     sprintf(message, "Устройство изменило статус на \"Нет связи\" (%s)",
-                            row[dBase->getFieldIndex("address")]);
+                            devType == std::string(DEVICE_TYPE_ZB_COORDINATOR) ? row[dBase->getFieldIndex("nodeAddr")]
+                                                                               : row[dBase->getFieldIndex("devAddr")]);
                     AddDeviceRegister(dBase, (char *) std::string(row[dBase->getFieldIndex("uuid")]).data(), message);
                 }
             }
@@ -1170,13 +1204,16 @@ void mtmCheckLinkState(DBase *dBase) {
 
     // для всех светильников от которых были получены пакеты со статусом менее 30 секунд назад,
     // а статус был "Нет связи", устанавливаем статус "В порядке"
-    query = "SELECT dt.uuid, dt.address FROM device AS dt ";
+    query = "SELECT dt.uuid, dt.address as devAddr, nt.address as nodeAddr, dt.deviceTypeUuid FROM device AS dt ";
+    query.append("LEFT JOIN node AS nt ON nt.uuid=dt.nodeUuid ");
     query.append("LEFT JOIN sensor_channel AS sct ON sct.deviceUuid=dt.uuid ");
     query.append("LEFT JOIN data as mt on mt.sensorChannelUuid=sct.uuid ");
     query.append("WHERE (timestampdiff(second,  mt.changedAt, current_timestamp()) < " + std::to_string(linkTimeOut) +
                  ") ");
     query.append("AND dt.deviceTypeUuid IN ('" + std::string(DEVICE_TYPE_ZB_LIGHT) + "', '" +
                  std::string(DEVICE_TYPE_ZB_COORDINATOR) + "') ");
+    query.append("AND sct.measureTypeUuid IN ('" + std::string(CHANNEL_STATUS) + "', '" +
+                 std::string(CHANNEL_RELAY_STATE) + "') ");
     query.append("AND dt.deviceStatusUuid='" + std::string(DEVICE_STATUS_NO_CONNECT) + "' ");
     query.append("GROUP BY dt.uuid");
 //    kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] select to work query: %s", TAG, query.data());
@@ -1196,8 +1233,10 @@ void mtmCheckLinkState(DBase *dBase) {
                         inParamList += ", '" + std::string(row[dBase->getFieldIndex("uuid")]) + "'";
                     }
 
+                    devType = row[dBase->getFieldIndex("deviceTypeUuid")];
                     sprintf(message, "Устройство изменило статус на \"В порядке\" (%s)",
-                            row[dBase->getFieldIndex("address")]);
+                            devType == std::string(DEVICE_TYPE_ZB_COORDINATOR) ? row[dBase->getFieldIndex("nodeAddr")]
+                                                                               : row[dBase->getFieldIndex("devAddr")]);
                     AddDeviceRegister(dBase, (char *) std::string(row[dBase->getFieldIndex("uuid")]).data(), message);
                 }
             }

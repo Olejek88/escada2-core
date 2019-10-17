@@ -126,8 +126,10 @@ void *dispatcher(void *thread_arg) {
     char query[300] = {0};
     double ct;
     int32_t pRc;
+    int32_t pJRc;
     uuid_t newUuid;
     char newUuidString[37];
+    timespec timeOut = {0};
 
     glibtop_init();
 
@@ -144,13 +146,28 @@ void *dispatcher(void *thread_arg) {
             if ((now - typeThreads[th].lastDate) > 30) {
                 pRc = 0;
                 if (strncasecmp("0FBACF26-31CA-4B92-BCA3-220E09A6D2D3", typeThreads[th].deviceType, 36) == 0) {
-                    if (typeThreads[th].work > 0)
-                        pRc = pthread_create(&thr, nullptr, ceDeviceThread, (void *) &typeThreads[th]);
+                    if (typeThreads[th].work > 0) {
+                        if (thr == 0) {
+                            pRc = pthread_create(&thr, nullptr, ceDeviceThread, (void *) &typeThreads[th]);
+                        } else {
+                            timeOut.tv_sec = time(nullptr) + 1;
+                            pJRc = pthread_timedjoin_np(thr, nullptr, &timeOut);
+                            if (pJRc == 0) {
+                                pRc = pthread_create(&thr, nullptr, ceDeviceThread, (void *) &typeThreads[th]);
+                            }
+                        }
+                    }
                 } else if (strncasecmp("8CF354DB-6FC2-4256-A24E-3E497BA99589", typeThreads[th].deviceType, 36) == 0) {
                     if (typeThreads[th].work > 0) {
-                        pRc = pthread_create(&zb_thr, nullptr, mtmZigbeeDeviceThread, (void *) &typeThreads[th]);
-                        if (pRc != 0) {
-                            // TODO: реализовать аппаратный сброс координатора
+                        if (zb_thr == 0) {
+                            pRc = pthread_create(&zb_thr, nullptr, mtmZigbeeDeviceThread, (void *) &typeThreads[th]);
+                        } else {
+                            timeOut.tv_sec = time(nullptr) + 1;
+                            pJRc = pthread_timedjoin_np(zb_thr, nullptr, &timeOut);
+                            if (pJRc == 0) {
+                                pRc = pthread_create(&zb_thr, nullptr, mtmZigbeeDeviceThread,
+                                                     (void *) &typeThreads[th]);
+                            }
                         }
                     }
                 } else {
