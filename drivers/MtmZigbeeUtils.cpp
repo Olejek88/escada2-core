@@ -632,25 +632,29 @@ void checkAstroEvents(time_t currentTime, double lon, double lat, DBase *dBase, 
             isTwilightEnd = false;
             isTwilightStart = false;
             isSunRise = false;
-            // включаем контактор, зажигаем светильники, отправляем команду "закат"
+
+            // включаем контактор
             switchContactor(true, MBEE_API_DIGITAL_LINE7);
             char message[1024];
-            sprintf(message, "Включено реле контактора.");
+            sprintf(message, "Наступил закат, включаем реле контактора.");
             kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] %s", TAG, message);
             AddDeviceRegister(dBase, (char *) coordinatorUuid.data(), message);
 
             // даём задержку для того чтоб стартанули модули в светильниках
             // т.к. неизвестно, питаются они через контактор или всё время под напряжением
             sleep(5);
-            ssize_t rc = switchAllLight(100);
-            if (rc == -1) {
-                kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] ERROR write to port", TAG);
-                // останавливаем поток с целью его последующего автоматического запуска и инициализации
-                mtmZigbeeStopThread(dBase, threadId);
-                AddDeviceRegister(dBase, (char *) coordinatorUuid.data(),
-                                  (char *) "Ошибка записи в порт координатора");
-                return;
-            }
+
+            // зажигаем светильники
+            ssize_t rc;
+//            rc = switchAllLight(100);
+//            if (rc == -1) {
+//                kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] ERROR write to port", TAG);
+//                // останавливаем поток с целью его последующего автоматического запуска и инициализации
+//                mtmZigbeeStopThread(dBase, threadId);
+//                AddDeviceRegister(dBase, (char *) coordinatorUuid.data(),
+//                                  (char *) "Ошибка записи в порт координатора");
+//                return;
+//            }
 
             // передаём команду "астро событие" "закат"
             action.data = (0x02 << 8 | 0x01); // NOLINT(hicpp-signed-bitwise)
@@ -674,6 +678,17 @@ void checkAstroEvents(time_t currentTime, double lon, double lat, DBase *dBase, 
             isTwilightStart = false;
             isSunRise = false;
 
+            // включаем контактор
+            switchContactor(true, MBEE_API_DIGITAL_LINE7);
+            char message[1024];
+            sprintf(message, "Наступил конец сумерек, включаем реле контактора.");
+            kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] %s", TAG, message);
+            AddDeviceRegister(dBase, (char *) coordinatorUuid.data(), message);
+
+            // даём задержку для того чтоб стартанули модули в светильниках
+            // т.к. неизвестно, питаются они через контактор или всё время под напряжением
+            sleep(5);
+
             // передаём команду "астро событие" "конец сумерек"
             action.data = (0x01 << 8 | 0x00); // NOLINT(hicpp-signed-bitwise)
             ssize_t rc = send_mtm_cmd(coordinatorFd, 0xFFFF, &action, kernel);
@@ -695,6 +710,18 @@ void checkAstroEvents(time_t currentTime, double lon, double lat, DBase *dBase, 
             isTwilightEnd = false;
             isTwilightStart = true;
             isSunRise = false;
+
+            // включаем контактор
+            switchContactor(true, MBEE_API_DIGITAL_LINE7);
+            char message[1024];
+            sprintf(message, "Наступило начало сумерек, включаем реле контактора.");
+            kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] %s", TAG, message);
+            AddDeviceRegister(dBase, (char *) coordinatorUuid.data(), message);
+
+            // даём задержку для того чтоб стартанули модули в светильниках
+            // т.к. неизвестно, питаются они через контактор или всё время под напряжением
+            sleep(5);
+
             // передаём команду "астро событие" "начало сумерек"
             action.data = (0x03 << 8 | 0x00); // NOLINT(hicpp-signed-bitwise)
             ssize_t rc = send_mtm_cmd(coordinatorFd, 0xFFFF, &action, kernel);
@@ -716,10 +743,11 @@ void checkAstroEvents(time_t currentTime, double lon, double lat, DBase *dBase, 
             isTwilightEnd = false;
             isTwilightStart = false;
             isSunRise = true;
+
             // выключаем контактор, гасим светильники, отправляем команду "восход"
             switchContactor(false, MBEE_API_DIGITAL_LINE7);
             char message[1024];
-            sprintf(message, "Выключено реле контактора.");
+            sprintf(message, "Наступил восход, выключаем реле контактора.");
             kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] %s", TAG, message);
             AddDeviceRegister(dBase, (char *) coordinatorUuid.data(), message);
 
