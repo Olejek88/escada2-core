@@ -579,52 +579,115 @@ void makeCoordinatorTemperature(DBase *dBase, uint8_t *address, const uint8_t *p
     }
 }
 
+void fillTimeStruct(double time, struct tm *dtm) {
+    time = time + (double) dtm->tm_gmtoff / 3600;
+    dtm->tm_hour = (int) time;
+    dtm->tm_min = (int) ((time - dtm->tm_hour) * 60);
+    dtm->tm_sec = (int) ((((time - dtm->tm_hour) * 60) - dtm->tm_min) * 60);
+}
+
 void checkAstroEvents(time_t currentTime, double lon, double lat, DBase *dBase, int32_t threadId) {
-    struct tm *ctm = localtime(&currentTime);
+    struct tm ctm = {0};
+    struct tm tmp_tm = {0};
     double rise, set;
     double twilightStart, twilightEnd;
     int rs;
     int civ;
-    uint64_t checkTime;
+
     uint64_t sunRiseTime;
     uint64_t sunSetTime;
     uint64_t twilightStartTime;
     uint64_t twilightEndTime;
+    uint64_t twilightLength;
+    uint64_t nightLength;
+    uint64_t calcNightLength;
+    double nightRate;
     mtm_cmd_action action = {0};
 
-    rs = sun_rise_set(ctm->tm_year + 1900, ctm->tm_mon + 1, ctm->tm_mday, lon, lat, &rise, &set);
+    MYSQL_RES *res;
+    MYSQL_ROW row;
+    std::string query;
+
+    localtime_r(&currentTime, &ctm);
+
+    rs = sun_rise_set(ctm.tm_year + 1900, ctm.tm_mon + 1, ctm.tm_mday, lon, lat, &rise, &set);
     bool isTimeAboveSunSet;
     bool isTimeLessSunSet;
     bool isTimeAboveSunRise;
     bool isTimeLessSunRise;
-    civ = civil_twilight(ctm->tm_year + 1900, ctm->tm_mon + 1, ctm->tm_mday, lon, lat, &twilightStart,
-                         &twilightEnd);
+    civ = civil_twilight(ctm.tm_year + 1900, ctm.tm_mon + 1, ctm.tm_mday, lon, lat, &twilightStart, &twilightEnd);
     bool isTimeAboveTwilightStart;
     bool isTimeLessTwilightStart;
     bool isTimeAboveTwilightEnd;
     bool isTimeLessTwilightEnd;
 
-    if (rs == 0 && civ == 0) {
-        checkTime = ctm->tm_hour * 3600 + ctm->tm_min * 60 + ctm->tm_sec;
-        sunRiseTime = (uint64_t) (rise * 3600 + ctm->tm_gmtoff);
-        sunSetTime = (uint64_t) (set * 3600 + ctm->tm_gmtoff);
+    localtime_r(&currentTime, &tmp_tm);
 
-        twilightStartTime = (uint64_t) (twilightStart * 3600 + ctm->tm_gmtoff);
-        twilightEndTime = (uint64_t) (twilightEnd * 3600 + ctm->tm_gmtoff);
+    // расчитываем длительность сумерек по реальным данным восхода и начала сумерек
+    fillTimeStruct(rise, &tmp_tm);
+    sunRiseTime = mktime(&tmp_tm);
+    fillTimeStruct(twilightStart, &tmp_tm);
+    twilightStartTime = mktime(&tmp_tm);
+    twilightLength = sunRiseTime - twilightStartTime;
+    // расчитываем реальную длительность ночи, с сумерками
+    fillTimeStruct(set, &tmp_tm);
+    sunSetTime = mktime(&tmp_tm);
+    nightLength = 86400 - (sunSetTime - sunRiseTime);
+
+
+    // пытаемся получить данные из календаря
+    sunRiseTime = 0;
+    sunSetTime = 0;
+    query.append(
+            "SELECT unix_timestamp(nct.date) AS time, type FROM node_control AS nct WHERE DATE(nct.date)=CURRENT_DATE()");
+    res = dBase->sqlexec(query.data());
+    if (res != nullptr) {
+        dBase->makeFieldsList(res);
+        while ((row = mysql_fetch_row(res)) != nullptr) {
+            if (std::stoi(row[dBase->getFieldIndex("type")]) == 0) {
+                sunRiseTime = std::stoull(row[dBase->getFieldIndex("time")]);
+            } else if (std::stoi(row[dBase->getFieldIndex("type")]) == 1) {
+                sunSetTime = std::stoull(row[dBase->getFieldIndex("time")]);
+            }
+        }
+
+        mysql_free_result(res);
+    }
+
+
+    if (rs == 0 && civ == 0) {
+        if (sunRiseTime == 0) {
+            fillTimeStruct(rise, &tmp_tm);
+            sunRiseTime = mktime(&tmp_tm);
+        }
+
+        if (sunSetTime == 0) {
+            fillTimeStruct(set, &tmp_tm);
+            sunSetTime = mktime(&tmp_tm);
+        }
+
+        // расчитываем коэффициент как отношение расчитаной длительности ночи к реальной
+        calcNightLength = 86400 - (sunSetTime - sunRiseTime);
+        nightRate = (double) calcNightLength / nightLength;
+
+        // расчитываем время начала/конца сумерек относительно рассвета/заката (которые возможно получили из календаря)
+        // устанавливая их длительность пропорционально изменившейся длительности ночи
+        twilightStartTime = sunRiseTime - (uint64_t) (twilightLength * nightRate);
+        twilightEndTime = sunSetTime + (uint64_t) (twilightLength * nightRate);
 
         action.header.type = MTM_CMD_TYPE_ACTION;
         action.header.protoVersion = MTM_VERSION_0;
         action.device = MTM_DEVICE_LIGHT;
 
-        isTimeAboveSunSet = checkTime >= sunSetTime;
-        isTimeLessSunSet = checkTime < sunSetTime;
-        isTimeAboveSunRise = checkTime >= sunRiseTime;
-        isTimeLessSunRise = checkTime < sunRiseTime;
+        isTimeAboveSunSet = currentTime >= sunSetTime;
+        isTimeLessSunSet = currentTime < sunSetTime;
+        isTimeAboveSunRise = currentTime >= sunRiseTime;
+        isTimeLessSunRise = currentTime < sunRiseTime;
 
-        isTimeAboveTwilightStart = checkTime >= twilightStartTime;
-        isTimeLessTwilightStart = checkTime < twilightStartTime;
-        isTimeAboveTwilightEnd = checkTime >= twilightEndTime;
-        isTimeLessTwilightEnd = checkTime < twilightEndTime;
+        isTimeAboveTwilightStart = currentTime >= twilightStartTime;
+        isTimeLessTwilightStart = currentTime < twilightStartTime;
+        isTimeAboveTwilightEnd = currentTime >= twilightEndTime;
+        isTimeLessTwilightEnd = currentTime < twilightEndTime;
 
         if ((isTimeAboveSunSet && isTimeLessTwilightEnd) && (!isSunSet || !isSunInit)) {
             isSunInit = true;
