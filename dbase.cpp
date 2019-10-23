@@ -210,6 +210,11 @@ int8_t DBase::getFieldIndex(const char *fieldName) {
     return -1;
 }
 
+char *DBase::getFieldValue(MYSQL_ROW row, const char *fieldName) {
+    int8_t idx = this->getFieldIndex(fieldName);
+    return row[idx];
+}
+
 bool DBase::isError() {
     const char *err = mysql_error(mysql);
     return *err != 0;

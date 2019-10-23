@@ -233,7 +233,7 @@ typedef struct _mtm_cmd_action {
 extern "C" {
 #endif
 
-extern uint8_t TAG[];
+extern uint8_t *TAG;
 
 uint8_t compute_fcs(uint8_t const *buffer, size_t len);
 

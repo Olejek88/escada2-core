@@ -1,34 +1,28 @@
 #include <unistd.h>
-#include <cstdio>
 #include <fcntl.h>
 #include <pthread.h>
 #include <sys/stat.h>
 #include <sys/queue.h>
-#include <cstring>
 #include <nettle/base64.h>
-#include <cstdio>
 #include <zigbeemtm.h>
-#include <zconf.h>
 #include "dbase.h"
 #include "TypeThread.h"
 #include "MtmZigbee.h"
 #include "kernel.h"
 #include "function.h"
-#include "ce102.h"
 #include <uuid/uuid.h>
 #include <string.h>
 #include <sys/ioctl.h>
 #include <time.h>
 #include "suninfo.h"
 #include <stdlib.h>
-#include <iostream>
 #include <jsoncpp/json/json.h>
 #include <jsoncpp/json/value.h>
 #include "LightFlags.h"
 
 int coordinatorFd;
 bool mtmZigbeeStarted = false;
-uint8_t TAG[] = "mtmzigbee";
+uint8_t *TAG = (uint8_t *) "mtmzigbee";
 pthread_mutex_t mtmZigbeeStopMutex;
 bool mtmZigbeeStopIssued;
 DBase *mtmZigbeeDBase;
