@@ -165,8 +165,12 @@ int64_t zigbeemtm_get_mtm_cmd_data(uint8_t cmd, void *data, uint8_t *buffer) {
             current_time = (mtm_cmd_current_time *) data;
             buffer[i++] = current_time->header.type;
             buffer[i++] = current_time->header.protoVersion;
-            *(uint16_t *) (&buffer[i]) = current_time->time;
-            i += 2;
+            *(uint16_t *) (&buffer[i++]) = current_time->time;
+            i++;
+            for (int idx = 0; idx < 16; idx++) {
+                buffer[i++] = current_time->brightLevel[idx];
+            }
+
             break;
 
         case MTM_CMD_TYPE_ACTION:
@@ -415,6 +419,7 @@ int8_t get_mtm_command_size(uint8_t type) {
             break;
         case MTM_CMD_TYPE_CURRENT_TIME:
             size += sizeof(current_time.time);
+            size += sizeof(current_time.brightLevel);
             break;
         case MTM_CMD_TYPE_ACTION:
             size += sizeof(action.device);

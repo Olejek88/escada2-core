@@ -19,6 +19,7 @@
 #include <jsoncpp/json/json.h>
 #include <jsoncpp/json/value.h>
 #include "LightFlags.h"
+#include "lightUtils.h"
 
 int coordinatorFd;
 bool mtmZigbeeStarted = false;
@@ -270,6 +271,10 @@ void mtmZigbeePktListener(DBase *dBase, int32_t threadId) {
                 current_time.header.protoVersion = MTM_VERSION_0;
                 localTime = localtime(&currentTime);
                 current_time.time = localTime->tm_hour * 60 + localTime->tm_min;
+                for (int idx = 0; idx < 16; idx++) {
+                    current_time.brightLevel[idx] = lightGroupBright[idx];
+                }
+
                 ssize_t rc = send_mtm_cmd(coordinatorFd, 0xFFFF, &current_time, kernel);
                 if (rc == -1) {
                     kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] ERROR write to port", TAG);

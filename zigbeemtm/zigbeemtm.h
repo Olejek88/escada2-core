@@ -220,6 +220,7 @@ typedef struct _mtm_cmd_config_light {
 typedef struct _mtm_cmd_current_time {
     mtm_cmd_header header;
     uint16_t time;
+    uint8_t brightLevel[16];
 } mtm_cmd_current_time;
 
 // структура пакета МТМ "Команда исполнительному устройству"
