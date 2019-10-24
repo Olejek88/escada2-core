@@ -1,34 +1,29 @@
 #include <unistd.h>
-#include <cstdio>
 #include <fcntl.h>
 #include <pthread.h>
 #include <sys/stat.h>
 #include <sys/queue.h>
-#include <cstring>
 #include <nettle/base64.h>
-#include <cstdio>
 #include <zigbeemtm.h>
-#include <zconf.h>
 #include "dbase.h"
 #include "TypeThread.h"
 #include "MtmZigbee.h"
 #include "kernel.h"
 #include "function.h"
-#include "ce102.h"
 #include <uuid/uuid.h>
 #include <string.h>
 #include <sys/ioctl.h>
 #include <time.h>
 #include "suninfo.h"
 #include <stdlib.h>
-#include <iostream>
 #include <jsoncpp/json/json.h>
 #include <jsoncpp/json/value.h>
 #include "LightFlags.h"
+#include "lightUtils.h"
 
 int coordinatorFd;
 bool mtmZigbeeStarted = false;
-uint8_t TAG[] = "mtmzigbee";
+uint8_t *TAG = (uint8_t *) "mtmzigbee";
 pthread_mutex_t mtmZigbeeStopMutex;
 bool mtmZigbeeStopIssued;
 DBase *mtmZigbeeDBase;
@@ -276,6 +271,10 @@ void mtmZigbeePktListener(DBase *dBase, int32_t threadId) {
                 current_time.header.protoVersion = MTM_VERSION_0;
                 localTime = localtime(&currentTime);
                 current_time.time = localTime->tm_hour * 60 + localTime->tm_min;
+                for (int idx = 0; idx < 16; idx++) {
+                    current_time.brightLevel[idx] = lightGroupBright[idx];
+                }
+
                 ssize_t rc = send_mtm_cmd(coordinatorFd, 0xFFFF, &current_time, kernel);
                 if (rc == -1) {
                     kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] ERROR write to port", TAG);

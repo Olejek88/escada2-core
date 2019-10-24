@@ -39,6 +39,8 @@ public:
 
     int8_t getFieldIndex(const char *fieldName);
 
+    char *getFieldValue(MYSQL_ROW row, const char *fieldName);
+
     bool isError();
 
     const char *getErrorString();

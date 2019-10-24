@@ -11,9 +11,10 @@
 #include <function.h>
 #include "LightFlags.h"
 #include "main.h"
+#include <ctime>
 
 extern Kernel *kernel;
-extern uint8_t TAG[];
+extern uint8_t *TAG;
 extern bool isSunInit;
 extern bool isSunSet, isTwilightEnd, isTwilightStart, isSunRise;
 extern int coordinatorFd;
@@ -579,52 +580,120 @@ void makeCoordinatorTemperature(DBase *dBase, uint8_t *address, const uint8_t *p
     }
 }
 
+/**
+ *
+ * @param time
+ * @param dtm
+ */
+void fillTimeStruct(double time, struct tm *dtm) {
+    time = time + (double) dtm->tm_gmtoff / 3600;
+    dtm->tm_hour = (int) time;
+    dtm->tm_min = (int) ((time - dtm->tm_hour) * 60);
+    dtm->tm_sec = (int) ((((time - dtm->tm_hour) * 60) - dtm->tm_min) * 60);
+}
+
 void checkAstroEvents(time_t currentTime, double lon, double lat, DBase *dBase, int32_t threadId) {
-    struct tm *ctm = localtime(&currentTime);
+    struct tm ctm = {0};
+    struct tm tmp_tm = {0};
     double rise, set;
     double twilightStart, twilightEnd;
     int rs;
     int civ;
-    uint64_t checkTime;
+
     uint64_t sunRiseTime;
     uint64_t sunSetTime;
     uint64_t twilightStartTime;
     uint64_t twilightEndTime;
+    uint64_t twilightLength;
+    uint64_t nightLength;
+    uint64_t calcNightLength;
+    double nightRate;
     mtm_cmd_action action = {0};
 
-    rs = sun_rise_set(ctm->tm_year + 1900, ctm->tm_mon + 1, ctm->tm_mday, lon, lat, &rise, &set);
+    MYSQL_RES *res;
+    MYSQL_ROW row;
+    std::string query;
+
+    localtime_r(&currentTime, &ctm);
+
+    rs = sun_rise_set(ctm.tm_year + 1900, ctm.tm_mon + 1, ctm.tm_mday, lon, lat, &rise, &set);
     bool isTimeAboveSunSet;
     bool isTimeLessSunSet;
     bool isTimeAboveSunRise;
     bool isTimeLessSunRise;
-    civ = civil_twilight(ctm->tm_year + 1900, ctm->tm_mon + 1, ctm->tm_mday, lon, lat, &twilightStart,
-                         &twilightEnd);
+    civ = civil_twilight(ctm.tm_year + 1900, ctm.tm_mon + 1, ctm.tm_mday, lon, lat, &twilightStart, &twilightEnd);
     bool isTimeAboveTwilightStart;
     bool isTimeLessTwilightStart;
     bool isTimeAboveTwilightEnd;
     bool isTimeLessTwilightEnd;
 
-    if (rs == 0 && civ == 0) {
-        checkTime = ctm->tm_hour * 3600 + ctm->tm_min * 60 + ctm->tm_sec;
-        sunRiseTime = (uint64_t) (rise * 3600 + ctm->tm_gmtoff);
-        sunSetTime = (uint64_t) (set * 3600 + ctm->tm_gmtoff);
+    localtime_r(&currentTime, &tmp_tm);
 
-        twilightStartTime = (uint64_t) (twilightStart * 3600 + ctm->tm_gmtoff);
-        twilightEndTime = (uint64_t) (twilightEnd * 3600 + ctm->tm_gmtoff);
+    // расчитываем длительность сумерек по реальным данным восхода и начала сумерек
+    fillTimeStruct(rise, &tmp_tm);
+    sunRiseTime = mktime(&tmp_tm);
+    fillTimeStruct(twilightStart, &tmp_tm);
+    twilightStartTime = mktime(&tmp_tm);
+    twilightLength = sunRiseTime - twilightStartTime;
+    // расчитываем реальную длительность ночи, с сумерками
+    fillTimeStruct(set, &tmp_tm);
+    sunSetTime = mktime(&tmp_tm);
+    nightLength = 86400 - (sunSetTime - sunRiseTime);
+
+
+    // пытаемся получить данные из календаря
+    sunRiseTime = 0;
+    sunSetTime = 0;
+    query.append(
+            "SELECT unix_timestamp(nct.date) AS time, type FROM node_control AS nct WHERE DATE(nct.date)=CURRENT_DATE()");
+    res = dBase->sqlexec(query.data());
+    if (res != nullptr) {
+        dBase->makeFieldsList(res);
+        while ((row = mysql_fetch_row(res)) != nullptr) {
+            if (std::stoi(row[dBase->getFieldIndex("type")]) == 0) {
+                sunRiseTime = std::stoull(row[dBase->getFieldIndex("time")]);
+            } else if (std::stoi(row[dBase->getFieldIndex("type")]) == 1) {
+                sunSetTime = std::stoull(row[dBase->getFieldIndex("time")]);
+            }
+        }
+
+        mysql_free_result(res);
+    }
+
+
+    if (rs == 0 && civ == 0) {
+        if (sunRiseTime == 0) {
+            fillTimeStruct(rise, &tmp_tm);
+            sunRiseTime = mktime(&tmp_tm);
+        }
+
+        if (sunSetTime == 0) {
+            fillTimeStruct(set, &tmp_tm);
+            sunSetTime = mktime(&tmp_tm);
+        }
+
+        // расчитываем коэффициент как отношение расчитаной длительности ночи к реальной
+        calcNightLength = 86400 - (sunSetTime - sunRiseTime);
+        nightRate = (double) calcNightLength / nightLength;
+
+        // расчитываем время начала/конца сумерек относительно рассвета/заката (которые возможно получили из календаря)
+        // устанавливая их длительность пропорционально изменившейся длительности ночи
+        twilightStartTime = sunRiseTime - (uint64_t) (twilightLength * nightRate);
+        twilightEndTime = sunSetTime + (uint64_t) (twilightLength * nightRate);
 
         action.header.type = MTM_CMD_TYPE_ACTION;
         action.header.protoVersion = MTM_VERSION_0;
         action.device = MTM_DEVICE_LIGHT;
 
-        isTimeAboveSunSet = checkTime >= sunSetTime;
-        isTimeLessSunSet = checkTime < sunSetTime;
-        isTimeAboveSunRise = checkTime >= sunRiseTime;
-        isTimeLessSunRise = checkTime < sunRiseTime;
+        isTimeAboveSunSet = currentTime >= sunSetTime;
+        isTimeLessSunSet = currentTime < sunSetTime;
+        isTimeAboveSunRise = currentTime >= sunRiseTime;
+        isTimeLessSunRise = currentTime < sunRiseTime;
 
-        isTimeAboveTwilightStart = checkTime >= twilightStartTime;
-        isTimeLessTwilightStart = checkTime < twilightStartTime;
-        isTimeAboveTwilightEnd = checkTime >= twilightEndTime;
-        isTimeLessTwilightEnd = checkTime < twilightEndTime;
+        isTimeAboveTwilightStart = currentTime >= twilightStartTime;
+        isTimeLessTwilightStart = currentTime < twilightStartTime;
+        isTimeAboveTwilightEnd = currentTime >= twilightEndTime;
+        isTimeLessTwilightEnd = currentTime < twilightEndTime;
 
         if ((isTimeAboveSunSet && isTimeLessTwilightEnd) && (!isSunSet || !isSunInit)) {
             isSunInit = true;
@@ -793,302 +862,6 @@ void checkAstroEvents(time_t currentTime, double lon, double lat, DBase *dBase, 
     }
 }
 
-void checkLightProgram(DBase *dBase, time_t currentTime, double lon, double lat, int32_t threadId) {
-//    struct tm ttm = {0};
-//    ttm.tm_year = 119;
-//    ttm.tm_mon = 7;
-//    ttm.tm_mday = 28;
-//    ttm.tm_hour = 00;
-//    ttm.tm_min = 0;
-//    ttm.tm_sec = 21133;
-//    ttm.tm_gmtoff = 5 * 3600;
-//    currentTime = std::mktime(&ttm);
-
-    bool isDay = false;
-    MYSQL_RES *res;
-    MYSQL_ROW row;
-    std::string currentProgram;
-    struct tm *ctm = localtime(&currentTime);
-    uint64_t checkTime = ctm->tm_hour * 3600 + ctm->tm_min * 60 + ctm->tm_sec;
-    uint64_t time1raw = 0, time2raw = 0;
-    uint64_t time1loc = 0, time2loc = 0;
-    double rise, set;
-    sun_rise_set(ctm->tm_year + 1900, ctm->tm_mon + 1, ctm->tm_mday, lon, lat, &rise, &set);
-    auto sunRiseTime = (uint64_t) (rise * 3600 + ctm->tm_gmtoff);
-    auto sunSetTime = (uint64_t) (set * 3600 + ctm->tm_gmtoff);
-    double twilightStart, twilightEnd;
-    civil_twilight(ctm->tm_year + 1900, ctm->tm_mon + 1, ctm->tm_mday, lon, lat, &twilightStart, &twilightEnd);
-    auto twilightStartTime = (uint64_t) (twilightStart * 3600 + ctm->tm_gmtoff);
-    auto twilightEndTime = (uint64_t) (twilightEnd * 3600 + ctm->tm_gmtoff);
-    uint64_t twilightEndTimeLoc = 86400 - twilightEndTime;
-    uint64_t nightLen =
-            86400 -
-            ((sunSetTime - sunRiseTime) + (sunRiseTime - twilightStartTime) + (twilightEndTime - sunSetTime));
-    auto dayLen = sunSetTime - sunRiseTime;
-    uint64_t twilightLen = (sunRiseTime - twilightStartTime) + (twilightEndTime - sunSetTime);
-
-    std::string query = std::string("SELECT device.address AS address, device_program.title AS title, "
-                                    "value1, time2, value2, time3, value3, time4, value4, value5 "
-                                    "FROM device "
-                                    "LEFT JOIN device_config ON device.uuid = device_config.deviceUuid "
-                                    "LEFT JOIN device_program ON device_config.value = device_program.title "
-                                    "WHERE device.deviceTypeUuid = 'CFD3C7CC-170C-4764-9A8D-10047C8B8B1D' "
-                                    "AND device_config.parameter = 'Программа' "
-                                    "ORDER BY device_program.title");
-
-#ifdef DEBUG
-    kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] checkTime: %llu", TAG, checkTime);
-    kernel->log.ulogw(LOG_LEVEL_INFO,
-                      "[%s] twilightStartTime: %llu, sunRiseTime: %llu, sunSetTime: %llu, twilightEndTime: %llu",
-                      TAG, twilightStartTime, sunRiseTime, sunSetTime, twilightEndTime);
-    kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] dayLen: %llu, nightLen: %llu, twilightLen: %llu, sum: %llu",
-                      TAG, dayLen, nightLen, twilightLen, dayLen + nightLen + twilightLen);
-#endif
-
-    res = dBase->sqlexec(query.data());
-    if (res) {
-        dBase->makeFieldsList(res);
-        while ((row = mysql_fetch_row(res)) != nullptr) {
-            int percent;
-            if (currentProgram != row[dBase->getFieldIndex("title")]) {
-                currentProgram = row[dBase->getFieldIndex("title")];
-                // нужно пересчитать параметры программы
-                percent = std::stoi(row[dBase->getFieldIndex("time2")]);
-                time1raw = twilightEndTime + (uint64_t) (nightLen * (1.0 / (100.0 / percent)));
-                percent = std::stoi(row[dBase->getFieldIndex("time3")]);
-                time2raw = time1raw + (uint64_t) (nightLen * (1.0 / (100.0 / percent)));
-
-                time1loc = time1raw > 86400 ? time1raw - 86400 : time1raw;
-                time2loc = time2raw > 86400 ? time2raw - 86400 : time2raw;
-#ifdef DEBUG
-                kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] time1raw: %llu, time2raw: %llu", TAG, time1raw, time2raw);
-                kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] time1loc: %llu, time2loc: %llu", TAG, time1loc, time2loc);
-#endif
-            }
-
-            ssize_t rc;
-            bool processed = false;
-            std::string address = row[dBase->getFieldIndex("address")];
-            // интервал от заката до конца сумерек
-            if (!lightFlags[address].isPeriod1()) {
-                if (twilightEndTime > 86400) {
-                    if ((checkTime >= sunSetTime && checkTime < 86400) ||
-                        (checkTime >= 0 && checkTime < twilightEndTimeLoc)) {
-                        processed = true;
-#ifdef DEBUG
-                        kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] %s period 1 overnight", TAG, address.data());
-#endif
-                    }
-                } else {
-                    if (checkTime >= sunSetTime && checkTime < twilightEndTime) {
-                        processed = true;
-#ifdef DEBUG
-                        kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] %s period 1", TAG, address.data());
-#endif
-                    }
-                }
-
-                if (processed) {
-                    lightFlags[address].setPeriod1Active();
-                    rc = sendLightLevel((char *) address.data(), row[dBase->getFieldIndex("value1")]);
-                    if (rc == -1) {
-                        kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] ERROR write to port", TAG);
-                        // останавливаем поток с целью его последующего автоматического запуска и инициализации
-                        mtmZigbeeStopThread(dBase, threadId);
-                        AddDeviceRegister(dBase, (char *) coordinatorUuid.data(),
-                                          (char *) "Ошибка записи в порт координатора");
-                        return;
-                    }
-#ifdef DEBUG
-                    kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] checkTime: %ld", TAG, checkTime);
-                    kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] rc=%ld", TAG, rc);
-#endif
-                }
-            }
-
-            // интервал от конца сумерек до длительности заданной time1
-            processed = false;
-            if (!lightFlags[address].isPeriod2()) {
-                if (time1raw > 86400) {
-                    // переход через полночь
-                    if ((checkTime >= twilightEndTime && checkTime < 86400) ||
-                        (checkTime >= 0 && checkTime < time1loc)) {
-                        processed = true;
-#ifdef DEBUG
-                        kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] %s period 2 overnight", TAG, address.data());
-#endif
-                    }
-                } else {
-                    if (checkTime >= twilightEndTime && checkTime < time1loc) {
-                        processed = true;
-#ifdef DEBUG
-                        kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] %s period 2", TAG, address.data());
-#endif
-                    }
-                }
-
-                if (processed) {
-                    lightFlags[address].setPeriod2Active();
-                    rc = sendLightLevel((char *) address.data(), row[dBase->getFieldIndex("value2")]);
-                    if (rc == -1) {
-                        kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] ERROR write to port", TAG);
-                        // останавливаем поток с целью его последующего автоматического запуска и инициализации
-                        mtmZigbeeStopThread(dBase, threadId);
-                        AddDeviceRegister(dBase, (char *) coordinatorUuid.data(),
-                                          (char *) "Ошибка записи в порт координатора");
-                        return;
-                    }
-#ifdef DEBUG
-                    kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] checkTime: %ld", TAG, checkTime);
-                    kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] rc=%ld", TAG, rc);
-#endif
-                }
-            }
-
-            // интервал от time1 до длительности заданной time2
-            processed = false;
-            if (!lightFlags[address].isPeriod3()) {
-                if (time1loc > time2loc) {
-                    // переход через полночь (time1 находится до полуночи, time2 после полуночи)
-                    if ((checkTime >= time1raw && checkTime < 86400) || (checkTime >= 0 && checkTime < time2loc)) {
-                        processed = true;
-#ifdef DEBUG
-                        kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] %s period 3 overnight time2 after", TAG,
-                                          address.data());
-#endif
-                    }
-                } else {
-                    if (checkTime >= time1loc && checkTime < time2loc) {
-                        processed = true;
-#ifdef DEBUG
-                        kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] %s period 3", TAG, address.data());
-#endif
-                    }
-                }
-
-                if (processed) {
-                    lightFlags[address].setPeriod3Active();
-                    rc = sendLightLevel((char *) address.data(), row[dBase->getFieldIndex("value3")]);
-                    if (rc == -1) {
-                        kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] ERROR write to port", TAG);
-                        // останавливаем поток с целью его последующего автоматического запуска и инициализации
-                        mtmZigbeeStopThread(dBase, threadId);
-                        AddDeviceRegister(dBase, (char *) coordinatorUuid.data(),
-                                          (char *) "Ошибка записи в порт координатора");
-                        return;
-                    }
-#ifdef DEBUG
-                    kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] checkTime: %ld", TAG, checkTime);
-                    kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] rc=%ld", TAG, rc);
-#endif
-                }
-            }
-
-            // интервал от time2 до начала сумерек
-            processed = false;
-            if (!lightFlags[address].isPeriod4()) {
-                if (time2raw > 86400) {
-                    // переход через полночь (time2 находится после полуночи)
-                    if (checkTime >= time2loc && checkTime < twilightStartTime) {
-                        processed = true;
-#ifdef DEBUG
-                        kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] %s period 4 overnight", TAG, address.data());
-#endif
-                    }
-                } else {
-                    if ((checkTime >= time2loc && checkTime < 86400) ||
-                        (checkTime >= 0 && checkTime < twilightStartTime)) {
-                        processed = true;
-#ifdef DEBUG
-                        kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] %s period 4", TAG, address.data());
-#endif
-                    }
-                }
-
-                if (processed) {
-                    lightFlags[address].setPeriod4Active();
-                    rc = sendLightLevel((char *) address.data(), row[dBase->getFieldIndex("value4")]);
-                    if (rc == -1) {
-                        kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] ERROR write to port", TAG);
-                        // останавливаем поток с целью его последующего автоматического запуска и инициализации
-                        mtmZigbeeStopThread(dBase, threadId);
-                        AddDeviceRegister(dBase, (char *) coordinatorUuid.data(),
-                                          (char *) "Ошибка записи в порт координатора");
-                        return;
-                    }
-#ifdef DEBUG
-                    kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] checkTime: %ld", TAG, checkTime);
-                    kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] rc=%ld", TAG, rc);
-#endif
-                }
-            }
-
-            // интервал от начала сумерек до восхода
-            if (!lightFlags[address].isPeriod5()) {
-                if (checkTime >= twilightStartTime && checkTime < sunRiseTime) {
-                    lightFlags[address].setPeriod5Active();
-                    rc = sendLightLevel((char *) address.data(), row[dBase->getFieldIndex("value5")]);
-                    if (rc == -1) {
-                        kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] ERROR write to port", TAG);
-                        // останавливаем поток с целью его последующего автоматического запуска и инициализации
-                        mtmZigbeeStopThread(dBase, threadId);
-                        AddDeviceRegister(dBase, (char *) coordinatorUuid.data(),
-                                          (char *) "Ошибка записи в порт координатора");
-                        return;
-                    }
-#ifdef DEBUG
-                    kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] %s period 5", TAG, address.data());
-                    kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] checkTime: %llu", TAG, checkTime);
-                    kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] rc=%ld", TAG, rc);
-#endif
-                }
-            }
-
-            // день
-            if (!lightFlags[address].isDay()) {
-                if (checkTime >= sunRiseTime && checkTime < sunSetTime) {
-                    isDay = true;
-                    lightFlags[address].setDayActive();
-#ifdef DEBUG
-                    kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] %s period day", TAG, address.data());
-                    kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] checkTime: %llu", TAG, checkTime);
-                    // TODO: разобраться - должен я здесь отправлять какие-то команды?
-//                    kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] rc=%ld", TAG, rc);
-#endif
-                }
-            }
-
-            // TODO: пересмотреть алгоритм, для выявления подобного события
-            // длина суммы периодов меньше длины ночи или равна 0
-//            if (!processed) {
-//                if (!lightFlags[addresses[i]].isNoEvents) {
-//                    setNoEventsActive(&lightFlags[addresses[i]]);
-//                    printf("[%s] no events by light program\n", TAG);
-//                    printf("[%s] checkTime: %ld\n", TAG, checkTime);
-//                }
-//            }
-        }
-
-        if (isDay) {
-            ssize_t rc = switchAllLight(0);
-            if (rc == -1) {
-                kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] ERROR write to port", TAG);
-                // останавливаем поток с целью его последующего автоматического запуска и инициализации
-                mtmZigbeeStopThread(dBase, threadId);
-                AddDeviceRegister(dBase, (char *) coordinatorUuid.data(),
-                                  (char *) "Ошибка записи в порт координатора");
-                return;
-            }
-#ifdef DEBUG
-            kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] Switch all lights off by program", TAG);
-            kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] rc=%ld", TAG, rc);
-#endif
-        }
-
-        mysql_free_result(res);
-    }
-
-}
 
 ssize_t sendLightLevel(char *addrString, char *level) {
     mtm_cmd_action action = {0};

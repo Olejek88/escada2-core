@@ -104,4 +104,6 @@ void mtmCheckLinkState(DBase *dBase);
 
 void makeCoordinatorTemperature(DBase *dBase, uint8_t *address, const uint8_t *packetBuffer);
 
+void fillTimeStruct(double time, struct tm *dtm);
+
 #endif //ESCADA_CORE_MTMZIGBEE_H
