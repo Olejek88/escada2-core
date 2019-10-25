@@ -129,7 +129,7 @@ std::map<std::string, DeviceProgram> *getUsedPrograms(DBase *dBase, std::map<std
         prgUuidsIt++;
     }
 
-    auto query = std::string("SELECT * FROM escada_config.device_program WHERE uuid IN (" + progList + ")");
+    auto query = std::string("SELECT * FROM device_program WHERE uuid IN (" + progList + ")");
     MYSQL_ROW row;
     auto res = dBase->sqlexec(query.data());
     if (res) {
@@ -363,6 +363,7 @@ void checkLightProgram(DBase *dBase, time_t currentTime, double lon, double lat,
             "LEFT JOIN group_control AS gct ON "
             "(gct.groupUuid=gt.uuid AND DATE(gct.date) IN('" + (daeIt++)->first + "', '" + (daeIt++)->first + "', '" +
             (daeIt++)->first + "'))";
+//    kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] QUERY GROUP: %s", TAG, query.data());
     res = dBase->sqlexec(query.data());
     if (res) {
         dBase->makeFieldsList(res);
@@ -387,6 +388,9 @@ void checkLightProgram(DBase *dBase, time_t currentTime, double lon, double lat,
 
             // запоминаем программу по умолчанию
             grpProgram[groupId] = gProgram;
+            if (!gProgram.empty()) {
+                programUuids[gProgram] = gProgram;
+            }
 
             tmpData = row[dBase->getFieldIndex("date")];
             if (tmpData == nullptr) {
