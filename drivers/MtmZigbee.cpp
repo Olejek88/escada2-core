@@ -470,6 +470,7 @@ void mtmZigbeeProcessOutPacket(int32_t threadId) {
 
     res = mtmZigbeeDBase->sqlexec((char *) query);
     if (res) {
+        mtmZigbeeDBase->makeFieldsList(res);
         nRows = mysql_num_rows(res);
         if (nRows == 0) {
             mysql_free_result(res);
@@ -478,9 +479,8 @@ void mtmZigbeeProcessOutPacket(int32_t threadId) {
 
         for (uint32_t i = 0; i < nRows; i++) {
             row = mysql_fetch_row(res);
-            lengths = mysql_fetch_lengths(res);
-            mtmZigbeeDBase->makeFieldsList(res);
             if (row) {
+                lengths = mysql_fetch_lengths(res);
                 fieldIdx = mtmZigbeeDBase->getFieldIndex("address");
                 flen = lengths[fieldIdx];
                 memset(tmpAddr, 0, 1024);
