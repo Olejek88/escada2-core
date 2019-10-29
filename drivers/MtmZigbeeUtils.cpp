@@ -14,7 +14,6 @@
 #include <ctime>
 
 extern Kernel *kernel;
-extern uint8_t *TAG;
 extern bool isSunInit;
 extern bool isSunSet, isTwilightEnd, isTwilightStart, isSunRise;
 extern int coordinatorFd;
@@ -885,7 +884,6 @@ void mtmZigbeeStopThread(DBase *dBase, int32_t threadId) {
 }
 
 void mtmCheckLinkState(DBase *dBase) {
-    int linkTimeOut = 60;
     std::string query;
     MYSQL_RES *res;
     MYSQL_ROW row;
@@ -896,7 +894,7 @@ void mtmCheckLinkState(DBase *dBase) {
     char message[1024];
     std::string devType;
 
-    // проверяем сотояние контактора, если он включен, тогда следим за состоянием светильников
+    // проверяем состояние контактора, если он включен, тогда следим за состоянием светильников
     query = "SELECT mt.* FROM device AS dt ";
     query.append("LEFT JOIN sensor_channel AS sct ON sct.deviceUuid=dt.uuid ");
     query.append("LEFT JOIN data AS mt ON mt.sensorChannelUuid=sct.uuid ");
@@ -930,7 +928,7 @@ void mtmCheckLinkState(DBase *dBase) {
     query.append("LEFT JOIN sensor_channel AS sct ON sct.deviceUuid=dt.uuid ");
     query.append("LEFT JOIN data AS mt ON mt.sensorChannelUuid=sct.uuid ");
     query.append(
-            "WHERE (timestampdiff(second,  mt.changedAt, current_timestamp()) > " + std::to_string(linkTimeOut) + " ");
+            "WHERE (timestampdiff(second,  mt.changedAt, current_timestamp()) > dt.linkTimeout ");
     query.append("OR mt.changedAt IS NULL) ");
     query.append("AND dt.deviceTypeUuid IN ('" + std::string(DEVICE_TYPE_ZB_LIGHT) + "', '" +
                  std::string(DEVICE_TYPE_ZB_COORDINATOR) + "') ");
@@ -981,8 +979,7 @@ void mtmCheckLinkState(DBase *dBase) {
     query.append("LEFT JOIN node AS nt ON nt.uuid=dt.nodeUuid ");
     query.append("LEFT JOIN sensor_channel AS sct ON sct.deviceUuid=dt.uuid ");
     query.append("LEFT JOIN data as mt on mt.sensorChannelUuid=sct.uuid ");
-    query.append("WHERE (timestampdiff(second,  mt.changedAt, current_timestamp()) < " + std::to_string(linkTimeOut) +
-                 ") ");
+    query.append("WHERE (timestampdiff(second,  mt.changedAt, current_timestamp()) < dt.linkTimeout) ");
     query.append("AND dt.deviceTypeUuid IN ('" + std::string(DEVICE_TYPE_ZB_LIGHT) + "', '" +
                  std::string(DEVICE_TYPE_ZB_COORDINATOR) + "') ");
     query.append("AND sct.measureTypeUuid IN ('" + std::string(CHANNEL_STATUS) + "', '" +
