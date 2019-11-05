@@ -9,7 +9,6 @@
 #include <jsoncpp/json/value.h>
 #include <suninfo.h>
 #include <function.h>
-#include "LightFlags.h"
 #include "main.h"
 #include <ctime>
 
@@ -17,7 +16,6 @@ extern Kernel *kernel;
 extern bool isSunInit;
 extern bool isSunSet, isTwilightEnd, isTwilightStart, isSunRise;
 extern int coordinatorFd;
-extern std::map<std::string, LightFlags> lightFlags;
 extern std::string coordinatorUuid;
 
 void log_buffer_hex(uint8_t *buffer, size_t buffer_size) {
@@ -143,9 +141,9 @@ bool updateMeasureValue(DBase *dBase, uint8_t *uuid, double value, time_t change
     sprintf(query,
             "UPDATE data SET value=%f, date=FROM_UNIXTIME(%ld), changedAt=FROM_UNIXTIME(%ld) WHERE uuid = '%s'",
             value, changedTime, changedTime, uuid);
-#ifdef DEBUG
-    kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] %s", TAG, query);
-#endif
+    if (kernel->isDebug) {
+        kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] %s", TAG, query);
+    }
 
     res = dBase->sqlexec((const char *) query);
     if (res) {
@@ -163,9 +161,9 @@ bool storeMeasureValue(DBase *dBase, uint8_t *uuid, std::string *channelUuid, do
     sprintf(query,
             "INSERT INTO data (uuid, sensorChannelUuid, value, date, createdAt) value('%s', '%s', %f, FROM_UNIXTIME(%ld), FROM_UNIXTIME(%ld))",
             uuid, channelUuid->data(), value, createTime, changedTime);
-#ifdef DEBUG
-    kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] %s", TAG, query);
-#endif
+    if (kernel->isDebug) {
+        kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] %s", TAG, query);
+    }
 
     res = dBase->sqlexec((const char *) query);
     if (res) {
@@ -183,9 +181,9 @@ createSChannel(DBase *dBase, uint8_t *uuid, const char *channelTitle, uint8_t se
     sprintf((char *) query,
             "INSERT INTO sensor_channel (uuid, title, register, deviceUuid, measureTypeUuid, createdAt) value('%s', '%s', '%d', '%s', '%s', FROM_UNIXTIME(%ld))",
             uuid, channelTitle, sensorIndex, deviceUuid, channelTypeUuid, createTime);
-#ifdef DEBUG
-    kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] %s", TAG, query);
-#endif
+    if (kernel->isDebug) {
+        kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] %s", TAG, query);
+    }
 
     res = dBase->sqlexec((const char *) query);
     if (res) {
@@ -735,10 +733,11 @@ void checkAstroEvents(time_t currentTime, double lon, double lat, DBase *dBase, 
                                   (char *) "Ошибка записи в порт координатора");
                 return;
             }
-#ifdef DEBUG
-            kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] rc=%ld", TAG, rc);
-            kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] закат", TAG);
-#endif
+
+            if (kernel->isDebug) {
+                kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] rc=%ld", TAG, rc);
+                kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] закат", TAG);
+            }
         } else if ((isTimeAboveTwilightEnd || isTimeLessTwilightStart) && (!isTwilightEnd || !isSunInit)) {
             isSunInit = true;
             isSunSet = false;
@@ -751,7 +750,7 @@ void checkAstroEvents(time_t currentTime, double lon, double lat, DBase *dBase, 
             char message[1024];
             sprintf(message, "Наступил конец сумерек, включаем реле контактора.");
             kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] %s", TAG, message);
-            AddDeviceRegister(dBase, (char *) coordinatorUuid.data(), message);
+//            AddDeviceRegister(dBase, (char *) coordinatorUuid.data(), message);
 
             // даём задержку для того чтоб стартанули модули в светильниках
             // т.к. неизвестно, питаются они через контактор или всё время под напряжением
@@ -768,10 +767,11 @@ void checkAstroEvents(time_t currentTime, double lon, double lat, DBase *dBase, 
                                   (char *) "Ошибка записи в порт координатора");
                 return;
             }
-#ifdef DEBUG
-            kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] rc=%ld", TAG, rc);
-            kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] конец сумерек", TAG);
-#endif
+
+            if (kernel->isDebug) {
+                kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] rc=%ld", TAG, rc);
+                kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] конец сумерек", TAG);
+            }
         } else if ((isTimeAboveTwilightStart && isTimeLessSunRise) && (!isTwilightStart || !isSunInit)) {
             isSunInit = true;
             isSunSet = false;
@@ -784,7 +784,7 @@ void checkAstroEvents(time_t currentTime, double lon, double lat, DBase *dBase, 
             char message[1024];
             sprintf(message, "Наступило начало сумерек, включаем реле контактора.");
             kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] %s", TAG, message);
-            AddDeviceRegister(dBase, (char *) coordinatorUuid.data(), message);
+//            AddDeviceRegister(dBase, (char *) coordinatorUuid.data(), message);
 
             // даём задержку для того чтоб стартанули модули в светильниках
             // т.к. неизвестно, питаются они через контактор или всё время под напряжением
@@ -801,10 +801,11 @@ void checkAstroEvents(time_t currentTime, double lon, double lat, DBase *dBase, 
                                   (char *) "Ошибка записи в порт координатора");
                 return;
             }
-#ifdef DEBUG
-            kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] rc=%ld", TAG, rc);
-            kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] начало сумерек", TAG);
-#endif
+
+            if (kernel->isDebug) {
+                kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] rc=%ld", TAG, rc);
+                kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] начало сумерек", TAG);
+            }
         } else if ((isTimeAboveSunRise && isTimeLessSunSet) && (!isSunRise || !isSunInit)) {
             isSunInit = true;
             isSunSet = false;
@@ -832,10 +833,11 @@ void checkAstroEvents(time_t currentTime, double lon, double lat, DBase *dBase, 
                                   (char *) "Ошибка записи в порт координатора");
                 return;
             }
-#ifdef DEBUG
-            kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] rc=%ld", TAG, rc);
-            kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] восход", TAG);
-#endif
+
+            if (kernel->isDebug) {
+                kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] rc=%ld", TAG, rc);
+                kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] восход", TAG);
+            }
         } else {
             // ситуация когда мы не достигли условий переключения состояния светильников
             // такого не должно происходить

@@ -18,7 +18,6 @@
 #include <stdlib.h>
 #include <jsoncpp/json/json.h>
 #include <jsoncpp/json/value.h>
-#include "LightFlags.h"
 #include "lightUtils.h"
 
 int coordinatorFd;
@@ -31,7 +30,6 @@ int32_t mtmZigBeeThreadId;
 Kernel *kernel;
 bool isSunInit;
 bool isSunSet, isTwilightEnd, isTwilightStart, isSunRise;
-std::map<std::string, LightFlags> lightFlags;
 std::string coordinatorUuid;
 bool isCheckCoordinatorRespond;
 
@@ -129,24 +127,24 @@ void mtmZigbeePktListener(DBase *dBase, int32_t threadId) {
                 i = 0;
                 isSof = true;
                 seek[i++] = data;
-#ifdef DEBUG
+                if (kernel->isDebug) {
 //                kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] found SOF", TAG);
-#endif
+                }
             } else if (!isFrameLen) {
                 isFrameLen = true;
                 seek[i++] = frameLen = data;
-#ifdef DEBUG
+                if (kernel->isDebug) {
 //                kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] found frame len", TAG);
-#endif
+                }
             } else if (!isCommand) {
                 commandByteCount++;
                 seek[i++] = data;
                 if (commandByteCount == 2) {
                     commandByteCount = 0;
                     isCommand = true;
-#ifdef DEBUG
+                    if (kernel->isDebug) {
 //                    kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] found command", TAG);
-#endif
+                    }
                 }
             } else if (!isFrameData && frameDataByteCount < frameLen) {
                 seek[i++] = data;
@@ -154,24 +152,24 @@ void mtmZigbeePktListener(DBase *dBase, int32_t threadId) {
                 if (frameDataByteCount == frameLen) {
                     isFrameData = true;
                     frameDataByteCount = 0;
-#ifdef DEBUG
+                    if (kernel->isDebug) {
 //                    kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] found frame data", TAG);
-#endif
+                    }
                 }
             } else {
                 // нашли контрольную сумму
                 seek[i++] = data;
-#ifdef DEBUG
+                if (kernel->isDebug) {
 //                kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] found FCS", TAG);
-#endif
+                }
 
                 // пакет вроде как разобран
                 // нужно проверить контрольную сумму фрейма
                 fcs = compute_fcs(seek, i);
                 if (fcs == seek[i - 1]) {
-#ifdef DEBUG
+                    if (kernel->isDebug) {
 //                    kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] frame good", TAG);
-#endif
+                    }
 
                     // складываем полученный пакет в список
                     zb_item = (struct zb_pkt_item *) malloc(sizeof(struct zb_pkt_item));
@@ -180,9 +178,9 @@ void mtmZigbeePktListener(DBase *dBase, int32_t threadId) {
                     memcpy(zb_item->pkt, seek, zb_item->len);
                     SLIST_INSERT_HEAD(&zb_queue_head, zb_item, items);
                 } else {
-#ifdef DEBUG
+                    if (kernel->isDebug) {
 //                    kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] frame bad", TAG);
-#endif
+                    }
                     // вероятно то что попадает в порт с модуля zigbee уже проверено им самим
                     // как проверить это предположение? попробовать послать порченый пакет.
                     // либо он не будет отправлен, либо не попадёт в порт т.к. порченый, либо попадёт в порт мне на обработку
@@ -199,9 +197,9 @@ void mtmZigbeePktListener(DBase *dBase, int32_t threadId) {
         } else {
             // есть свободное время, разбираем список полученных пакетов
             while (!SLIST_EMPTY(&zb_queue_head)) {
-#ifdef DEBUG
-                kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] processing zb packet...", TAG);
-#endif
+                if (kernel->isDebug) {
+                    kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] processing zb packet...", TAG);
+                }
 
                 zb_item = SLIST_FIRST(&zb_queue_head);
                 mtmZigbeeProcessInPacket((uint8_t *) zb_item->pkt, zb_item->len);
@@ -284,9 +282,9 @@ void mtmZigbeePktListener(DBase *dBase, int32_t threadId) {
                                       (char *) "Ошибка записи в порт координатора");
                     return;
                 }
-#ifdef DEBUG
-                kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] Written %ld bytes.", TAG, rc);
-#endif
+                if (kernel->isDebug) {
+                    kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] Written %ld bytes.", TAG, rc);
+                }
             }
 
             // опрашиваем датчики на локальном координаторе
@@ -307,9 +305,9 @@ void mtmZigbeePktListener(DBase *dBase, int32_t threadId) {
                                       (char *) "Ошибка записи в порт координатора");
                     return;
                 }
-#ifdef DEBUG
-                kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] rc=%ld", TAG, rc);
-#endif
+                if (kernel->isDebug) {
+                    kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] rc=%ld", TAG, rc);
+                }
 
                 req = {0};
                 req.dst_addr = 0x0000;
@@ -325,9 +323,9 @@ void mtmZigbeePktListener(DBase *dBase, int32_t threadId) {
                                       (char *) "Ошибка записи в порт координатора");
                     return;
                 }
-#ifdef DEBUG
-                kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] rc=%ld", TAG, rc);
-#endif
+                if (kernel->isDebug) {
+                    kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] rc=%ld", TAG, rc);
+                }
             }
 
             // получаем версию модуля, по полученному ответу понимаем что модуль работает
@@ -369,9 +367,9 @@ void mtmZigbeePktListener(DBase *dBase, int32_t threadId) {
                                       (char *) "Ошибка записи в порт координатора");
                     return;
                 }
-#ifdef DEBUG
-                kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] rc=%ld", TAG, rc);
-#endif
+                if (kernel->isDebug) {
+                    kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] rc=%ld", TAG, rc);
+                }
             }
 
             // проверка на наступление астрономических событий
@@ -464,9 +462,9 @@ void mtmZigbeeProcessOutPacket(int32_t threadId) {
     ssize_t rc;
 
     sprintf((char *) query, "SELECT * FROM light_message WHERE dateOut IS NULL;");
-#ifdef DEBUG
-    kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] %s", TAG, query);
-#endif
+    if (kernel->isDebug) {
+        kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] %s", TAG, query);
+    }
 
     res = mtmZigbeeDBase->sqlexec((char *) query);
     if (res) {
@@ -485,9 +483,9 @@ void mtmZigbeeProcessOutPacket(int32_t threadId) {
                 flen = lengths[fieldIdx];
                 memset(tmpAddr, 0, 1024);
                 strncpy((char *) tmpAddr, row[fieldIdx], flen);
-#ifdef DEBUG
-                kernel->log.ulogw(LOG_LEVEL_INFO, "Addr: %s, ", tmpAddr);
-#endif
+                if (kernel->isDebug) {
+                    kernel->log.ulogw(LOG_LEVEL_INFO, "Addr: %s, ", tmpAddr);
+                }
 
                 dstAddr = strtoull((char *) tmpAddr, nullptr, 16);
 
@@ -495,9 +493,9 @@ void mtmZigbeeProcessOutPacket(int32_t threadId) {
                 flen = lengths[fieldIdx];
                 memset(tmpData, 0, 1024);
                 strncpy((char *) tmpData, row[fieldIdx], flen);
-#ifdef DEBUG
-                kernel->log.ulogw(LOG_LEVEL_INFO, "Data: %s", tmpData);
-#endif
+                if (kernel->isDebug) {
+                    kernel->log.ulogw(LOG_LEVEL_INFO, "Data: %s", tmpData);
+                }
 
                 struct base64_decode_ctx b64_ctx = {};
                 size_t decoded = 512;
@@ -507,9 +505,9 @@ void mtmZigbeeProcessOutPacket(int32_t threadId) {
                         uint8_t pktType = mtmPkt[0];
                         switch (pktType) {
                             case MTM_CMD_TYPE_CONFIG:
-#ifdef DEBUG
-                                kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] send MTM_CMD_TYPE_CONFIG", TAG);
-#endif
+                                if (kernel->isDebug) {
+                                    kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] send MTM_CMD_TYPE_CONFIG", TAG);
+                                }
 
                                 mtm_cmd_config config;
                                 config.header.type = mtmPkt[0];
@@ -524,16 +522,16 @@ void mtmZigbeeProcessOutPacket(int32_t threadId) {
                                     rc = send_mtm_cmd_ext(coordinatorFd, dstAddr, &config, kernel);
                                 }
 
-#ifdef DEBUG
-                                log_buffer_hex(mtmPkt, decoded);
-                                kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] Written %ld bytes.", TAG, rc);
-#endif
+                                if (kernel->isDebug) {
+                                    log_buffer_hex(mtmPkt, decoded);
+                                    kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] Written %ld bytes.", TAG, rc);
+                                }
 
                                 break;
                             case MTM_CMD_TYPE_CONFIG_LIGHT:
-#ifdef DEBUG
-                                kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] send MTM_CMD_TYPE_CONFIG_LIGHT", TAG);
-#endif
+                                if (kernel->isDebug) {
+                                    kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] send MTM_CMD_TYPE_CONFIG_LIGHT", TAG);
+                                }
 
                                 mtm_cmd_config_light config_light;
                                 config_light.header.type = mtmPkt[0];
@@ -550,16 +548,16 @@ void mtmZigbeeProcessOutPacket(int32_t threadId) {
                                     rc = send_mtm_cmd_ext(coordinatorFd, dstAddr, &config_light, kernel);
                                 }
 
-#ifdef DEBUG
-                                log_buffer_hex(mtmPkt, decoded);
-                                kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] Written %ld bytes.", TAG, rc);
-#endif
+                                if (kernel->isDebug) {
+                                    log_buffer_hex(mtmPkt, decoded);
+                                    kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] Written %ld bytes.", TAG, rc);
+                                }
 
                                 break;
                             case MTM_CMD_TYPE_CURRENT_TIME:
-#ifdef DEBUG
-                                kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] send MTM_CMD_TYPE_CURRENT_TIME", TAG);
-#endif
+                                if (kernel->isDebug) {
+                                    kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] send MTM_CMD_TYPE_CURRENT_TIME", TAG);
+                                }
 
                                 mtm_cmd_current_time current_time;
                                 current_time.header.type = mtmPkt[0];
@@ -572,16 +570,16 @@ void mtmZigbeeProcessOutPacket(int32_t threadId) {
                                     rc = send_mtm_cmd_ext(coordinatorFd, dstAddr, &current_time, kernel);
                                 }
 
-#ifdef DEBUG
-                                kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] Written %ld bytes.", TAG, rc);
-                                log_buffer_hex(mtmPkt, decoded);
-#endif
+                                if (kernel->isDebug) {
+                                    kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] Written %ld bytes.", TAG, rc);
+                                    log_buffer_hex(mtmPkt, decoded);
+                                }
 
                                 break;
                             case MTM_CMD_TYPE_ACTION:
-#ifdef DEBUG
-                                kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] send MTM_CMD_TYPE_ACTION", TAG);
-#endif
+                                if (kernel->isDebug) {
+                                    kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] send MTM_CMD_TYPE_ACTION", TAG);
+                                }
 
                                 mtm_cmd_action action;
                                 action.header.type = mtmPkt[0];
@@ -595,17 +593,17 @@ void mtmZigbeeProcessOutPacket(int32_t threadId) {
                                     rc = send_mtm_cmd_ext(coordinatorFd, dstAddr, &action, kernel);
                                 }
 
-#ifdef DEBUG
-                                kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] Written %ld bytes.", TAG, rc);
-                                log_buffer_hex(mtmPkt, decoded);
-#endif
+                                if (kernel->isDebug) {
+                                    kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] Written %ld bytes.", TAG, rc);
+                                    log_buffer_hex(mtmPkt, decoded);
+                                }
 
                                 break;
                             case MTM_CMD_TYPE_CONTACTOR:
-#ifdef DEBUG
-                                kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] send MTM_CMD_TYPE_CONTACTOR", TAG);
-                                log_buffer_hex(mtmPkt, decoded);
-#endif
+                                if (kernel->isDebug) {
+                                    kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] send MTM_CMD_TYPE_CONTACTOR", TAG);
+                                    log_buffer_hex(mtmPkt, decoded);
+                                }
 
                                 rc = switchContactor(mtmPkt[3], mtmPkt[2]);
                                 char message[1024];
@@ -615,10 +613,10 @@ void mtmZigbeeProcessOutPacket(int32_t threadId) {
                                 AddDeviceRegister(mtmZigbeeDBase, (char *) coordinatorUuid.data(), message);
                                 break;
                             case MTM_CMD_TYPE_RESET_COORDINATOR:
-#ifdef DEBUG
-                                kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] send MTM_CMD_TYPE_RESET_COORDINATOR", TAG);
-                                log_buffer_hex(mtmPkt, decoded);
-#endif
+                                if (kernel->isDebug) {
+                                    kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] send MTM_CMD_TYPE_RESET_COORDINATOR", TAG);
+                                    log_buffer_hex(mtmPkt, decoded);
+                                }
 
                                 rc = resetCoordinator();
                                 // останавливаем поток с целью его последующего автоматического запуска и инициализации
@@ -667,21 +665,15 @@ void mtmZigbeeProcessInPacket(uint8_t *pktBuff, uint32_t length) {
     uint8_t address[32];
     uint8_t mtmLightStatusPktSize;
 
-#ifdef DEBUG
-    uint8_t query[1024];
-    MYSQL_RES *res;
-    time_t createTime = time(nullptr);
-#endif
+    if (kernel->isDebug) {
+        char pktStr[2048] = {0};
+        kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] RAW in packet", TAG);
+        for (int i = 0; i < length; i++) {
+            sprintf(&pktStr[i * 2], "%02X", pktBuff[i]);
+        }
 
-#ifdef DEBUG
-    char pktStr[2048] = {0};
-    kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] RAW in packet", TAG);
-    for (int i = 0; i < length; i++) {
-        sprintf(&pktStr[i * 2], "%02X", pktBuff[i]);
+        kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] %s", TAG, pktStr);
     }
-
-    kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] %s", TAG, pktStr);
-#endif
 
     uint8_t resultBuff[1024] = {};
     struct base64_encode_ctx b64_ctx = {};
@@ -689,9 +681,9 @@ void mtmZigbeeProcessInPacket(uint8_t *pktBuff, uint32_t length) {
 
     switch (cmd) {
         case AF_DATA_RESPONSE:
-#ifdef DEBUG
-            kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] AF_DATA_RESPONSE", TAG);
-#endif
+            if (kernel->isDebug) {
+                kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] AF_DATA_RESPONSE", TAG);
+            }
 
             dstEndPoint = pktBuff[6];
             cluster = *(uint16_t *) (&pktBuff[4]);
@@ -707,9 +699,9 @@ void mtmZigbeeProcessInPacket(uint8_t *pktBuff, uint32_t length) {
                             pktBuff[17], pktBuff[16], pktBuff[15], pktBuff[14],
                             pktBuff[13], pktBuff[12], pktBuff[11], pktBuff[10]);
 
-#ifdef DEBUG
-                    kernel->log.ulogw(LOG_LEVEL_INFO, "Get sensor data packet");
-#endif
+                    if (kernel->isDebug) {
+                        kernel->log.ulogw(LOG_LEVEL_INFO, "Get sensor data packet");
+                    }
 
                     makeCoordinatorStatus(mtmZigbeeDBase, address, pktBuff);
                     break;
@@ -717,9 +709,9 @@ void mtmZigbeeProcessInPacket(uint8_t *pktBuff, uint32_t length) {
                 case MBEE_API_LOCAL_MODULE_VERSION_CLUSTER :
                     // ни чего не проверяем, ответ получен, значит координатор работает
                     isCheckCoordinatorRespond = true;
-#ifdef DEBUG
-                    kernel->log.ulogw(LOG_LEVEL_INFO, "Get module version packet");
-#endif
+                    if (kernel->isDebug) {
+                        kernel->log.ulogw(LOG_LEVEL_INFO, "Get module version packet");
+                    }
                     break;
 
                 case MBEE_API_GET_TEMP_CLUSTER :
@@ -729,9 +721,9 @@ void mtmZigbeeProcessInPacket(uint8_t *pktBuff, uint32_t length) {
                             pktBuff[17], pktBuff[16], pktBuff[15], pktBuff[14],
                             pktBuff[13], pktBuff[12], pktBuff[11], pktBuff[10]);
 
-#ifdef DEBUG
-                    kernel->log.ulogw(LOG_LEVEL_INFO, "Get temperature data packet");
-#endif
+                    if (kernel->isDebug) {
+                        kernel->log.ulogw(LOG_LEVEL_INFO, "Get temperature data packet");
+                    }
 
                     makeCoordinatorTemperature(mtmZigbeeDBase, address, pktBuff);
                     break;
@@ -743,9 +735,9 @@ void mtmZigbeeProcessInPacket(uint8_t *pktBuff, uint32_t length) {
             break;
 
         case AF_INCOMING_MSG:
-#ifdef DEBUG
-            kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] AF_INCOMING_MSG", TAG);
-#endif
+            if (kernel->isDebug) {
+                kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] AF_INCOMING_MSG", TAG);
+            }
 
             dstEndPoint = pktBuff[11];
             cluster = *(uint16_t *) (&pktBuff[6]);
@@ -758,10 +750,10 @@ void mtmZigbeeProcessInPacket(uint8_t *pktBuff, uint32_t length) {
                 case MTM_CMD_TYPE_STATUS:
                     // размер полезных данных в zb пакете
                     mtmLightStatusPktSize = pktBuff[20];
-#ifdef DEBUG
-                    kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] MTM_CMD_TYPE_STATUS", TAG);
-                    log_buffer_hex(&pktBuff[21], mtmLightStatusPktSize);
-#endif
+                    if (kernel->isDebug) {
+                        kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] MTM_CMD_TYPE_STATUS", TAG);
+                        log_buffer_hex(&pktBuff[21], mtmLightStatusPktSize);
+                    }
 
                     memset(address, 0, 32);
                     sprintf((char *) address, "%02X%02X%02X%02X%02X%02X%02X%02X",
@@ -778,16 +770,20 @@ void mtmZigbeeProcessInPacket(uint8_t *pktBuff, uint32_t length) {
                     base64_encode_final(&b64_ctx, resultBuff + encoded_bytes);
 #endif
 
-#ifdef DEBUG
-                    sprintf((char *) query,
-                            "INSERT INTO light_answer (address, data, createdAt, changedAt, dateIn) value('%s', '%s', FROM_UNIXTIME(%ld), FROM_UNIXTIME(%ld), FROM_UNIXTIME(%ld))",
-                            address, resultBuff, createTime, createTime, createTime);
-                    kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] %s", TAG, query);
-                    res = mtmZigbeeDBase->sqlexec((const char *) query);
-                    if (res) {
-                        mysql_free_result(res);
+                    if (kernel->isDebug) {
+                        uint8_t query[1024];
+                        MYSQL_RES *res;
+                        time_t createTime = time(nullptr);
+
+                        sprintf((char *) query,
+                                "INSERT INTO light_answer (address, data, createdAt, changedAt, dateIn) value('%s', '%s', FROM_UNIXTIME(%ld), FROM_UNIXTIME(%ld), FROM_UNIXTIME(%ld))",
+                                address, resultBuff, createTime, createTime, createTime);
+                        kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] %s", TAG, query);
+                        res = mtmZigbeeDBase->sqlexec((const char *) query);
+                        if (res) {
+                            mysql_free_result(res);
+                        }
                     }
-#endif
                     // из размера пакета вычитаем два байта заголовка, восемь байт адреса, два байта флагов аварии
                     for (uint8_t statusIdx = 0; statusIdx < (mtmLightStatusPktSize - 12) / 2; statusIdx++) {
                         switch (statusIdx) {
@@ -827,9 +823,9 @@ void mtmZigbeeProcessInPacket(uint8_t *pktBuff, uint32_t length) {
             break;
 
         case AF_INCOMING_MSG_EXT:
-#ifdef DEBUG
-            kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] AF_INCOMING_MSG_EXT", TAG);
-#endif
+            if (kernel->isDebug) {
+                kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] AF_INCOMING_MSG_EXT", TAG);
+            }
 
             break;
 
@@ -954,9 +950,9 @@ int32_t mtmZigbeeInit(int32_t mode, uint8_t *path, uint32_t speed) {
                           (char *) "Ошибка записи в порт координатора");
         return -5;
     }
-#ifdef DEBUG
-    kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] rc=%ld", TAG, rc);
-#endif
+    if (kernel->isDebug) {
+        kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] rc=%ld", TAG, rc);
+    }
 
     // тестовый пакет с состоянием светильника
 //    uint8_t buff0[] = {
