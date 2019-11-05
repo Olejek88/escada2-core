@@ -3,7 +3,6 @@
 #include "dbase.h"
 #include <map>
 #include "suninfo.h"
-#include "LightFlags.h"
 #include <iostream>
 #include <ctime>
 #include "kernel.h"
@@ -11,7 +10,6 @@
 #include "function.h"
 #include "DeviceProgram.h"
 
-extern std::map<std::string, LightFlags> lightFlags;
 extern Kernel *kernel;
 extern std::string coordinatorUuid;
 // массив в который складируем текущие уровни яркости
@@ -307,32 +305,6 @@ void checkLightProgram(DBase *dBase, time_t currentTime, double lon, double lat,
 //    ttm.tm_gmtoff = 5 * 3600;
 //    currentTime = std::mktime(&ttm);
 
-    // --- возможно всё что ниже нужно удалить
-//    bool isDay = false;
-    MYSQL_RES *res;
-    MYSQL_ROW row;
-//    std::string currentProgram;
-//    struct tm ctm = {0};
-//    localtime_r(&currentTime, &ctm);
-//    uint64_t checkTime = ctm.tm_hour * 3600 + ctm.tm_min * 60 + ctm.tm_sec;
-//    uint64_t time1raw = 0, time2raw = 0;
-//    uint64_t time1loc = 0, time2loc = 0;
-//    double rise, set;
-//    sun_rise_set(ctm.tm_year + 1900, ctm.tm_mon + 1, ctm.tm_mday, lon, lat, &rise, &set);
-//    auto sunRiseTime = (uint64_t) (rise * 3600 + ctm.tm_gmtoff);
-//    auto sunSetTime = (uint64_t) (set * 3600 + ctm.tm_gmtoff);
-//    double twilightStart, twilightEnd;
-//    civil_twilight(ctm.tm_year + 1900, ctm.tm_mon + 1, ctm.tm_mday, lon, lat, &twilightStart, &twilightEnd);
-//    auto twilightStartTime = (uint64_t) (twilightStart * 3600 + ctm.tm_gmtoff);
-//    auto twilightEndTime = (uint64_t) (twilightEnd * 3600 + ctm.tm_gmtoff);
-//    uint64_t twilightEndTimeLoc = 86400 - twilightEndTime;
-//    uint64_t nightLen =
-//            86400 -
-//            ((sunSetTime - sunRiseTime) + (sunRiseTime - twilightStartTime) + (twilightEndTime - sunSetTime));
-//    auto dayLen = sunSetTime - sunRiseTime;
-//    uint64_t twilightLen = (sunRiseTime - twilightStartTime) + (twilightEndTime - sunSetTime);
-    // --- возможно всё что выше нужно удалить
-
     // асоциативный массив в котором будем хранить данные по датам, времени, действиям, программам групп
     groupsMap groups;
 
@@ -354,15 +326,13 @@ void checkLightProgram(DBase *dBase, time_t currentTime, double lon, double lat,
     // вспомогательный массив для списка используемых программ
     std::map<std::string, std::string> programUuids;
 
-    // выбираем данные по группам
     auto daeIt = defAstroEvents->begin();
+    std::string prevDate = (daeIt++)->first, currDate = (daeIt++)->first, nextDate = (daeIt++)->first;
+    MYSQL_RES *res;
+    MYSQL_ROW row;
+    // выбираем данные по группам
     std::string query;
-    query =
-            "SELECT gt.title, gt.groupId, gt.deviceProgramUuid AS gProgram, date(gct.date) as date, time(gct.date) as time, gct.type as type, gct.deviceProgramUuid AS gcProgram, UNIX_TIMESTAMP(gct.date) AS datetime "
-            "FROM `group` AS gt "
-            "LEFT JOIN group_control AS gct ON "
-            "(gct.groupUuid=gt.uuid AND DATE(gct.date) IN('" + (daeIt++)->first + "', '" + (daeIt++)->first + "', '" +
-            (daeIt++)->first + "'))";
+    query = "SELECT gt.title, gt.groupId, gt.deviceProgramUuid AS gProgram FROM `group` AS gt";
 //    kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] QUERY GROUP: %s", TAG, query.data());
     res = dBase->sqlexec(query.data());
     if (res) {
@@ -374,7 +344,7 @@ void checkLightProgram(DBase *dBase, time_t currentTime, double lon, double lat,
             std::string gProgram;
             std::string date;
             std::string time;
-            int type;
+            int type = 1; // нас интересует только закат
             std::string gcProgram;
 
             groupId = std::stoi(row[dBase->getFieldIndex("groupId")]);
@@ -392,49 +362,12 @@ void checkLightProgram(DBase *dBase, time_t currentTime, double lon, double lat,
                 programUuids[gProgram] = gProgram;
             }
 
-            tmpData = row[dBase->getFieldIndex("date")];
-            if (tmpData == nullptr) {
-                date.clear();
-            } else {
-                date = tmpData;
-            }
-
-            tmpData = row[dBase->getFieldIndex("datetime")];
-            if (tmpData == nullptr) {
-                time.clear();
-            } else {
-                time = tmpData;
-            }
-
-            tmpData = row[dBase->getFieldIndex("type")];
-            if (tmpData == nullptr) {
-                type = -1;
-            } else {
-                type = std::stoi(tmpData);
-            }
-
-            tmpData = row[dBase->getFieldIndex("gcProgram")];
-            if (tmpData == nullptr) {
-                gcProgram.clear();
-            } else {
-                gcProgram = tmpData;
-            }
-
             // вносим данные в массив
-            if (type == 0 || type == 1) {
-                if (!gcProgram.empty()) {
-                    groups[groupId][date][type]["prog"] = gcProgram;
-                    programUuids[gcProgram] = gcProgram;
-                } else {
-                    groups[groupId][date][type]["prog"] = gProgram;
-                    if (!gProgram.empty()) {
-                        programUuids[gProgram] = gProgram;
-                    }
-                }
-
-                if (!time.empty()) {
-                    groups[groupId][date][type]["time"] = time;
-                }
+            groups[groupId][prevDate][type]["prog"] = gProgram;
+            groups[groupId][currDate][type]["prog"] = gProgram;
+            groups[groupId][nextDate][type]["prog"] = gProgram;
+            if (!gProgram.empty()) {
+                programUuids[gProgram] = gProgram;
             }
         }
 
@@ -491,7 +424,7 @@ void checkLightProgram(DBase *dBase, time_t currentTime, double lon, double lat,
 
     // к этому моменту у меня есть список программ, список групп со всеми астрособытиями для них, астрособытия для шкафа (с учётом календарей)
 
-    // массив в который складируем время-уровень освещённости (должно быть 12 значений)
+    // массив в который складируем время-уровень освещённости (должно быть 16 значений)
     std::map<time_t, uint8_t> testData;
 
     // расчитываем временные метки за вчерашний день начиная с заката и сегодняшнего рассвета плюс с сегодняшнего заката до завтрашнего рассвета

@@ -44,7 +44,7 @@ add_executable(escada_core
         tinyxml2.cpp
         tinyxml2.h TypeThread.cpp TypeThread.h drivers/MtmZigbee.cpp drivers/MtmZigbee.h function.cpp
         suninfo.cpp suninfo.h
-        drivers/MtmZigbeeUtils.cpp LightFlags.cpp LightFlags.h
+        drivers/MtmZigbeeUtils.cpp
         zigbeemtm/zigbeemtm.cpp drivers/lightUtils.cpp drivers/lightUtils.h drivers/DeviceProgram.cpp drivers/DeviceProgram.h)
 
 #target_link_libraries(escada_core /usr/local/lib/libmysqlclient.dylib)

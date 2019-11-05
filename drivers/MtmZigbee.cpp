@@ -18,7 +18,6 @@
 #include <stdlib.h>
 #include <jsoncpp/json/json.h>
 #include <jsoncpp/json/value.h>
-#include "LightFlags.h"
 #include "lightUtils.h"
 
 int coordinatorFd;
@@ -31,7 +30,6 @@ int32_t mtmZigBeeThreadId;
 Kernel *kernel;
 bool isSunInit;
 bool isSunSet, isTwilightEnd, isTwilightStart, isSunRise;
-std::map<std::string, LightFlags> lightFlags;
 std::string coordinatorUuid;
 bool isCheckCoordinatorRespond;
 

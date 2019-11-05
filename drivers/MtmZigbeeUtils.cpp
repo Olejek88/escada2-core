@@ -9,7 +9,6 @@
 #include <jsoncpp/json/value.h>
 #include <suninfo.h>
 #include <function.h>
-#include "LightFlags.h"
 #include "main.h"
 #include <ctime>
 
@@ -17,7 +16,6 @@ extern Kernel *kernel;
 extern bool isSunInit;
 extern bool isSunSet, isTwilightEnd, isTwilightStart, isSunRise;
 extern int coordinatorFd;
-extern std::map<std::string, LightFlags> lightFlags;
 extern std::string coordinatorUuid;
 
 void log_buffer_hex(uint8_t *buffer, size_t buffer_size) {
