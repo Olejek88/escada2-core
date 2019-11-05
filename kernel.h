@@ -21,6 +21,7 @@ public:
 
     char    log_name[MAX_FILE_LENGTH];    // maximum file length
     tm      *current_time;            // current system time
+    bool isDebug = false;
 private:
     Kernel() {}
 

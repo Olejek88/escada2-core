@@ -229,15 +229,15 @@ ssize_t send_cmd(int fd, uint8_t *buffer, size_t size, Kernel *kernel) {
     ssize_t count = 0;
     ssize_t writen;
 
-#ifdef DEBUG
-    char pktStr[2048] = {0};
-    for (int i = 0; i < size; i++) {
-        sprintf(&pktStr[i * 2], "%02X", buffer[i]);
-    }
+    if (kernel->isDebug) {
+        char pktStr[2048] = {0};
+        for (int i = 0; i < size; i++) {
+            sprintf(&pktStr[i * 2], "%02X", buffer[i]);
+        }
 
-    kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] RAW out packet", TAG);
-    kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] %s", TAG, pktStr);
-#endif
+        kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] RAW out packet", TAG);
+        kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] %s", TAG, pktStr);
+    }
 
     while (count < size) {
         writen = write(fd, &buffer[count], size - count);

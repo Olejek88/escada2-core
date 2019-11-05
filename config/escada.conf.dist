@@ -5,3 +5,6 @@
     <pass>root8888</pass>
     <database>escada-new</database>
 </database>
+<options>
+    <debug>false</debug>
+</options>

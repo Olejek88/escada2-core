@@ -552,14 +552,14 @@ void checkLightProgram(DBase *dBase, time_t currentTime, double lon, double lat,
 
     // TODO: скопировать необходимые данные для отладки и протоколирования из старого варианта
 /*
-#ifdef DEBUG
+if (kernel->isDebug) {
     kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] checkTime: %llu", TAG, checkTime);
     kernel->log.ulogw(LOG_LEVEL_INFO,
                       "[%s] twilightStartTime: %llu, sunRiseTime: %llu, sunSetTime: %llu, twilightEndTime: %llu",
                       TAG, twilightStartTime, sunRiseTime, sunSetTime, twilightEndTime);
     kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] dayLen: %llu, nightLen: %llu, twilightLen: %llu, sum: %llu",
                       TAG, dayLen, nightLen, twilightLen, dayLen + nightLen + twilightLen);
-#endif
+}
 
     res = dBase->sqlexec(query.data());
     if (res) {
@@ -576,10 +576,10 @@ void checkLightProgram(DBase *dBase, time_t currentTime, double lon, double lat,
 
                 time1loc = time1raw > 86400 ? time1raw - 86400 : time1raw;
                 time2loc = time2raw > 86400 ? time2raw - 86400 : time2raw;
-#ifdef DEBUG
+if (kernel->isDebug) {
                 kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] time1raw: %llu, time2raw: %llu", TAG, time1raw, time2raw);
                 kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] time1loc: %llu, time2loc: %llu", TAG, time1loc, time2loc);
-#endif
+}
             }
 
             ssize_t rc;
@@ -591,16 +591,16 @@ void checkLightProgram(DBase *dBase, time_t currentTime, double lon, double lat,
                     if ((checkTime >= sunSetTime && checkTime < 86400) ||
                         (checkTime >= 0 && checkTime < twilightEndTimeLoc)) {
                         processed = true;
-#ifdef DEBUG
+if (kernel->isDebug) {
                         kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] %s period 1 overnight", TAG, address.data());
-#endif
+}
                     }
                 } else {
                     if (checkTime >= sunSetTime && checkTime < twilightEndTime) {
                         processed = true;
-#ifdef DEBUG
+if (kernel->isDebug) {
                         kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] %s period 1", TAG, address.data());
-#endif
+}
                     }
                 }
 
@@ -615,10 +615,10 @@ void checkLightProgram(DBase *dBase, time_t currentTime, double lon, double lat,
                                           (char *) "Ошибка записи в порт координатора");
                         return;
                     }
-#ifdef DEBUG
+if (kernel->isDebug) {
                     kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] checkTime: %ld", TAG, checkTime);
                     kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] rc=%ld", TAG, rc);
-#endif
+}
                 }
             }
 
@@ -630,16 +630,16 @@ void checkLightProgram(DBase *dBase, time_t currentTime, double lon, double lat,
                     if ((checkTime >= twilightEndTime && checkTime < 86400) ||
                         (checkTime >= 0 && checkTime < time1loc)) {
                         processed = true;
-#ifdef DEBUG
+if (kernel->isDebug) {
                         kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] %s period 2 overnight", TAG, address.data());
-#endif
+}
                     }
                 } else {
                     if (checkTime >= twilightEndTime && checkTime < time1loc) {
                         processed = true;
-#ifdef DEBUG
+if (kernel->isDebug) {
                         kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] %s period 2", TAG, address.data());
-#endif
+}
                     }
                 }
 
@@ -654,10 +654,10 @@ void checkLightProgram(DBase *dBase, time_t currentTime, double lon, double lat,
                                           (char *) "Ошибка записи в порт координатора");
                         return;
                     }
-#ifdef DEBUG
+if (kernel->isDebug) {
                     kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] checkTime: %ld", TAG, checkTime);
                     kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] rc=%ld", TAG, rc);
-#endif
+}
                 }
             }
 
@@ -668,17 +668,17 @@ void checkLightProgram(DBase *dBase, time_t currentTime, double lon, double lat,
                     // переход через полночь (time1 находится до полуночи, time2 после полуночи)
                     if ((checkTime >= time1raw && checkTime < 86400) || (checkTime >= 0 && checkTime < time2loc)) {
                         processed = true;
-#ifdef DEBUG
+if (kernel->isDebug) {
                         kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] %s period 3 overnight time2 after", TAG,
                                           address.data());
-#endif
+}
                     }
                 } else {
                     if (checkTime >= time1loc && checkTime < time2loc) {
                         processed = true;
-#ifdef DEBUG
+if (kernel->isDebug) {
                         kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] %s period 3", TAG, address.data());
-#endif
+}
                     }
                 }
 
@@ -693,10 +693,10 @@ void checkLightProgram(DBase *dBase, time_t currentTime, double lon, double lat,
                                           (char *) "Ошибка записи в порт координатора");
                         return;
                     }
-#ifdef DEBUG
+if (kernel->isDebug) {
                     kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] checkTime: %ld", TAG, checkTime);
                     kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] rc=%ld", TAG, rc);
-#endif
+}
                 }
             }
 
@@ -707,17 +707,17 @@ void checkLightProgram(DBase *dBase, time_t currentTime, double lon, double lat,
                     // переход через полночь (time2 находится после полуночи)
                     if (checkTime >= time2loc && checkTime < twilightStartTime) {
                         processed = true;
-#ifdef DEBUG
+if (kernel->isDebug) {
                         kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] %s period 4 overnight", TAG, address.data());
-#endif
+}
                     }
                 } else {
                     if ((checkTime >= time2loc && checkTime < 86400) ||
                         (checkTime >= 0 && checkTime < twilightStartTime)) {
                         processed = true;
-#ifdef DEBUG
+if (kernel->isDebug) {
                         kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] %s period 4", TAG, address.data());
-#endif
+}
                     }
                 }
 
@@ -732,10 +732,10 @@ void checkLightProgram(DBase *dBase, time_t currentTime, double lon, double lat,
                                           (char *) "Ошибка записи в порт координатора");
                         return;
                     }
-#ifdef DEBUG
+if (kernel->isDebug) {
                     kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] checkTime: %ld", TAG, checkTime);
                     kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] rc=%ld", TAG, rc);
-#endif
+}
                 }
             }
 
@@ -752,11 +752,11 @@ void checkLightProgram(DBase *dBase, time_t currentTime, double lon, double lat,
                                           (char *) "Ошибка записи в порт координатора");
                         return;
                     }
-#ifdef DEBUG
+if (kernel->isDebug) {
                     kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] %s period 5", TAG, address.data());
                     kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] checkTime: %llu", TAG, checkTime);
                     kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] rc=%ld", TAG, rc);
-#endif
+}
                 }
             }
 
@@ -765,12 +765,12 @@ void checkLightProgram(DBase *dBase, time_t currentTime, double lon, double lat,
                 if (checkTime >= sunRiseTime && checkTime < sunSetTime) {
                     isDay = true;
                     lightFlags[address].setDayActive();
-#ifdef DEBUG
+if (kernel->isDebug) {
                     kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] %s period day", TAG, address.data());
                     kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] checkTime: %llu", TAG, checkTime);
                     // TODO: разобраться - должен я здесь отправлять какие-то команды?
 //                    kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] rc=%ld", TAG, rc);
-#endif
+}
                 }
             }
 
@@ -795,10 +795,10 @@ void checkLightProgram(DBase *dBase, time_t currentTime, double lon, double lat,
                                   (char *) "Ошибка записи в порт координатора");
                 return;
             }
-#ifdef DEBUG
+if (kernel->isDebug) {
             kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] Switch all lights off by program", TAG);
             kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] rc=%ld", TAG, rc);
-#endif
+}
         }
 
         mysql_free_result(res);

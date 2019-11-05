@@ -99,6 +99,15 @@ int main(int argc, char *argv[]) {
 int Kernel::init() {
     tinyxml2::XMLDocument doc;
     if (doc.LoadFile("config/escada.conf") == tinyxml2::XML_SUCCESS) {
+        // получение настройки отладки из конфига
+        tinyxml2::XMLElement *options = doc.FirstChildElement("options");
+        if (options != nullptr) {
+            tinyxml2::XMLElement *debug = options->FirstChildElement("debug");
+            if (debug != nullptr) {
+                this->isDebug = debug->BoolText(false);
+            }
+        }
+
         if (dBase->openConnection() == 0) {
             log.ulogw(LOG_LEVEL_INFO, "database initialisation success");
         } else {
