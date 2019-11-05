@@ -752,7 +752,7 @@ void checkAstroEvents(time_t currentTime, double lon, double lat, DBase *dBase, 
             char message[1024];
             sprintf(message, "Наступил конец сумерек, включаем реле контактора.");
             kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] %s", TAG, message);
-            AddDeviceRegister(dBase, (char *) coordinatorUuid.data(), message);
+//            AddDeviceRegister(dBase, (char *) coordinatorUuid.data(), message);
 
             // даём задержку для того чтоб стартанули модули в светильниках
             // т.к. неизвестно, питаются они через контактор или всё время под напряжением
@@ -786,7 +786,7 @@ void checkAstroEvents(time_t currentTime, double lon, double lat, DBase *dBase, 
             char message[1024];
             sprintf(message, "Наступило начало сумерек, включаем реле контактора.");
             kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] %s", TAG, message);
-            AddDeviceRegister(dBase, (char *) coordinatorUuid.data(), message);
+//            AddDeviceRegister(dBase, (char *) coordinatorUuid.data(), message);
 
             // даём задержку для того чтоб стартанули модули в светильниках
             // т.к. неизвестно, питаются они через контактор или всё время под напряжением
