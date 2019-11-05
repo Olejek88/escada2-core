@@ -305,6 +305,9 @@ void checkLightProgram(DBase *dBase, time_t currentTime, double lon, double lat,
 //    ttm.tm_gmtoff = 5 * 3600;
 //    currentTime = std::mktime(&ttm);
 
+    MYSQL_RES *res;
+    MYSQL_ROW row;
+
     // асоциативный массив в котором будем хранить данные по датам, времени, действиям, программам групп
     groupsMap groups;
 
@@ -326,13 +329,15 @@ void checkLightProgram(DBase *dBase, time_t currentTime, double lon, double lat,
     // вспомогательный массив для списка используемых программ
     std::map<std::string, std::string> programUuids;
 
-    auto daeIt = defAstroEvents->begin();
-    std::string prevDate = (daeIt++)->first, currDate = (daeIt++)->first, nextDate = (daeIt++)->first;
-    MYSQL_RES *res;
-    MYSQL_ROW row;
     // выбираем данные по группам
+    auto daeIt = defAstroEvents->begin();
     std::string query;
-    query = "SELECT gt.title, gt.groupId, gt.deviceProgramUuid AS gProgram FROM `group` AS gt";
+    query =
+            "SELECT gt.title, gt.groupId, gt.deviceProgramUuid AS gProgram, date(gct.date) as date, time(gct.date) as time, gct.type as type, gct.deviceProgramUuid AS gcProgram, UNIX_TIMESTAMP(gct.date) AS datetime "
+            "FROM `group` AS gt "
+            "LEFT JOIN group_control AS gct ON "
+            "(gct.groupUuid=gt.uuid AND DATE(gct.date) IN('" + (daeIt++)->first + "', '" + (daeIt++)->first + "', '" +
+            (daeIt++)->first + "'))";
 //    kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] QUERY GROUP: %s", TAG, query.data());
     res = dBase->sqlexec(query.data());
     if (res) {
@@ -344,7 +349,7 @@ void checkLightProgram(DBase *dBase, time_t currentTime, double lon, double lat,
             std::string gProgram;
             std::string date;
             std::string time;
-            int type = 1; // нас интересует только закат
+            int type;
             std::string gcProgram;
 
             groupId = std::stoi(row[dBase->getFieldIndex("groupId")]);
@@ -362,12 +367,49 @@ void checkLightProgram(DBase *dBase, time_t currentTime, double lon, double lat,
                 programUuids[gProgram] = gProgram;
             }
 
+            tmpData = row[dBase->getFieldIndex("date")];
+            if (tmpData == nullptr) {
+                date.clear();
+            } else {
+                date = tmpData;
+            }
+
+            tmpData = row[dBase->getFieldIndex("datetime")];
+            if (tmpData == nullptr) {
+                time.clear();
+            } else {
+                time = tmpData;
+            }
+
+            tmpData = row[dBase->getFieldIndex("type")];
+            if (tmpData == nullptr) {
+                type = -1;
+            } else {
+                type = std::stoi(tmpData);
+            }
+
+            tmpData = row[dBase->getFieldIndex("gcProgram")];
+            if (tmpData == nullptr) {
+                gcProgram.clear();
+            } else {
+                gcProgram = tmpData;
+            }
+
             // вносим данные в массив
-            groups[groupId][prevDate][type]["prog"] = gProgram;
-            groups[groupId][currDate][type]["prog"] = gProgram;
-            groups[groupId][nextDate][type]["prog"] = gProgram;
-            if (!gProgram.empty()) {
-                programUuids[gProgram] = gProgram;
+            if (type == 1) {
+                if (!gcProgram.empty()) {
+                    groups[groupId][date][type]["prog"] = gcProgram;
+                    programUuids[gcProgram] = gcProgram;
+                } else {
+                    groups[groupId][date][type]["prog"] = gProgram;
+                    if (!gProgram.empty()) {
+                        programUuids[gProgram] = gProgram;
+                    }
+                }
+
+                if (!time.empty()) {
+                    groups[groupId][date][type]["time"] = time;
+                }
             }
         }
 
