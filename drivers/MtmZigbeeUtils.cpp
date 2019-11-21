@@ -535,6 +535,45 @@ void makeLightRssiHopsStatus(DBase *dBase, uint8_t *address, const uint8_t *pack
     }
 }
 
+void makeSensor02Status(DBase *dBase, uint8_t *address, const uint8_t *packetBuffer) {
+    uint8_t deviceUuid[37];
+    uuid_t newUuid;
+    uint8_t newUuidString[37] = {0};
+    std::string measureUuid;
+    time_t createTime = time(nullptr);
+    int16_t value;
+    char message[1024];
+
+    memset(deviceUuid, 0, 37);
+    if (!findDevice(dBase, address, deviceUuid)) {
+        sprintf(message, "Не удалось найти устройство с адресом %s", address);
+        kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] %s", TAG, message);
+        AddDeviceRegister(dBase, (char *) coordinatorUuid.data(), message);
+        return;
+    }
+
+    // найти канал по устройству sensor_channel и regIdx (Датчик CO2)
+    std::string tempChannelUuid = findSChannel(dBase, deviceUuid, MTM_ZB_CHANNEL_SENSOR_02_IDX, CHANNEL_CO2);
+    if (!tempChannelUuid.empty()) {
+        value = *(uint16_t * ) & packetBuffer[37];
+        measureUuid = findMeasure(dBase, &tempChannelUuid, MTM_ZB_CHANNEL_SENSOR_02_IDX);
+        if (!measureUuid.empty()) {
+            if (updateMeasureValue(dBase, (uint8_t *) measureUuid.data(), value, createTime)) {
+                kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] %s %s", TAG, "Не удалось обновить измерение",
+                                  MTM_ZB_CHANNEL_SENSOR_02_TITLE);
+            }
+        } else {
+            // создать новое измерение для канала
+            uuid_generate(newUuid);
+            uuid_unparse_upper(newUuid, (char *) newUuidString);
+            if (storeMeasureValue(dBase, newUuidString, &tempChannelUuid, (double) value, createTime, createTime)) {
+                kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] %s %s", TAG, "Не удалось сохранить измерение",
+                                  MTM_ZB_CHANNEL_SENSOR_02_TITLE);
+            }
+        }
+    }
+}
+
 void makeCoordinatorTemperature(DBase *dBase, uint8_t *address, const uint8_t *packetBuffer) {
     uint8_t deviceUuid[37];
     std::string sChannelUuid;

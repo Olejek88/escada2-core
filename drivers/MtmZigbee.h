@@ -45,6 +45,10 @@
 #define MTM_ZB_CHANNEL_LIGHT_HOP_COUNT_IDX 0
 #define MTM_ZB_CHANNEL_LIGHT_HOP_COUNT_TITLE "Hops"
 
+#define MTM_ZB_CHANNEL_SENSOR_02_IDX 0
+#define MTM_ZB_CHANNEL_SENSOR_02_TITLE "Датчик CO2"
+
+
 void *mtmZigbeeDeviceThread(void *device);
 
 int32_t mtmZigbeeInit(int32_t mode, uint8_t *path, uint32_t speed);
@@ -105,5 +109,7 @@ void mtmCheckLinkState(DBase *dBase);
 void makeCoordinatorTemperature(DBase *dBase, uint8_t *address, const uint8_t *packetBuffer);
 
 void fillTimeStruct(double time, struct tm *dtm);
+
+void makeSensor02Status(DBase *dBase, uint8_t *address, const uint8_t *packetBuffer);
 
 #endif //ESCADA_CORE_MTMZIGBEE_H

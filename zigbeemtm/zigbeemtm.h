@@ -59,6 +59,8 @@ enum {
 
 #define MTM_DEVICE_LIGHT 0x0000
 #define MTM_DEVICE_RSSI 0x0001
+#define MTM_SENSOR_02 0x0002
+#define MTM_SENSOR_CO2 MTM_SENSOR_02
 
 // команда mt
 //typedef struct _zigbee_mt_cmd {
