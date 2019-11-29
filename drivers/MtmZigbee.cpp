@@ -19,6 +19,7 @@
 #include <jsoncpp/json/json.h>
 #include <jsoncpp/json/value.h>
 #include "lightUtils.h"
+#include "ce102.h"
 
 int coordinatorFd;
 bool mtmZigbeeStarted = false;
@@ -664,6 +665,9 @@ void mtmZigbeeProcessInPacket(uint8_t *pktBuff, uint32_t length) {
     uint16_t cluster;
     uint8_t address[32];
     uint8_t mtmLightStatusPktSize;
+    auto *addressStr = new std::string();
+    uint16_t sensorDataCount;
+    Device *device;
 
     if (kernel->isDebug) {
         char pktStr[2048] = {0};
@@ -759,6 +763,7 @@ void mtmZigbeeProcessInPacket(uint8_t *pktBuff, uint32_t length) {
                     sprintf((char *) address, "%02X%02X%02X%02X%02X%02X%02X%02X",
                             pktBuff[30], pktBuff[29], pktBuff[28], pktBuff[27],
                             pktBuff[26], pktBuff[25], pktBuff[24], pktBuff[23]);
+                    addressStr->assign((char *) address);
 
                     base64_encode_init(&b64_ctx);
 #ifdef __APPLE__
@@ -784,33 +789,46 @@ void mtmZigbeeProcessInPacket(uint8_t *pktBuff, uint32_t length) {
                             mysql_free_result(res);
                         }
                     }
+
                     // из размера пакета вычитаем два байта заголовка, восемь байт адреса, два байта флагов аварии
-                    for (uint8_t statusIdx = 0; statusIdx < (mtmLightStatusPktSize - 12) / 2; statusIdx++) {
-                        switch (statusIdx) {
-                            case MTM_DEVICE_LIGHT :
-                                makeLightStatus(mtmZigbeeDBase, address, pktBuff);
-                                break;
-                            case MTM_DEVICE_RSSI :
-                                makeLightRssiHopsStatus(mtmZigbeeDBase, address, pktBuff);
-                                break;
-                            case 2 :
-                                makeSensor02Status(mtmZigbeeDBase, address, pktBuff);
-                                break;
-                            case 3 :
-                            case 4 :
-                            case 5 :
-                            case 6 :
-                            case 7 :
-                            case 8 :
-                            case 9 :
-                            case 10 :
-                            case 11 :
-                            case 12 :
-                            case 13 :
-                            case 14 :
-                            case 15 :
-                            default:
-                                break;
+                    sensorDataCount = (mtmLightStatusPktSize - 12) / 2;
+                    // получаем устройство
+                    device = findDeviceByAddress(mtmZigbeeDBase, addressStr);
+                    if (device != nullptr) {
+                        uint16_t listLength;
+                        SensorChannel *list = findSensorChannelsByDevice(mtmZigbeeDBase, &device->uuid, &listLength);
+                        if (list != nullptr) {
+                            for (uint16_t i = 0; i < listLength; i++) {
+                                uint16_t reg = list[i].reg;
+                                if (reg < sensorDataCount) {
+                                    // добавляем измерение
+                                    if (list[i].measureTypeUuid == CHANNEL_STATUS) {
+                                        uint16_t alerts = *(uint16_t *) &pktBuff[31];
+                                        int8_t value = alerts & 0x0001u;
+                                        storeMeasureValueExt(mtmZigbeeDBase, &list[i], value);
+                                    } else if (list[i].measureTypeUuid == CHANNEL_W) {
+                                        int idx = 33 + reg * 2; // должны получить 33
+                                        int8_t value = pktBuff[idx];
+                                        storeMeasureValueExt(mtmZigbeeDBase, &list[i], value);
+                                    } else if (list[i].measureTypeUuid == CHANNEL_T) {
+                                        int idx = 33 + reg * 2 + 1; // должны получить 34
+                                        int8_t value = pktBuff[idx];
+                                        storeMeasureValueExt(mtmZigbeeDBase, &list[i], value);
+                                    } else if (list[i].measureTypeUuid == CHANNEL_RSSI) {
+                                        int idx = 33 + reg * 2; // должны получить 35
+                                        int8_t value = pktBuff[idx]; // должны получить 35
+                                        storeMeasureValueExt(mtmZigbeeDBase, &list[i], value);
+                                    } else if (list[i].measureTypeUuid == CHANNEL_HOP_COUNT) {
+                                        int idx = 33 + reg * 2 + 1; // должны получить 36
+                                        int8_t value = pktBuff[idx];
+                                        storeMeasureValueExt(mtmZigbeeDBase, &list[i], value);
+                                    } else if (list[i].measureTypeUuid == CHANNEL_CO2) {
+                                        int idx = 33 + reg * 2; // должны получить 37
+                                        uint16_t value = *(uint16_t *) &pktBuff[idx];
+                                        storeMeasureValueExt(mtmZigbeeDBase, &list[i], value);
+                                    }
+                                }
+                            }
                         }
                     }
                     break;

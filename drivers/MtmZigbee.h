@@ -5,6 +5,8 @@
 #include <zigbeemtm.h>
 #include <termios.h>
 #include <iostream>
+#include "drivers/Device.h"
+#include "drivers/SensorChannel.h"
 
 #define MTM_ZIGBEE_FIFO 0
 #define MTM_ZIGBEE_COM_PORT 1
@@ -18,6 +20,7 @@
 #define CHANNEL_RELAY_STATE CHANNEL_DIGI1
 #define CHANNEL_RSSI "06F2D619-CB5A-4561-82DF-4C87DF06C6FE"
 #define CHANNEL_HOP_COUNT "74656AFD-F536-49AE-A71A-83F0EEE9C912"
+#define CHANNEL_CO2 "A2E80AB5-952D-4428-8044-28F55BC104C7"
 
 #define MTM_ZB_CHANNEL_COORD_IN1_IDX 0
 #define MTM_ZB_CHANNEL_COORD_DOOR_IDX MTM_ZB_CHANNEL_COORD_IN1_IDX
@@ -34,20 +37,6 @@
 
 #define MTM_ZB_CHANNEL_LIGHT_TEMPERATURE_IDX 0
 #define MTM_ZB_CHANNEL_LIGHT_TEMPERATURE_TITLE "Температура"
-#define MTM_ZB_CHANNEL_LIGHT_CURRENT_IDX 0
-#define MTM_ZB_CHANNEL_LIGHT_CURRENT_TITLE "Ток"
-#define MTM_ZB_CHANNEL_LIGHT_STATUS_IDX 0
-#define MTM_ZB_CHANNEL_LIGHT_STATUS_TITLE "Статус"
-#define MTM_ZB_CHANNEL_LIGHT_RSSI_IDX 0
-#define MTM_ZB_CHANNEL_LIGHT_RSSI_TITLE "RSSI"
-#define MTM_ZB_CHANNEL_LIGHT_POWER_IDX 0
-#define MTM_ZB_CHANNEL_LIGHT_POWER_TITLE "Мощность"
-#define MTM_ZB_CHANNEL_LIGHT_HOP_COUNT_IDX 0
-#define MTM_ZB_CHANNEL_LIGHT_HOP_COUNT_TITLE "Hops"
-
-#define MTM_ZB_CHANNEL_SENSOR_02_IDX 0
-#define MTM_ZB_CHANNEL_SENSOR_02_TITLE "Датчик CO2"
-
 
 void *mtmZigbeeDeviceThread(void *device);
 
@@ -90,8 +79,6 @@ std::string findMeasure(DBase *dBase, std::string *sChannelUuid, uint8_t regIdx)
 
 bool updateMeasureValue(DBase *dBase, uint8_t *uuid, double value, time_t changedTime);
 
-void makeLightStatus(DBase *dBase, uint8_t *address, const uint8_t *packetBuffer);
-
 std::string getSChannelConfig(DBase *dBase, std::string *sChannelUuid);
 
 void checkAstroEvents(time_t currentTime, double lon, double lat, DBase *dBase, int32_t threadId);
@@ -102,14 +89,22 @@ ssize_t sendLightLevel(char *addrString, char *level);
 
 void mtmZigbeeStopThread(DBase *dBase, int32_t threadId);
 
-void makeLightRssiHopsStatus(DBase *dBase, uint8_t *address, const uint8_t *packetBuffer);
-
 void mtmCheckLinkState(DBase *dBase);
 
 void makeCoordinatorTemperature(DBase *dBase, uint8_t *address, const uint8_t *packetBuffer);
 
 void fillTimeStruct(double time, struct tm *dtm);
 
-void makeSensor02Status(DBase *dBase, uint8_t *address, const uint8_t *packetBuffer);
+Device *findDeviceByAddress(DBase *dBase, std::string *address);
+
+SensorChannel *findSensorChannelsByDevice(DBase *dBase, std::string *deviceUuid, uint16_t *size);
+
+void storeMeasureValueExt(DBase *dBase, SensorChannel *sc, int16_t value);
+
+bool updateMeasureValueExt(DBase *dBase, uint8_t *uuid, int32_t regIdx, double value, time_t changedTime);
+
+bool insertMeasureValue(DBase *dBase, uint8_t *uuid, std::string *channelUuid, int32_t regIdx, double value,
+                        time_t createTime,
+                        time_t changedTime);
 
 #endif //ESCADA_CORE_MTMZIGBEE_H
