@@ -246,14 +246,14 @@ bool updateMeasureValue(DBase *dBase, uint8_t *uuid, double value, time_t change
     return dBase->isError();
 }
 
-bool updateMeasureValueExt(DBase *dBase, uint8_t *uuid, int32_t regIdx, double value, time_t changedTime) {
+bool updateMeasureValueExt(DBase *dBase, uint8_t *uuid, int32_t type, double value, time_t changedTime) {
 
     MYSQL_RES *res;
     char query[1024];
 
     sprintf(query,
             "UPDATE data SET type=%d, value=%f, date=FROM_UNIXTIME(%ld), changedAt=FROM_UNIXTIME(%ld) WHERE uuid = '%s'",
-            regIdx, value, changedTime, changedTime, uuid);
+            type, value, changedTime, changedTime, uuid);
     if (kernel->isDebug) {
         kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] %s", TAG, query);
     }
@@ -286,7 +286,7 @@ bool storeMeasureValue(DBase *dBase, uint8_t *uuid, std::string *channelUuid, do
     return dBase->isError();
 }
 
-bool insertMeasureValue(DBase *dBase, uint8_t *uuid, std::string *channelUuid, int32_t regIdx, double value,
+bool insertMeasureValue(DBase *dBase, uint8_t *uuid, std::string *channelUuid, int32_t type, double value,
                         time_t createTime,
                         time_t changedTime) {
     MYSQL_RES *res;
@@ -294,7 +294,7 @@ bool insertMeasureValue(DBase *dBase, uint8_t *uuid, std::string *channelUuid, i
 
     sprintf(query,
             "INSERT INTO data (uuid, sensorChannelUuid, type, value, date, createdAt) value('%s', '%s', %d, %f, FROM_UNIXTIME(%ld), FROM_UNIXTIME(%ld))",
-            uuid, channelUuid->data(), regIdx, value, createTime, changedTime);
+            uuid, channelUuid->data(), type, value, createTime, changedTime);
     if (kernel->isDebug) {
         kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] %s", TAG, query);
     }
@@ -520,21 +520,22 @@ void makeCoordinatorStatus(DBase *dBase, uint8_t *address, const uint8_t *packet
     }
 }
 
-void storeMeasureValueExt(DBase *dBase, SensorChannel *sc, int16_t value) {
+void storeMeasureValueExt(DBase *dBase, SensorChannel *sc, int16_t value, bool instant) {
     uuid_t newUuid;
     uint8_t newUuidString[37] = {0};
     time_t createTime = time(nullptr);
 
-    std::string measureUuid = findMeasure(dBase, &sc->uuid, sc->reg);
-    if (!measureUuid.empty()) {
-        if (updateMeasureValueExt(dBase, (uint8_t *) measureUuid.data(), sc->reg, value, createTime)) {
+    int8_t type = instant ? 0 : 1;
+    std::string measureUuid = findMeasure(dBase, &sc->uuid, type);
+    if (!measureUuid.empty() && instant) {
+        if (updateMeasureValueExt(dBase, (uint8_t *) measureUuid.data(), type, value, createTime)) {
             kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] %s %s", TAG, "Не удалось обновить измерение", sc->title.data());
         }
     } else {
         // создать новое измерение для канала
         uuid_generate(newUuid);
         uuid_unparse_upper(newUuid, (char *) newUuidString);
-        if (insertMeasureValue(dBase, newUuidString, &sc->uuid, sc->reg, (double) value, createTime, createTime)) {
+        if (insertMeasureValue(dBase, newUuidString, &sc->uuid, type, (double) value, createTime, createTime)) {
             kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] %s %s", TAG, "Не удалось сохранить измерение", sc->title.data());
         }
     }

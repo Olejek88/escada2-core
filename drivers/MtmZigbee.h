@@ -99,7 +99,7 @@ Device *findDeviceByAddress(DBase *dBase, std::string *address);
 
 SensorChannel *findSensorChannelsByDevice(DBase *dBase, std::string *deviceUuid, uint16_t *size);
 
-void storeMeasureValueExt(DBase *dBase, SensorChannel *sc, int16_t value);
+void storeMeasureValueExt(DBase *dBase, SensorChannel *sc, int16_t value, bool instant);
 
 bool updateMeasureValueExt(DBase *dBase, uint8_t *uuid, int32_t regIdx, double value, time_t changedTime);
 

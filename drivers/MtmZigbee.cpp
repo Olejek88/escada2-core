@@ -805,27 +805,27 @@ void mtmZigbeeProcessInPacket(uint8_t *pktBuff, uint32_t length) {
                                     if (list[i].measureTypeUuid == CHANNEL_STATUS) {
                                         uint16_t alerts = *(uint16_t *) &pktBuff[31];
                                         int8_t value = alerts & 0x0001u;
-                                        storeMeasureValueExt(mtmZigbeeDBase, &list[i], value);
+                                        storeMeasureValueExt(mtmZigbeeDBase, &list[i], value, true);
                                     } else if (list[i].measureTypeUuid == CHANNEL_W) {
-                                        int idx = 33 + reg * 2; // должны получить 33
+                                        int idx = 33 + reg * 2;
                                         int8_t value = pktBuff[idx];
-                                        storeMeasureValueExt(mtmZigbeeDBase, &list[i], value);
+                                        storeMeasureValueExt(mtmZigbeeDBase, &list[i], value, true);
                                     } else if (list[i].measureTypeUuid == CHANNEL_T) {
-                                        int idx = 33 + reg * 2 + 1; // должны получить 34
+                                        int idx = 33 + reg * 2 + 1;
                                         int8_t value = pktBuff[idx];
-                                        storeMeasureValueExt(mtmZigbeeDBase, &list[i], value);
+                                        storeMeasureValueExt(mtmZigbeeDBase, &list[i], value, true);
                                     } else if (list[i].measureTypeUuid == CHANNEL_RSSI) {
-                                        int idx = 33 + reg * 2; // должны получить 35
-                                        int8_t value = pktBuff[idx]; // должны получить 35
-                                        storeMeasureValueExt(mtmZigbeeDBase, &list[i], value);
-                                    } else if (list[i].measureTypeUuid == CHANNEL_HOP_COUNT) {
-                                        int idx = 33 + reg * 2 + 1; // должны получить 36
+                                        int idx = 33 + reg * 2;
                                         int8_t value = pktBuff[idx];
-                                        storeMeasureValueExt(mtmZigbeeDBase, &list[i], value);
+                                        storeMeasureValueExt(mtmZigbeeDBase, &list[i], value, true);
+                                    } else if (list[i].measureTypeUuid == CHANNEL_HOP_COUNT) {
+                                        int idx = 33 + reg * 2 + 1;
+                                        int8_t value = pktBuff[idx];
+                                        storeMeasureValueExt(mtmZigbeeDBase, &list[i], value, true);
                                     } else if (list[i].measureTypeUuid == CHANNEL_CO2) {
-                                        int idx = 33 + reg * 2; // должны получить 37
+                                        int idx = 33 + reg * 2;
                                         uint16_t value = *(uint16_t *) &pktBuff[idx];
-                                        storeMeasureValueExt(mtmZigbeeDBase, &list[i], value);
+                                        storeMeasureValueExt(mtmZigbeeDBase, &list[i], value, false);
                                     }
                                 }
                             }
