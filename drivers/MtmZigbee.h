@@ -107,4 +107,6 @@ bool insertMeasureValue(DBase *dBase, uint8_t *uuid, std::string *channelUuid, i
                         time_t createTime,
                         time_t changedTime);
 
+bool manualMode(DBase *dBase);
+
 #endif //ESCADA_CORE_MTMZIGBEE_H

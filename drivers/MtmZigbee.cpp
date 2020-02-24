@@ -18,6 +18,7 @@
 #include <stdlib.h>
 #include <jsoncpp/json/json.h>
 #include <jsoncpp/json/value.h>
+#include <main.h>
 #include "lightUtils.h"
 #include "ce102.h"
 
@@ -376,25 +377,29 @@ void mtmZigbeePktListener(DBase *dBase, int32_t threadId) {
             // проверка на наступление астрономических событий
             currentTime = time(nullptr);
             if (currentTime - checkAstroTime > 60) {
-                double lon = 0, lat = 0;
-                checkAstroTime = currentTime;
-                MYSQL_RES *res = mtmZigbeeDBase->sqlexec("SELECT * FROM node LIMIT 1");
-                if (res) {
-                    MYSQL_ROW row = mysql_fetch_row(res);
-                    mtmZigbeeDBase->makeFieldsList(res);
-                    if (row) {
-                        lon = strtod(row[mtmZigbeeDBase->getFieldIndex("longitude")], nullptr);
-                        lat = strtod(row[mtmZigbeeDBase->getFieldIndex("latitude")], nullptr);
+                // костыль для демонстрационных целей, т.е. когда флаг установлен, ни какого автоматического
+                // управления светильниками не происходит. только ручной режим.
+                if (!manualMode(dBase)) {
+                    double lon = 0, lat = 0;
+                    checkAstroTime = currentTime;
+                    MYSQL_RES *res = mtmZigbeeDBase->sqlexec("SELECT * FROM node LIMIT 1");
+                    if (res) {
+                        MYSQL_ROW row = mysql_fetch_row(res);
+                        mtmZigbeeDBase->makeFieldsList(res);
+                        if (row) {
+                            lon = strtod(row[mtmZigbeeDBase->getFieldIndex("longitude")], nullptr);
+                            lat = strtod(row[mtmZigbeeDBase->getFieldIndex("latitude")], nullptr);
+                        }
+
+                        mysql_free_result(res);
                     }
 
-                    mysql_free_result(res);
+                    // управление контактором, рассылка пакетов светильникам
+                    checkAstroEvents(currentTime, lon, lat, dBase, threadId);
+
+                    // рассылка пакетов светильникам по параметрам заданным в программах
+                    checkLightProgram(mtmZigbeeDBase, currentTime, lon, lat, threadId);
                 }
-
-                // управление контактором, рассылка пакетов светильникам
-                checkAstroEvents(currentTime, lon, lat, dBase, threadId);
-
-                // рассылка пакетов светильникам по параметрам заданным в программах
-                checkLightProgram(mtmZigbeeDBase, currentTime, lon, lat, threadId);
             }
 
             currentTime = time(nullptr);
@@ -414,6 +419,54 @@ void mtmZigbeePktListener(DBase *dBase, int32_t threadId) {
             usleep(10000);
         }
     }
+}
+
+bool manualMode(DBase *dBase) {
+    std::string query;
+    MYSQL_RES *res;
+    MYSQL_ROW row;
+    my_ulonglong nRows;
+    int mode = 0;
+    std::string coordUuid;
+
+    // ищем координатор
+    query.append("SELECT * FROM device WHERE deviceTypeUuid = '" + std::string(DEVICE_TYPE_ZB_COORDINATOR) + "' LIMIT 1");
+    res = dBase->sqlexec(query.data());
+    if (res) {
+        nRows = mysql_num_rows(res);
+        if (nRows == 1) {
+            dBase->makeFieldsList(res);
+            row = mysql_fetch_row(res);
+            if (row != nullptr) {
+                coordUuid = std::string(row[dBase->getFieldIndex("uuid")]);
+            }
+        }
+    }
+
+    mysql_free_result(res);
+
+    if (!coordUuid.empty()) {
+        // ищем настроку координатора
+        query = "SELECT * FROM device_config WHERE deviceUuid = '" + coordUuid
+                + "' AND parameter='" + std::string(DEVICE_PARAMETER_ZB_COORD_MODE) + "' LIMIT 1";
+        res = dBase->sqlexec(query.data());
+        if (res) {
+            nRows = mysql_num_rows(res);
+            if (nRows == 1) {
+                dBase->makeFieldsList(res);
+                row = mysql_fetch_row(res);
+                if (row != nullptr) {
+                    mode = std::stoi(row[dBase->getFieldIndex("value")]);
+                }
+            }
+        }
+    }
+
+
+
+    mysql_free_result(res);
+
+    return mode == 1;
 }
 
 ssize_t switchAllLight(uint16_t level) {
