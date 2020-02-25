@@ -265,27 +265,33 @@ void mtmZigbeePktListener(DBase *dBase, int32_t threadId) {
             // рассылаем пакет с текущим "временем" раз в 10 секунд
             currentTime = time(nullptr);
             if (currentTime - syncTimeTime >= 10) {
-                syncTimeTime = currentTime;
-                mtm_cmd_current_time current_time;
-                current_time.header.type = MTM_CMD_TYPE_CURRENT_TIME;
-                current_time.header.protoVersion = MTM_VERSION_0;
-                localTime = localtime(&currentTime);
-                current_time.time = localTime->tm_hour * 60 + localTime->tm_min;
-                for (int idx = 0; idx < 16; idx++) {
-                    current_time.brightLevel[idx] = lightGroupBright[idx];
-                }
+                // В "ручном" режиме пакет со времменем не рассылаем, т.к. в нём передаётся уровень диммирования для
+                // каждой группы. При этом какое бы значение мы не установили по умолчанию, оно "затрёт" установленное
+                // вручную оператором, что для демонстрационного режима неприемлемо.
+                if (!manualMode(dBase)) {
+                    syncTimeTime = currentTime;
+                    mtm_cmd_current_time current_time;
+                    current_time.header.type = MTM_CMD_TYPE_CURRENT_TIME;
+                    current_time.header.protoVersion = MTM_VERSION_0;
+                    localTime = localtime(&currentTime);
+                    current_time.time = localTime->tm_hour * 60 + localTime->tm_min;
+                    for (int idx = 0; idx < 16; idx++) {
+                        current_time.brightLevel[idx] = lightGroupBright[idx];
+                    }
 
-                ssize_t rc = send_mtm_cmd(coordinatorFd, 0xFFFF, &current_time, kernel);
-                if (rc == -1) {
-                    kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] ERROR write to port", TAG);
-                    // останавливаем поток с целью его последующего автоматического запуска и инициализации
-                    mtmZigbeeStopThread(mtmZigbeeDBase, threadId);
-                    AddDeviceRegister(mtmZigbeeDBase, (char *) coordinatorUuid.data(),
-                                      (char *) "Ошибка записи в порт координатора");
-                    return;
-                }
-                if (kernel->isDebug) {
-                    kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] Written %ld bytes.", TAG, rc);
+                    ssize_t rc = send_mtm_cmd(coordinatorFd, 0xFFFF, &current_time, kernel);
+                    if (rc == -1) {
+                        kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] ERROR write to port", TAG);
+                        // останавливаем поток с целью его последующего автоматического запуска и инициализации
+                        mtmZigbeeStopThread(mtmZigbeeDBase, threadId);
+                        AddDeviceRegister(mtmZigbeeDBase, (char *) coordinatorUuid.data(),
+                                          (char *) "Ошибка записи в порт координатора");
+                        return;
+                    }
+
+                    if (kernel->isDebug) {
+                        kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] Written %ld bytes.", TAG, rc);
+                    }
                 }
             }
 
