@@ -916,7 +916,10 @@ void mtmCheckLinkState(DBase *dBase) {
             dBase->makeFieldsList(res);
             row = mysql_fetch_row(res);
             if (row) {
-                contactorState = std::stoi(std::string(row[dBase->getFieldIndex("value")]));
+                char *value = row[dBase->getFieldIndex("value")];
+                if (value != nullptr) {
+                    contactorState = std::stoi(std::string(value));
+                }
             }
         }
 
