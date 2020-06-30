@@ -150,7 +150,7 @@ bool DBase::StoreData(uint16_t type, uint16_t parameter, double value, char *dat
             uuid_generate(newUuid);
             uuid_unparse_upper(newUuid, newUuidString);
             sprintf(query,
-                    "INSERT INTO data(uuid, type, value, sensorChannelUuid, date, parameter, createdAt) VALUES('%s', '%d','%f','%s','%s', '%d', CURRENT_TIMESTAMP())",
+                    "INSERT INTO data(uuid, type, value, sensorChannelUuid, date, parameter, createdAt, changedAt) VALUES('%s', '%d','%f','%s','%s', '%d', CURRENT_TIMESTAMP(), CURRENT_TIMESTAMP())",
                     newUuidString, type, value, channelUuid, data, parameter);
             pRes = sqlexec(query);
             mysql_free_result(pRes);
