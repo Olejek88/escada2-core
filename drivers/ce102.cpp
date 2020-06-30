@@ -111,7 +111,7 @@ void *ceDeviceThread(void *pth) {
                                 UpdateThreads(*dBase, id, 1, 1, deviceCE->uuid);
                                 currentKernelInstance->log.ulogw(LOG_LEVEL_INFO, "[303] ReadDataArchive (%d)",
                                                                  deviceCE->id);
-                                deviceCE->ReadAllArchiveCE(3);
+                                deviceCE->ReadAllArchiveCE(8);
                             }
                             deviceCE->ReadDataCurrentCE();
                             if (work == 0) {
