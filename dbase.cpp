@@ -131,7 +131,10 @@ bool DBase::StoreData(uint16_t type, uint16_t parameter, double value, char *dat
             float lastValue = atof(row[3]);
             currentKernelInstance.log.ulogw(LOG_LEVEL_INFO, "%s %f", row[3], lastValue);
             mysql_free_result(pRes);
-            if (lastValue <= 0 || lastValue > 1000) {
+
+            // TODO: обратить на это внимание изменение от 30.06.2020
+//            if (lastValue <= 0 || lastValue > 1000) {
+            if (lastValue <= 0 || lastValue != value) {
                 // printf("U row=%ld\n", row);
                 sprintf(query,
                         "UPDATE data SET value=%f, date=date, changedAt=CURRENT_TIMESTAMP() WHERE type='%d' AND sensorChannelUuid='%s' AND parameter='%d' AND date='%s'",
