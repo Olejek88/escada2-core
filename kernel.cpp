@@ -29,6 +29,13 @@ void signal_callback_handler(int signum) {
     runKernel = false;
 }
 
+void signal_callback_handler_hup(int signum) {
+    printf("Caught signal %d\n", signum);
+    Kernel &currentKernelInstance = Kernel::Instance();
+    currentKernelInstance.log.close();
+    currentKernelInstance.log.init(currentKernelInstance.log_name);
+}
+
 //----------------------------------------------------------------------------
 int main(int argc, char *argv[]) {
     int res = 0;
@@ -39,13 +46,11 @@ int main(int argc, char *argv[]) {
     dBase = new DBase();
 
     signal(SIGTERM, signal_callback_handler);
+    signal(SIGHUP, signal_callback_handler_hup);
 
     currentKernelInstance.current_time = localtime(&tim);
-    sprintf(currentKernelInstance.log_name, "logs/kernel-%04d%02d%02d_%02d%02d.log",
-            currentKernelInstance.current_time->tm_year + 1900, currentKernelInstance.current_time->tm_mon + 1,
-            currentKernelInstance.current_time->tm_mday, currentKernelInstance.current_time->tm_hour,
-            currentKernelInstance.current_time->tm_min);
 
+    sprintf(currentKernelInstance.log_name, "logs/escada_core.log");
     res = currentKernelInstance.log.init(currentKernelInstance.log_name);
 
     if (res < 0) {

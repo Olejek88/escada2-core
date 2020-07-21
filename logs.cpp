@@ -30,18 +30,19 @@ Log::Log() {
 
 int Log::init(char *kernel_log) {
     struct stat st = {0};
-    FILE *logfile;
+
     if (stat("logs", &st) == -1) {
         mkdir("logs", 0700);
     }
-    logfile = fopen(kernel_log, "w");
+
+    logfile = fopen(kernel_log, "a+");
     if (logfile != nullptr) {
         snprintf(this->logname, MAX_FILE_LENGTH, "%s", kernel_log);
-        fclose(logfile);
     } else {
         printf("error creating logs, finished.....");
         return -1;
     }
+
     log_level = LOG_LEVEL_DEBUG;
     mode = 0;
     return 0;
@@ -51,26 +52,27 @@ void Log::ulogw(int loglevel, const char *string, ...) {
     if (loglevel > log_level) return;
 
     char buf[500];
-    FILE *Log;
     struct tm *ttime;
 
     time_t tim;
-    Log = fopen(this->logname, "a");
-
     tim = time(&tim);
     ttime = localtime(&tim);
     sprintf(buf, "%02d-%02d %02d:%02d:%02d ", ttime->tm_mon + 1, ttime->tm_mday, ttime->tm_hour, ttime->tm_min,
             ttime->tm_sec);
-    fprintf(Log, "%s", buf);
+    fprintf(logfile, "%s", buf);
 
     va_list arg;
     va_start(arg, string);
     vsnprintf(buf, sizeof(buf), string, arg);
-    fprintf(Log, "%s", buf);
+    fprintf(logfile, "%s", buf);
     if (this->mode != MODE_SILENT)
         printf("%s", buf);
     va_end(arg);
-    fprintf(Log, "\n");
+    fprintf(logfile, "\n");
     printf("\n");
-    fclose(Log);
+    fflush(logfile);
+}
+
+void Log::close() {
+    fclose(logfile);
 }

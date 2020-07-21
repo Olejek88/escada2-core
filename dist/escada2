@@ -1,0 +1,10 @@
+/opt/escada2-core/logs/*.log {
+        daily
+        missingok
+        rotate 7
+        compress
+        delaycompress
+        postrotate
+            /usr/bin/killall -HUP escada_core
+        endscript
+}
