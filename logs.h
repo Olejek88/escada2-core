@@ -2,6 +2,7 @@
 #define ESCADA_CORE_LOGS_H
 
 #include "const.h"
+#include <stdio.h>
 
 #define    LOG_LEVEL_NONE        0
 #define    LOG_LEVEL_ERROR        1
@@ -13,6 +14,7 @@
 
 class Log {
     int log_level;
+    FILE *logfile;
 public:
     char logname[MAX_FILE_LENGTH];
     int mode;
@@ -26,6 +28,8 @@ public:
     int getLevel();
 
     void ulogw(int loglevel, const char *string, ...);
+
+    void close();
 };
 
 #endif

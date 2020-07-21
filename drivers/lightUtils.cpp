@@ -484,6 +484,14 @@ void checkLightProgram(DBase *dBase, time_t currentTime, double lon, double lat,
         std::string prog = groups[i][prevDayIt->first][1]["prog"];
         if (!prog.empty()) {
             program = devPrograms->find(prog)->second;
+
+            // протоколируем название программы для группы
+            if (kernel->isDebug) {
+                kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] light group #%d, program name '%s'", TAG, i,
+                                  program.title.c_str());
+            }
+
+
             while (currDayIt != defAstroEvents->end()) {
 
                 long twLength = std::stol(groups[i][prevDayIt->first][5]["twLength"]);
@@ -520,6 +528,11 @@ void checkLightProgram(DBase *dBase, time_t currentTime, double lon, double lat,
                 testDataItCurr++;
                 testDataItNext++;
             }
+        }
+
+        // протоколируем уровень яркости
+        if (kernel->isDebug) {
+            kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] light group #%d, bright: %d", TAG, i, brightValue);
         }
 
         lightGroupBright[i] = brightValue;
