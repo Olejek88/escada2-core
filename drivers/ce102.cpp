@@ -18,7 +18,7 @@
 #include <iostream>
 
 #define DEVICE_STATUS_WORK "E681926C-F4A3-44BD-9F96-F0493712798D"
-#define DEVICE_STATUS_NO_CONNECT "67CE3FE0-B72D-453E-A5F7-1B5ACA653F00"
+#define DEVICE_STATUS_NO_CONNECT "5F9D6F9B-E7BF-4C5D-B50D-4B5F2AB6BB75"
 
 //-----------------------------------------------------------------------------
 static int fd = 0;
