@@ -109,4 +109,6 @@ bool insertMeasureValue(DBase *dBase, uint8_t *uuid, std::string *channelUuid, i
 
 bool manualMode(DBase *dBase);
 
+void lostZBCoordinator(DBase *dBase, int32_t threadId, std::string *coordUuid);
+
 #endif //ESCADA_CORE_MTMZIGBEE_H
