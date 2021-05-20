@@ -88,7 +88,7 @@ Device *findDeviceByAddress(DBase *dBase, std::string *address) {
     if (res) {
         nRows = mysql_num_rows(res);
         if (nRows == 1) {
-            Device *item = new Device();
+            auto item = new Device();
             dBase->makeFieldsList(res);
             row = mysql_fetch_row(res);
             if (row) {
@@ -386,7 +386,7 @@ void makeCoordinatorStatus(DBase *dBase, uint8_t *address, const uint8_t *packet
     // найти канал по устройству sensor_channel и regIdx
     std::string in1ChannelUuid = findSChannel(dBase, deviceUuid, MTM_ZB_CHANNEL_COORD_DOOR_IDX, CHANNEL_DOOR_STATE);
     if (!in1ChannelUuid.empty()) {
-        uint16_t value = *(uint16_t *) (&packetBuffer[34]);
+        uint16_t value = *(uint16_t * )(&packetBuffer[34]);
         // получаем конфигурацию канала измерения
         threshold = 1024;
         std::string config = getSChannelConfig(dBase, &in1ChannelUuid);
@@ -437,7 +437,7 @@ void makeCoordinatorStatus(DBase *dBase, uint8_t *address, const uint8_t *packet
     std::string in2ChannelUuid = findSChannel(dBase, deviceUuid, MTM_ZB_CHANNEL_COORD_CONTACTOR_IDX,
                                               CHANNEL_CONTACTOR_STATE);
     if (!in2ChannelUuid.empty()) {
-        uint16_t value = *(uint16_t *) (&packetBuffer[36]);
+        uint16_t value = *(uint16_t * )(&packetBuffer[36]);
         // получаем конфигурацию канала измерения
         threshold = 1024;
         std::string config = getSChannelConfig(dBase, &in2ChannelUuid);
@@ -486,7 +486,7 @@ void makeCoordinatorStatus(DBase *dBase, uint8_t *address, const uint8_t *packet
     // найти канал по устройству sensor_channel и regIdx (цифровой пин управления контактором)
     std::string digi1ChannelUuid = findSChannel(dBase, deviceUuid, MTM_ZB_CHANNEL_COORD_RELAY_IDX, CHANNEL_RELAY_STATE);
     if (!digi1ChannelUuid.empty()) {
-        uint16_t value = *(uint16_t *) (&packetBuffer[32]);
+        uint16_t value = *(uint16_t * )(&packetBuffer[32]);
         value &= 0x0040u;
         value = value >> 6; // NOLINT(hicpp-signed-bitwise)
         oldValue = 0;
@@ -563,7 +563,7 @@ void makeCoordinatorTemperature(DBase *dBase, uint8_t *address, const uint8_t *p
     sChannelUuid = findSChannel(dBase, deviceUuid, MTM_ZB_CHANNEL_LIGHT_TEMPERATURE_IDX, CHANNEL_T);
     if (!sChannelUuid.empty()) {
         // температура лежит в двух байтах начиная с 21-го
-        uint16_t tempCount = *(uint16_t *) &packetBuffer[21];
+        uint16_t tempCount = *(uint16_t * ) & packetBuffer[21];
         value = (int8_t) ((tempCount - 1480) / 4.5) + 25;
         measureUuid = findMeasure(dBase, &sChannelUuid, MTM_ZB_CHANNEL_LIGHT_TEMPERATURE_IDX);
         if (!measureUuid.empty()) {
@@ -681,8 +681,8 @@ void checkAstroEvents(time_t currentTime, double lon, double lat, DBase *dBase, 
 
         // расчитываем время начала/конца сумерек относительно рассвета/заката (которые возможно получили из календаря)
         // устанавливая их длительность пропорционально изменившейся длительности ночи
-        twilightStartTime = sunRiseTime - (uint64_t) (twilightLength * nightRate);
-        twilightEndTime = sunSetTime + (uint64_t) (twilightLength * nightRate);
+        twilightStartTime = sunRiseTime - (uint64_t)(twilightLength * nightRate);
+        twilightEndTime = sunSetTime + (uint64_t)(twilightLength * nightRate);
 
         action.header.type = MTM_CMD_TYPE_ACTION;
         action.header.protoVersion = MTM_VERSION_0;
@@ -732,11 +732,7 @@ void checkAstroEvents(time_t currentTime, double lon, double lat, DBase *dBase, 
             action.data = (0x02 << 8 | 0x01); // NOLINT(hicpp-signed-bitwise)
             rc = send_mtm_cmd(coordinatorFd, 0xFFFF, &action, kernel);
             if (rc == -1) {
-                kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] ERROR write to port", TAG);
-                // останавливаем поток с целью его последующего автоматического запуска и инициализации
-                mtmZigbeeStopThread(dBase, threadId);
-                AddDeviceRegister(dBase, (char *) coordinatorUuid.data(),
-                                  (char *) "Ошибка записи в порт координатора");
+                lostZBCoordinator(dBase, threadId, &coordinatorUuid);
                 return;
             }
 
@@ -766,11 +762,7 @@ void checkAstroEvents(time_t currentTime, double lon, double lat, DBase *dBase, 
             action.data = (0x01 << 8 | 0x00); // NOLINT(hicpp-signed-bitwise)
             ssize_t rc = send_mtm_cmd(coordinatorFd, 0xFFFF, &action, kernel);
             if (rc == -1) {
-                kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] ERROR write to port", TAG);
-                // останавливаем поток с целью его последующего автоматического запуска и инициализации
-                mtmZigbeeStopThread(dBase, threadId);
-                AddDeviceRegister(dBase, (char *) coordinatorUuid.data(),
-                                  (char *) "Ошибка записи в порт координатора");
+                lostZBCoordinator(dBase, threadId, &coordinatorUuid);
                 return;
             }
 
@@ -800,11 +792,7 @@ void checkAstroEvents(time_t currentTime, double lon, double lat, DBase *dBase, 
             action.data = (0x03 << 8 | 0x00); // NOLINT(hicpp-signed-bitwise)
             ssize_t rc = send_mtm_cmd(coordinatorFd, 0xFFFF, &action, kernel);
             if (rc == -1) {
-                kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] ERROR write to port", TAG);
-                // останавливаем поток с целью его последующего автоматического запуска и инициализации
-                mtmZigbeeStopThread(dBase, threadId);
-                AddDeviceRegister(dBase, (char *) coordinatorUuid.data(),
-                                  (char *) "Ошибка записи в порт координатора");
+                lostZBCoordinator(dBase, threadId, &coordinatorUuid);
                 return;
             }
 
@@ -832,11 +820,7 @@ void checkAstroEvents(time_t currentTime, double lon, double lat, DBase *dBase, 
             action.data = (0x00 << 8 | 0x00); // NOLINT(hicpp-signed-bitwise)
             ssize_t rc = send_mtm_cmd(coordinatorFd, 0xFFFF, &action, kernel);
             if (rc == -1) {
-                kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] ERROR write to port", TAG);
-                // останавливаем поток с целью его последующего автоматического запуска и инициализации
-                mtmZigbeeStopThread(dBase, threadId);
-                AddDeviceRegister(dBase, (char *) coordinatorUuid.data(),
-                                  (char *) "Ошибка записи в порт координатора");
+                lostZBCoordinator(dBase, threadId, &coordinatorUuid);
                 return;
             }
 
@@ -1052,4 +1036,21 @@ void mtmCheckLinkState(DBase *dBase) {
 //    kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] update without measure to not link query: %s", TAG, query.data());
     res = dBase->sqlexec(query.data());
     mysql_free_result(res);
+}
+
+void lostZBCoordinator(DBase *dBase, int32_t threadId, std::string *coordUuid) {
+    std::string query;
+    MYSQL_RES *res;
+
+    kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] ERROR write to port", TAG);
+    // меняем статус координатора на DEVICE_STATUS_NO_CONNECT
+    query = "UPDATE device SET deviceStatusUuid='" + std::string(DEVICE_STATUS_NO_CONNECT) +
+            "', changedAt=current_timestamp() WHERE uuid='" + *coordUuid + "'";
+    kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] %s", TAG, query.data());
+    res = dBase->sqlexec(query.data());
+    mysql_free_result(res);
+
+    // останавливаем поток с целью его последующего автоматического запуска и инициализации
+    mtmZigbeeStopThread(dBase, threadId);
+    AddDeviceRegister(dBase, (char *) coordUuid->data(), (char *) "Ошибка записи в порт координатора");
 }
