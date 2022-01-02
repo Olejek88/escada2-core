@@ -40,11 +40,11 @@
 
 void *mtmZigbeeDeviceThread(void *device);
 
-int32_t mtmZigbeeInit(int32_t mode, uint8_t *path, uint32_t speed);
+int32_t mtmZigbeeInit(int32_t mode, uint8_t *path, uint64_t speed);
 
 void mtmZigbeePktListener(DBase *dBase, int32_t threadId);
 
-speed_t mtmZigbeeGetSpeed(uint32_t speed);
+speed_t mtmZigbeeGetSpeed(uint64_t speed);
 
 bool mtmZigbeeGetRun();
 

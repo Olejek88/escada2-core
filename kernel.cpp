@@ -18,6 +18,7 @@
 #include "version/version.h"
 #include "TypeThread.h"
 #include "drivers/MtmZigbee.h"
+#include "main.h"
 
 bool runKernel = true;
 DBase *dBase;
@@ -159,7 +160,7 @@ void *dispatcher(void *thread_arg) {
 //            currentKernelInstance.log.ulogw(LOG_LEVEL_ERROR, "thr [%s] %ld %ld", typeThreads[th].title, typeThreads[th].lastDate, now);
             if ((now - typeThreads[th].lastDate) > 30) {
                 pRc = 0;
-                if (strncasecmp("0FBACF26-31CA-4B92-BCA3-220E09A6D2D3", typeThreads[th].deviceType, 36) == 0) {
+                if (strncasecmp(DEVICE_TYPE_ELECTRO_COUNTER_CE102, typeThreads[th].deviceType, 36) == 0) {
                     if (typeThreads[th].work > 0) {
                         if (thr == 0) {
                             pRc = pthread_create(&thr, nullptr, ceDeviceThread, (void *) &typeThreads[th]);
@@ -171,7 +172,7 @@ void *dispatcher(void *thread_arg) {
                             }
                         }
                     }
-                } else if (strncasecmp("8CF354DB-6FC2-4256-A24E-3E497BA99589", typeThreads[th].deviceType, 36) == 0) {
+                } else if (strncasecmp(DEVICE_TYPE_ZB_COORDINATOR, typeThreads[th].deviceType, 36) == 0) {
                     if (typeThreads[th].work > 0) {
                         if (zb_thr == 0) {
                             pRc = pthread_create(&zb_thr, nullptr, mtmZigbeeDeviceThread, (void *) &typeThreads[th]);

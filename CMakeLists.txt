@@ -46,7 +46,7 @@ add_executable(escada_core
         suninfo.cpp suninfo.h
         drivers/MtmZigbeeUtils.cpp
         zigbeemtm/zigbeemtm.cpp drivers/lightUtils.cpp drivers/lightUtils.h drivers/DeviceProgram.cpp drivers/DeviceProgram.h
-        drivers/SensorChannel.h drivers/SensorChannel.cpp drivers/Device.h drivers/Device.cpp)
+        drivers/SensorChannel.h drivers/SensorChannel.cpp drivers/Device.h drivers/Device.cpp zigbeemtm/e18.h zigbeemtm/e18.cpp)
 
 #target_link_libraries(escada_core /usr/local/lib/libmysqlclient.dylib)
 #target_link_libraries(escada_core /usr/local/lib/libmysqlcppconn.dylib)
