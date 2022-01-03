@@ -19,7 +19,7 @@ ssize_t send_e18_hex_cmd(int fd, uint16_t short_addr, void *mtm_cmd, Kernel *ker
     // формируем данные для отправки
     sendBuffer[sendBufferSize++] = E18_HEX_CMD;
     sendBuffer[sendBufferSize++] = 0; // размер передаваемых данных нам пока не известен
-    if (short_addr == 0xFFFF) {
+    if (short_addr == E18_BROADCAST_ADDRESS) {
         sendBuffer[sendBufferSize++] = E18_HEX_CMD_BROADCAST;
         sendBuffer[sendBufferSize++] = E18_HEX_CMD_BROADCAST_MODE_1;
     } else {
@@ -160,3 +160,20 @@ ssize_t e18_read_fixed_data(int coordinatorFd, uint8_t *buffer, ssize_t size) {
 
     return count;
 }
+
+ssize_t e18_cmd_get_network_state(int fd, Kernel *kernel) {
+    ssize_t rc;
+
+    uint8_t cmd[] = {
+            E18_HEX_CMD_GET,
+            0x01,
+            E18_HEX_CMD_GET_NETWORK_STATE,
+            E18_HEX_CMD_END_CMD
+    };
+
+    rc = send_cmd(fd, cmd, sizeof(cmd), kernel);
+    usleep(100000);
+
+    return rc;
+}
+

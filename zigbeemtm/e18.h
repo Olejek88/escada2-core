@@ -113,8 +113,8 @@ ssize_t e18_read_fixed_data(int coordinatorFd, uint8_t *buffer, ssize_t len);
 
 ssize_t e18_cmd_read_gpio_level(int fd, uint16_t short_addr, uint8_t gpio, Kernel *kernel);
 
-//ssize_t e18_write_cmd(int fd, uint8_t *data, ssize_t size, Kernel *kernel);
-
 ssize_t e18_cmd_set_gpio_level(int fd, uint16_t short_addr, uint8_t gpio, uint8_t level, Kernel *kernel);
+
+ssize_t e18_cmd_get_network_state(int fd, Kernel *kernel);
 
 #endif //ESCADA2_CORE_E18_E18_H

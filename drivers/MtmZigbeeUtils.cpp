@@ -706,11 +706,11 @@ void checkAstroEvents(time_t currentTime, double lon, double lat, DBase *dBase, 
             isTwilightStart = false;
             isSunRise = false;
 
-            // включаем контактор
-            switchContactor(true, MBEE_API_DIGITAL_LINE7);
             char message[1024];
             sprintf(message, "Наступил закат, включаем реле контактора.");
             kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] %s", TAG, message);
+            // включаем контактор
+            switchContactor(true, E18_PIN_RELAY);
             AddDeviceRegister(dBase, (char *) coordinatorUuid.data(), message);
 
             // даём задержку для того чтоб стартанули модули в светильниках
@@ -731,7 +731,7 @@ void checkAstroEvents(time_t currentTime, double lon, double lat, DBase *dBase, 
 
             // передаём команду "астро событие" "закат"
             action.data = (0x02 << 8 | 0x01); // NOLINT(hicpp-signed-bitwise)
-            rc = send_e18_hex_cmd(coordinatorFd, 0xFFFF, &action, kernel);
+            rc = send_e18_hex_cmd(coordinatorFd, E18_BROADCAST_ADDRESS, &action, kernel);
             if (rc == -1) {
                 lostZBCoordinator(dBase, threadId, &coordinatorUuid);
                 return;
@@ -748,11 +748,11 @@ void checkAstroEvents(time_t currentTime, double lon, double lat, DBase *dBase, 
             isTwilightStart = false;
             isSunRise = false;
 
-            // включаем контактор
-            switchContactor(true, MBEE_API_DIGITAL_LINE7);
             char message[1024];
             sprintf(message, "Наступил конец сумерек, включаем реле контактора.");
             kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] %s", TAG, message);
+            // включаем контактор
+            switchContactor(true, E18_PIN_RELAY);
 //            AddDeviceRegister(dBase, (char *) coordinatorUuid.data(), message);
 
             // даём задержку для того чтоб стартанули модули в светильниках
@@ -761,7 +761,7 @@ void checkAstroEvents(time_t currentTime, double lon, double lat, DBase *dBase, 
 
             // передаём команду "астро событие" "конец сумерек"
             action.data = (0x01 << 8 | 0x00); // NOLINT(hicpp-signed-bitwise)
-            ssize_t rc = send_e18_hex_cmd(coordinatorFd, 0xFFFF, &action, kernel);
+            ssize_t rc = send_e18_hex_cmd(coordinatorFd, E18_BROADCAST_ADDRESS, &action, kernel);
             if (rc == -1) {
                 lostZBCoordinator(dBase, threadId, &coordinatorUuid);
                 return;
@@ -778,11 +778,11 @@ void checkAstroEvents(time_t currentTime, double lon, double lat, DBase *dBase, 
             isTwilightStart = true;
             isSunRise = false;
 
-            // включаем контактор
-            switchContactor(true, MBEE_API_DIGITAL_LINE7);
             char message[1024];
             sprintf(message, "Наступило начало сумерек, включаем реле контактора.");
             kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] %s", TAG, message);
+            // включаем контактор
+            switchContactor(true, E18_PIN_RELAY);
 //            AddDeviceRegister(dBase, (char *) coordinatorUuid.data(), message);
 
             // даём задержку для того чтоб стартанули модули в светильниках
@@ -791,7 +791,7 @@ void checkAstroEvents(time_t currentTime, double lon, double lat, DBase *dBase, 
 
             // передаём команду "астро событие" "начало сумерек"
             action.data = (0x03 << 8 | 0x00); // NOLINT(hicpp-signed-bitwise)
-            ssize_t rc = send_e18_hex_cmd(coordinatorFd, 0xFFFF, &action, kernel);
+            ssize_t rc = send_e18_hex_cmd(coordinatorFd, E18_BROADCAST_ADDRESS, &action, kernel);
             if (rc == -1) {
                 lostZBCoordinator(dBase, threadId, &coordinatorUuid);
                 return;
@@ -808,18 +808,18 @@ void checkAstroEvents(time_t currentTime, double lon, double lat, DBase *dBase, 
             isTwilightStart = false;
             isSunRise = true;
 
-            // выключаем контактор, гасим светильники, отправляем команду "восход"
-            switchContactor(false, MBEE_API_DIGITAL_LINE7);
             char message[1024];
             sprintf(message, "Наступил восход, выключаем реле контактора.");
             kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] %s", TAG, message);
+            // выключаем контактор, гасим светильники, отправляем команду "восход"
+            switchContactor(false, E18_PIN_RELAY);
             AddDeviceRegister(dBase, (char *) coordinatorUuid.data(), message);
 
             // на всякий случай, если светильники всегда под напряжением
             switchAllLight(0);
             // передаём команду "астро событие" "восход"
             action.data = (0x00 << 8 | 0x00); // NOLINT(hicpp-signed-bitwise)
-            ssize_t rc = send_e18_hex_cmd(coordinatorFd, 0xFFFF, &action, kernel);
+            ssize_t rc = send_e18_hex_cmd(coordinatorFd, E18_BROADCAST_ADDRESS, &action, kernel);
             if (rc == -1) {
                 lostZBCoordinator(dBase, threadId, &coordinatorUuid);
                 return;
@@ -855,14 +855,13 @@ void checkAstroEvents(time_t currentTime, double lon, double lat, DBase *dBase, 
 }
 
 
-ssize_t sendLightLevel(char *addrString, char *level) {
+ssize_t sendLightLevel(uint8_t shortAddress, char *level) {
     mtm_cmd_action action = {0};
     action.header.type = MTM_CMD_TYPE_ACTION;
     action.header.protoVersion = MTM_VERSION_0;
     action.device = MTM_DEVICE_LIGHT;
     action.data = std::stoi(level);
-    uint64_t addr = std::stoull(addrString, nullptr, 16);
-    return send_e18_hex_cmd(coordinatorFd, addr, &action, kernel);
+    return send_e18_hex_cmd(coordinatorFd, shortAddress, &action, kernel);
 }
 
 void mtmZigbeeStopThread(DBase *dBase, int32_t threadId) {

@@ -147,6 +147,7 @@ void mtmZigbeePktListener(DBase *dBase, int32_t threadId) {
                 switch (currentCmd) {
                     case E18_HEX_CMD_GET_NETWORK_STATE :
                         isNetwork = seek[0] == 1;
+                        printf("get network state is %s\n", isNetwork ? "TRUE" : "FALSE");
                         break;
                     case E18_HEX_CMD_GET_UART_BAUD_RATE :
                         isCheckCoordinatorRespond = true;
@@ -386,9 +387,16 @@ void mtmZigbeePktListener(DBase *dBase, int32_t threadId) {
                 isCmdRun = true;
                 currentCmd = E18_HEX_CMD_GET_NETWORK_STATE;
                 printf("check network state\n");
-                uint8_t testCmd[] = {0xFE, 0x01, currentCmd, 0xFF};
-                write(coordinatorFd, testCmd, sizeof(testCmd));
-                usleep(100000);
+                ssize_t rc = e18_cmd_get_network_state(coordinatorFd, kernel);
+
+                if (kernel->isDebug) {
+                    kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] rc=%ld", TAG, rc);
+                }
+
+                if (rc == -1) {
+                    lostZBCoordinator(dBase, threadId, &coordinatorUuid);
+                    return;
+                }
             }
 
             // рассылаем пакет с текущим "временем" раз в 10 секунд
@@ -518,45 +526,45 @@ void mtmZigbeePktListener(DBase *dBase, int32_t threadId) {
                 }
             }
 
-//            // проверка на наступление астрономических событий
-//            currentTime = time(nullptr) + kernel->timeOffset;
-//            if (currentTime - checkAstroTime > 60) {
-//                // костыль для демонстрационных целей, т.е. когда флаг установлен, ни какого автоматического
-//                // управления светильниками не происходит. только ручной режим.
-//                if (!manualMode(dBase)) {
-//                    double lon = 0, lat = 0;
-//                    checkAstroTime = currentTime;
-//                    MYSQL_RES *res = mtmZigbeeDBase->sqlexec("SELECT * FROM node LIMIT 1");
-//                    if (res) {
-//                        MYSQL_ROW row = mysql_fetch_row(res);
-//                        mtmZigbeeDBase->makeFieldsList(res);
-//                        if (row) {
-//                            lon = strtod(row[mtmZigbeeDBase->getFieldIndex("longitude")], nullptr);
-//                            lat = strtod(row[mtmZigbeeDBase->getFieldIndex("latitude")], nullptr);
-//                        }
-//
-//                        mysql_free_result(res);
-//                    }
-//
-//                    // управление контактором, рассылка пакетов светильникам
-//                    checkAstroEvents(currentTime, lon, lat, dBase, threadId);
-//
-//                    // рассылка пакетов светильникам по параметрам заданным в программах
-//                    checkLightProgram(mtmZigbeeDBase, currentTime, lon, lat);
-//                }
-//            }
+            // проверка на наступление астрономических событий
+            currentTime = time(nullptr) + kernel->timeOffset;
+            if (isNetwork && !isCmdRun && currentTime - checkAstroTime > 60) {
+                // костыль для демонстрационных целей, т.е. когда флаг установлен, ни какого автоматического
+                // управления светильниками не происходит. только ручной режим.
+                if (!manualMode(dBase)) {
+                    double lon = 0, lat = 0;
+                    checkAstroTime = currentTime;
+                    MYSQL_RES *res = mtmZigbeeDBase->sqlexec("SELECT * FROM node LIMIT 1");
+                    if (res) {
+                        MYSQL_ROW row = mysql_fetch_row(res);
+                        mtmZigbeeDBase->makeFieldsList(res);
+                        if (row) {
+                            lon = strtod(row[mtmZigbeeDBase->getFieldIndex("longitude")], nullptr);
+                            lat = strtod(row[mtmZigbeeDBase->getFieldIndex("latitude")], nullptr);
+                        }
 
-//            currentTime = time(nullptr);
-//            if (currentTime - checkLinkState > 10) {
-//                checkLinkState = currentTime;
-//                mtmCheckLinkState(mtmZigbeeDBase);
-//            }
+                        mysql_free_result(res);
+                    }
 
-//            currentTime = time(nullptr);
-//            if (currentTime - checkOutPacket > 2) {
-//                checkOutPacket = currentTime;
-//                mtmZigbeeProcessOutPacket(threadId);
-//            }
+                    // управление контактором, рассылка пакетов светильникам
+                    checkAstroEvents(currentTime, lon, lat, dBase, threadId);
+
+                    // рассылка пакетов светильникам по параметрам заданным в программах
+                    checkLightProgram(mtmZigbeeDBase, currentTime, lon, lat);
+                }
+            }
+
+            currentTime = time(nullptr);
+            if (currentTime - checkLinkState > 10) {
+                checkLinkState = currentTime;
+                mtmCheckLinkState(mtmZigbeeDBase);
+            }
+
+            currentTime = time(nullptr);
+            if (currentTime - checkOutPacket > 2) {
+                checkOutPacket = currentTime;
+                mtmZigbeeProcessOutPacket(threadId);
+            }
 
             run = mtmZigbeeGetRun();
 
@@ -618,21 +626,13 @@ ssize_t switchAllLight(uint16_t level) {
     action.header.protoVersion = MTM_VERSION_0;
     action.device = MTM_DEVICE_LIGHT;
     action.data = level;
-    ssize_t rc = send_mtm_cmd(coordinatorFd, 0xFFFF, &action, kernel);
+    ssize_t rc = send_e18_hex_cmd(coordinatorFd, E18_BROADCAST_ADDRESS, &action, kernel);
     return rc;
 }
 
 ssize_t switchContactor(bool enable, uint8_t line) {
-    zigbee_mt_cmd_af_data_request request = {0};
-    request.dst_addr = 0x0000; // пока тупо локальному координатору отправляем
-    request.dep = MBEE_API_END_POINT;
-    request.sep = MBEE_API_END_POINT;
-    request.cid = enable ? line : line | 0x80u;
-    request.tid = 0x00;
-    request.opt = ZB_O_APS_ACKNOWLEDGE; // флаг для получения подтверждения с конечного устройства а не с первого хопа.
-    request.rad = MAX_PACKET_HOPS;
-    request.adl = 0x00;
-    ssize_t rc = send_zb_cmd(coordinatorFd, AF_DATA_REQUEST, &request, kernel);
+    ssize_t rc = e18_cmd_set_gpio_level(coordinatorFd, E18_LOCAL_DATA_ADDRESS, line,
+                                        enable ? E18_LEVEL_HI : E18_LEVEL_LOW, kernel);
     return rc;
 }
 
@@ -713,11 +713,7 @@ void mtmZigbeeProcessOutPacket(int32_t threadId) {
                                 config.min = *(uint16_t *) &mtmPkt[3];
                                 config.max = *(uint16_t *) &mtmPkt[5];
 
-                                if (dstAddr == 0xffff) {
-                                    rc = send_mtm_cmd(coordinatorFd, dstAddr, &config, kernel);
-                                } else {
-                                    rc = send_mtm_cmd_ext(coordinatorFd, dstAddr, &config, kernel);
-                                }
+                                rc = send_e18_hex_cmd(coordinatorFd, dstAddr, &config, kernel);
 
                                 if (kernel->isDebug) {
                                     log_buffer_hex(mtmPkt, decoded);
@@ -739,11 +735,7 @@ void mtmZigbeeProcessOutPacket(int32_t threadId) {
                                     config_light.config[nCfg].value = *(uint16_t *) &mtmPkt[3 + nCfg * 4 + 2];
                                 }
 
-                                if (dstAddr == 0xFFFF) {
-                                    rc = send_mtm_cmd(coordinatorFd, dstAddr, &config_light, kernel);
-                                } else {
-                                    rc = send_mtm_cmd_ext(coordinatorFd, dstAddr, &config_light, kernel);
-                                }
+                                rc = send_e18_hex_cmd(coordinatorFd, dstAddr, &config_light, kernel);
 
                                 if (kernel->isDebug) {
                                     log_buffer_hex(mtmPkt, decoded);
@@ -761,11 +753,7 @@ void mtmZigbeeProcessOutPacket(int32_t threadId) {
                                 current_time.header.protoVersion = mtmPkt[1];
                                 current_time.time = *(uint16_t *) &mtmPkt[2];
 
-                                if (dstAddr == 0xFFFF) {
-                                    rc = send_mtm_cmd(coordinatorFd, dstAddr, &current_time, kernel);
-                                } else {
-                                    rc = send_mtm_cmd_ext(coordinatorFd, dstAddr, &current_time, kernel);
-                                }
+                                rc = send_e18_hex_cmd(coordinatorFd, dstAddr, &current_time, kernel);
 
                                 if (kernel->isDebug) {
                                     kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] Written %ld bytes.", TAG, rc);
@@ -784,11 +772,7 @@ void mtmZigbeeProcessOutPacket(int32_t threadId) {
                                 action.device = mtmPkt[2];
                                 action.data = *(uint16_t *) &mtmPkt[3];
 
-                                if (dstAddr == 0xFFFF) {
-                                    rc = send_mtm_cmd(coordinatorFd, dstAddr, &action, kernel);
-                                } else {
-                                    rc = send_mtm_cmd_ext(coordinatorFd, dstAddr, &action, kernel);
-                                }
+                                rc = send_e18_hex_cmd(coordinatorFd, dstAddr, &action, kernel);
 
                                 if (kernel->isDebug) {
                                     kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] Written %ld bytes.", TAG, rc);
@@ -802,11 +786,11 @@ void mtmZigbeeProcessOutPacket(int32_t threadId) {
                                     log_buffer_hex(mtmPkt, decoded);
                                 }
 
-                                rc = switchContactor(mtmPkt[3], mtmPkt[2]);
                                 char message[1024];
                                 sprintf(message, "Получена команда %s реле контактора.",
                                         mtmPkt[3] == 0 ? "выключения" : "включения");
                                 kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] %s", TAG, message);
+                                rc = switchContactor(mtmPkt[3], mtmPkt[2]);
                                 AddDeviceRegister(mtmZigbeeDBase, (char *) coordinatorUuid.data(), message);
                                 break;
                             case MTM_CMD_TYPE_RESET_COORDINATOR:
