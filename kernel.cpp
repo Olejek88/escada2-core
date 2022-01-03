@@ -112,6 +112,12 @@ int Kernel::init() {
             if (debug != nullptr) {
                 this->isDebug = debug->BoolText(false);
             }
+
+            // смещения времени астрономических событий в секундах
+            tinyxml2::XMLElement *offset = options->FirstChildElement("offset");
+            if (offset != nullptr) {
+                this->timeOffset = offset->Int64Text(0);
+            }
         }
 
         if (dBase->openConnection() == 0) {

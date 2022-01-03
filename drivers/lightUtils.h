@@ -19,6 +19,6 @@ void recalcAstroEvents(std::map<std::string, std::map<int, time_t>> *defAstroEve
 
 void fillGroupsDefValues(groupsMap *groups, std::map<std::string, std::map<int, time_t>> *defAstroEvents);
 
-void checkLightProgram(DBase *dBase, time_t currentTime, double lon, double lat, int32_t threadId);
+void checkLightProgram(DBase *dBase, time_t currentTime, double lon, double lat);
 
 #endif //ESCADA_CORE_LIGHTUTILS_H

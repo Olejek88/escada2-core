@@ -353,7 +353,7 @@ void mtmZigbeePktListener(DBase *dBase, int32_t threadId) {
             }
 
             // рассылаем пакет с текущим "временем" раз в 10 секунд
-            currentTime = time(nullptr);
+            currentTime = time(nullptr) + kernel->timeOffset;
             if (isNetwork && !isCmdRun && currentTime - syncTimeTime >= 10) {
                 // В "ручном" режиме пакет со времменем не рассылаем, т.к. в нём передаётся уровень диммирования для
                 // каждой группы. При этом какое бы значение мы не установили по умолчанию, оно "затрёт" установленное
@@ -361,16 +361,16 @@ void mtmZigbeePktListener(DBase *dBase, int32_t threadId) {
                 syncTimeTime = currentTime;
 
                 if (!manualMode(dBase)) {
-                    mtm_cmd_current_time current_time;
-                    current_time.header.type = MTM_CMD_TYPE_CURRENT_TIME;
-                    current_time.header.protoVersion = MTM_VERSION_0;
+                    mtm_cmd_current_time currentTimeCmd;
+                    currentTimeCmd.header.type = MTM_CMD_TYPE_CURRENT_TIME;
+                    currentTimeCmd.header.protoVersion = MTM_VERSION_0;
                     localTime = localtime(&currentTime);
-                    current_time.time = localTime->tm_hour * 60 + localTime->tm_min;
+                    currentTimeCmd.time = localTime->tm_hour * 60 + localTime->tm_min;
                     for (int idx = 0; idx < 16; idx++) {
-                        current_time.brightLevel[idx] = lightGroupBright[idx];
+                        currentTimeCmd.brightLevel[idx] = lightGroupBright[idx];
                     }
 
-                    ssize_t rc = send_e18_cmd(coordinatorFd, 0xFFFF, &current_time, kernel);
+                    ssize_t rc = send_e18_cmd(coordinatorFd, 0xFFFF, &currentTimeCmd, kernel);
                     if (rc == -1) {
                         lostZBCoordinator(dBase, threadId, &coordinatorUuid);
                         return;
@@ -456,32 +456,32 @@ void mtmZigbeePktListener(DBase *dBase, int32_t threadId) {
 //            }
 
             // проверка на наступление астрономических событий
-//            currentTime = time(nullptr);
-//            if (currentTime - checkAstroTime > 60) {
-//                // костыль для демонстрационных целей, т.е. когда флаг установлен, ни какого автоматического
-//                // управления светильниками не происходит. только ручной режим.
-//                if (!manualMode(dBase)) {
-//                    double lon = 0, lat = 0;
-//                    checkAstroTime = currentTime;
-//                    MYSQL_RES *res = mtmZigbeeDBase->sqlexec("SELECT * FROM node LIMIT 1");
-//                    if (res) {
-//                        MYSQL_ROW row = mysql_fetch_row(res);
-//                        mtmZigbeeDBase->makeFieldsList(res);
-//                        if (row) {
-//                            lon = strtod(row[mtmZigbeeDBase->getFieldIndex("longitude")], nullptr);
-//                            lat = strtod(row[mtmZigbeeDBase->getFieldIndex("latitude")], nullptr);
-//                        }
-//
-//                        mysql_free_result(res);
-//                    }
-//
-//                    // управление контактором, рассылка пакетов светильникам
-//                    checkAstroEvents(currentTime, lon, lat, dBase, threadId);
-//
-//                    // рассылка пакетов светильникам по параметрам заданным в программах
-//                    checkLightProgram(mtmZigbeeDBase, currentTime, lon, lat, threadId);
-//                }
-//            }
+            currentTime = time(nullptr) + kernel->timeOffset;
+            if (currentTime - checkAstroTime > 60) {
+                // костыль для демонстрационных целей, т.е. когда флаг установлен, ни какого автоматического
+                // управления светильниками не происходит. только ручной режим.
+                if (!manualMode(dBase)) {
+                    double lon = 0, lat = 0;
+                    checkAstroTime = currentTime;
+                    MYSQL_RES *res = mtmZigbeeDBase->sqlexec("SELECT * FROM node LIMIT 1");
+                    if (res) {
+                        MYSQL_ROW row = mysql_fetch_row(res);
+                        mtmZigbeeDBase->makeFieldsList(res);
+                        if (row) {
+                            lon = strtod(row[mtmZigbeeDBase->getFieldIndex("longitude")], nullptr);
+                            lat = strtod(row[mtmZigbeeDBase->getFieldIndex("latitude")], nullptr);
+                        }
+
+                        mysql_free_result(res);
+                    }
+
+                    // управление контактором, рассылка пакетов светильникам
+                    checkAstroEvents(currentTime, lon, lat, dBase, threadId);
+
+                    // рассылка пакетов светильникам по параметрам заданным в программах
+                    checkLightProgram(mtmZigbeeDBase, currentTime, lon, lat);
+                }
+            }
 
 //            currentTime = time(nullptr);
 //            if (currentTime - checkLinkState > 10) {
