@@ -97,9 +97,12 @@
 #define E18_PIN_OUTPUT      0x00
 
 
-ssize_t send_e18_cmd(int fd, uint16_t short_addr, void *mtm_cmd, Kernel *kernel);
+ssize_t send_e18_hex_cmd(int fd, uint16_t short_addr, void *mtm_cmd, Kernel *kernel);
 
 ssize_t e18_cmd_init_gpio(int fd, uint16_t short_addr, uint8_t line, uint8_t mode, Kernel *kernel);
 
+ssize_t e18_cmd_get_baud_rate(int fd, Kernel *kernel);
+
+ssize_t e18_read_fixed_data(int coordinatorFd, uint8_t *buffer, ssize_t len);
 
 #endif //ESCADA2_CORE_E18_E18_H

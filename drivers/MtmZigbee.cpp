@@ -121,18 +121,34 @@ void mtmZigbeePktListener(DBase *dBase, int32_t threadId) {
                 // ответ на команду получения данных
                 printf("get read data of %02X command\n", currentCmd);
                 uint8_t readDataLen;
-                if (currentCmd == E18_HEX_CMD_GET_NETWORK_STATE) {
-                    readDataLen = 1;
-                } else {
-                    readDataLen = 0;
+
+                switch (currentCmd) {
+                    case E18_HEX_CMD_GET_NETWORK_STATE :
+                    case E18_HEX_CMD_GET_UART_BAUD_RATE :
+                        readDataLen = 1;
+                        break;
+                    default:
+                        readDataLen = 0;
+                        break;
                 }
 
-                do {
-                    count = read(coordinatorFd, &seek, readDataLen);
-                } while (count == -1);
+                // читаем данные ответа
+                if (e18_read_fixed_data(coordinatorFd, seek, readDataLen) < 0) {
+                    // ошибка чтения данных, нужно остановить поток
+                    lostZBCoordinator(dBase, threadId, &coordinatorUuid);
+                    return;
+                }
 
-                if (currentCmd == E18_HEX_CMD_GET_NETWORK_STATE) {
-                    isNetwork = seek[0] == 1;
+                // обрабатываем при необходимости полученные данные
+                switch (currentCmd) {
+                    case E18_HEX_CMD_GET_NETWORK_STATE :
+                        isNetwork = seek[0] == 1;
+                        break;
+                    case E18_HEX_CMD_GET_UART_BAUD_RATE :
+                        isCheckCoordinatorRespond = true;
+                        break;
+                    default:
+                        break;
                 }
 
                 isCmdRun = false;
@@ -168,9 +184,12 @@ void mtmZigbeePktListener(DBase *dBase, int32_t threadId) {
                         break;
                 }
 
-                do {
-                    count = read(coordinatorFd, &seek, readDataLen);
-                } while (count == -1);
+                // читаем данные ответа
+                if (e18_read_fixed_data(coordinatorFd, seek, readDataLen) < 0) {
+                    // ошибка чтения данных, нужно остановить поток
+                    lostZBCoordinator(dBase, threadId, &coordinatorUuid);
+                    return;
+                }
 
                 if (seek[1] != currentCmd) {
                     printf("write answer do not match! received %02X\n", seek[1]);
@@ -180,9 +199,12 @@ void mtmZigbeePktListener(DBase *dBase, int32_t threadId) {
                 currentCmd = 0;
             } else if (isCmdRun && data == E18_ERROR) {
                 // ошибка
-                do {
-                    count = read(coordinatorFd, &seek, 1);
-                } while (count == -1);
+                // читаем данные ответа
+                if (e18_read_fixed_data(coordinatorFd, seek, 1) < 0) {
+                    // ошибка чтения данных, нужно остановить поток
+                    lostZBCoordinator(dBase, threadId, &coordinatorUuid);
+                    return;
+                }
 
                 // возможно нужно выставить флаг ошибки команды,
                 // не снимать флаг выполнения команды, чтобы можно было обработать данную ситуацию
@@ -195,9 +217,12 @@ void mtmZigbeePktListener(DBase *dBase, int32_t threadId) {
                 isCmdRun = false;
             } else if (data == E18_NETWORK_STATE) {
                 // состояние сети
-                do {
-                    count = read(coordinatorFd, &seek, 1);
-                } while (count == -1);
+                // читаем данные ответа
+                if (e18_read_fixed_data(coordinatorFd, seek, 1) < 0) {
+                    // ошибка чтения данных, нужно остановить поток
+                    lostZBCoordinator(dBase, threadId, &coordinatorUuid);
+                    return;
+                }
 
                 if (seek[0] == E18_NETWORK_STATE_UP) {
                     // координатор запустил сеть
@@ -221,6 +246,7 @@ void mtmZigbeePktListener(DBase *dBase, int32_t threadId) {
                 bool isComplete = false;
                 bool isEsc = false;
                 uint8_t i = 0;
+                time_t startReadTime = time(nullptr);
 
                 while (true) {
                     count = read(coordinatorFd, &data, 1);
@@ -250,11 +276,17 @@ void mtmZigbeePktListener(DBase *dBase, int32_t threadId) {
 
                     if (i == 255) {
                         // что-то пошло не так
-                        printf("Size frame limit reached!!!\n");
+                        printf("Error: size frame limit reached!!!\n");
                         break;
                     }
 
-                    // TODO: возможен вариант когда в порт ни чего не будет валиться, обработать и этот варинат (время?)
+                    if (time(nullptr) - startReadTime > 5) {
+                        // в течении 5 секунд не смогли прочитать все данные, останавливаем поток
+                        lostZBCoordinator(dBase, threadId, &coordinatorUuid);
+                        return;
+                    }
+
+                    usleep(1000);
                 }
 
                 // чтение данных закончили, либо штатно, либо с ошибкой
@@ -370,7 +402,7 @@ void mtmZigbeePktListener(DBase *dBase, int32_t threadId) {
                         currentTimeCmd.brightLevel[idx] = lightGroupBright[idx];
                     }
 
-                    ssize_t rc = send_e18_cmd(coordinatorFd, 0xFFFF, &currentTimeCmd, kernel);
+                    ssize_t rc = send_e18_hex_cmd(coordinatorFd, 0xFFFF, &currentTimeCmd, kernel);
                     if (rc == -1) {
                         lostZBCoordinator(dBase, threadId, &coordinatorUuid);
                         return;
@@ -416,44 +448,39 @@ void mtmZigbeePktListener(DBase *dBase, int32_t threadId) {
 //            }
 
             // получаем версию модуля, по полученному ответу понимаем что модуль работает
-//            currentTime = time(nullptr);
-//            if (currentTime - checkCoordinatorTime >= 15) {
-//                if (!isCheckCoordinatorRespond) {
-//                    // координатор не ответил
-//                    kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] ERROR Coordinator not answer for request module version",
-//                                      TAG);
-//                    // останавливаем поток с целью его последующего автоматического запуска и инициализации
-//                    mtmZigbeeStopThread(mtmZigbeeDBase, threadId);
-//                    AddDeviceRegister(mtmZigbeeDBase, (char *) coordinatorUuid.data(),
-//                                      (char *) "Координатор не ответил на запрос");
-//                    return;
-//                }
-//
-//                // сбрасываем флаг полученного ответа от координатора
-//                isCheckCoordinatorRespond = false;
-////                uint8_t buff[] = {
-////                        0xFE, 0x16, 0x48, 0x81, 0x00, 0x01, 0xE8, 0x00,
-////                        0xFF, 0xFF, 0x07, 0x06, 0x05, 0x04, 0x03, 0x02,
-////                        0x01, 0x00, 0x00, 0x00, 0x05, 0x01, 0x02, 0x03,
-////                        0x04, 0x05, 0x32
-////                };
-////                send_cmd(coordinatorFd, buff, sizeof(buff), kernel);
-//
-//                checkCoordinatorTime = currentTime;
-//                zigbee_mt_cmd_af_data_request req = {0};
-//                req.dst_addr = 0x0000;
-//                req.sep = 0xE8;
-//                req.dep = 0xE8;
-//                req.cid = 0x0100;
-//                ssize_t rc = send_zb_cmd(coordinatorFd, AF_DATA_REQUEST, &req, kernel);
-//                if (rc == -1) {
-//                    lostZBCoordinator(dBase, threadId, &coordinatorUuid);
-//                    return;
-//                }
-//                if (kernel->isDebug) {
-//                    kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] rc=%ld", TAG, rc);
-//                }
-//            }
+            currentTime = time(nullptr);
+            if (currentTime - checkCoordinatorTime >= 15) {
+                if (!isCheckCoordinatorRespond) {
+                    // координатор не ответил
+                    kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] ERROR Coordinator not answer for request module version",
+                                      TAG);
+                    // останавливаем поток с целью его последующего автоматического запуска и инициализации
+                    mtmZigbeeStopThread(mtmZigbeeDBase, threadId);
+                    AddDeviceRegister(mtmZigbeeDBase, (char *) coordinatorUuid.data(),
+                                      (char *) "Координатор не ответил на запрос");
+                    return;
+                }
+
+                // сбрасываем флаг полученного ответа от координатора
+                isCheckCoordinatorRespond = false;
+//                uint8_t buff[] = {
+//                        0xFB, 0x09
+//                };
+//                send_cmd(coordinatorFd, buff, sizeof(buff), kernel);
+
+                checkCoordinatorTime = currentTime;
+                isCmdRun = true;
+                currentCmd = E18_HEX_CMD_GET_UART_BAUD_RATE;
+                ssize_t rc = e18_cmd_get_baud_rate(coordinatorFd, kernel);
+                if (rc == -1) {
+                    lostZBCoordinator(dBase, threadId, &coordinatorUuid);
+                    return;
+                }
+
+                if (kernel->isDebug) {
+                    kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] rc=%ld", TAG, rc);
+                }
+            }
 
 //            // проверка на наступление астрономических событий
 //            currentTime = time(nullptr) + kernel->timeOffset;

@@ -731,7 +731,7 @@ void checkAstroEvents(time_t currentTime, double lon, double lat, DBase *dBase, 
 
             // передаём команду "астро событие" "закат"
             action.data = (0x02 << 8 | 0x01); // NOLINT(hicpp-signed-bitwise)
-            rc = send_e18_cmd(coordinatorFd, 0xFFFF, &action, kernel);
+            rc = send_e18_hex_cmd(coordinatorFd, 0xFFFF, &action, kernel);
             if (rc == -1) {
                 lostZBCoordinator(dBase, threadId, &coordinatorUuid);
                 return;
@@ -761,7 +761,7 @@ void checkAstroEvents(time_t currentTime, double lon, double lat, DBase *dBase, 
 
             // передаём команду "астро событие" "конец сумерек"
             action.data = (0x01 << 8 | 0x00); // NOLINT(hicpp-signed-bitwise)
-            ssize_t rc = send_e18_cmd(coordinatorFd, 0xFFFF, &action, kernel);
+            ssize_t rc = send_e18_hex_cmd(coordinatorFd, 0xFFFF, &action, kernel);
             if (rc == -1) {
                 lostZBCoordinator(dBase, threadId, &coordinatorUuid);
                 return;
@@ -791,7 +791,7 @@ void checkAstroEvents(time_t currentTime, double lon, double lat, DBase *dBase, 
 
             // передаём команду "астро событие" "начало сумерек"
             action.data = (0x03 << 8 | 0x00); // NOLINT(hicpp-signed-bitwise)
-            ssize_t rc = send_e18_cmd(coordinatorFd, 0xFFFF, &action, kernel);
+            ssize_t rc = send_e18_hex_cmd(coordinatorFd, 0xFFFF, &action, kernel);
             if (rc == -1) {
                 lostZBCoordinator(dBase, threadId, &coordinatorUuid);
                 return;
@@ -819,7 +819,7 @@ void checkAstroEvents(time_t currentTime, double lon, double lat, DBase *dBase, 
             switchAllLight(0);
             // передаём команду "астро событие" "восход"
             action.data = (0x00 << 8 | 0x00); // NOLINT(hicpp-signed-bitwise)
-            ssize_t rc = send_e18_cmd(coordinatorFd, 0xFFFF, &action, kernel);
+            ssize_t rc = send_e18_hex_cmd(coordinatorFd, 0xFFFF, &action, kernel);
             if (rc == -1) {
                 lostZBCoordinator(dBase, threadId, &coordinatorUuid);
                 return;
@@ -862,7 +862,7 @@ ssize_t sendLightLevel(char *addrString, char *level) {
     action.device = MTM_DEVICE_LIGHT;
     action.data = std::stoi(level);
     uint64_t addr = std::stoull(addrString, nullptr, 16);
-    return send_e18_cmd(coordinatorFd, addr, &action, kernel);
+    return send_e18_hex_cmd(coordinatorFd, addr, &action, kernel);
 }
 
 void mtmZigbeeStopThread(DBase *dBase, int32_t threadId) {

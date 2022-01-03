@@ -7,7 +7,7 @@
 
 
 // отправляем mtm команду
-ssize_t send_e18_cmd(int fd, uint16_t short_addr, void *mtm_cmd, Kernel *kernel) {
+ssize_t send_e18_hex_cmd(int fd, uint16_t short_addr, void *mtm_cmd, Kernel *kernel) {
     uint8_t buffer[1024];
     uint8_t sendBuffer[1024];
     uint8_t bufferSize;
@@ -80,4 +80,43 @@ ssize_t e18_cmd_init_gpio(int fd, uint16_t short_addr, uint8_t line, uint8_t mod
     usleep(100000);
 
     return rc;
+}
+
+ssize_t e18_cmd_get_baud_rate(int fd, Kernel *kernel) {
+    ssize_t rc;
+    uint8_t getBaudCmd[] = {
+            E18_HEX_CMD_GET,
+            0x01,
+            E18_HEX_CMD_GET_UART_BAUD_RATE,
+            E18_HEX_CMD_END_CMD
+    };
+
+    rc = send_cmd(fd, getBaudCmd, sizeof(getBaudCmd), kernel);
+    usleep(100000);
+
+    return rc;
+}
+
+ssize_t e18_read_fixed_data(int coordinatorFd, uint8_t *buffer, ssize_t size) {
+    int64_t count = 0;
+    ssize_t readed;
+    time_t currentTime = time(nullptr);
+
+    while (count < size) {
+        readed = read(coordinatorFd, &buffer[count], size - count);
+        if (readed >= 0) {
+            count += readed;
+        } else {
+            return readed;
+        }
+
+        if (time(nullptr) - currentTime > 5) {
+            // в течении 5 секунд не смогли прочитать все данные, чтото случилось с координатором/портом
+            return -1;
+        }
+
+        usleep(1000);
+    }
+
+    return count;
 }
