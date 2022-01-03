@@ -65,7 +65,7 @@ ssize_t e18_cmd_init_gpio(int fd, uint16_t short_addr, uint8_t line, uint8_t mod
     ssize_t rc;
     uint8_t hiAddr = short_addr >> 8; // HI byte of addr // NOLINT(hicpp-signed-bitwise)
     uint8_t loAddr = short_addr & 0xFF; // LO byte of addr // NOLINT(hicpp-signed-bitwise)
-    uint8_t gpioInitCmd[] = {
+    uint8_t cmd[] = {
             E18_HEX_CMD_SET,
             0x05,
             E18_HEX_CMD_SET_GPIO_IO_STATUS,
@@ -76,7 +76,28 @@ ssize_t e18_cmd_init_gpio(int fd, uint16_t short_addr, uint8_t line, uint8_t mod
             E18_HEX_CMD_END_CMD
     };
 
-    rc = send_cmd(fd, gpioInitCmd, sizeof(gpioInitCmd), kernel);
+    rc = send_cmd(fd, cmd, sizeof(cmd), kernel);
+    usleep(100000);
+
+    return rc;
+}
+
+ssize_t e18_cmd_set_gpio_level(int fd, uint16_t short_addr, uint8_t gpio, uint8_t level, Kernel *kernel) {
+    ssize_t rc;
+    uint8_t hiAddr = short_addr >> 8; // HI byte of addr // NOLINT(hicpp-signed-bitwise)
+    uint8_t loAddr = short_addr & 0xFF; // LO byte of addr // NOLINT(hicpp-signed-bitwise)
+    uint8_t cmd[] = {
+            E18_HEX_CMD_SET,
+            0x05,
+            E18_HEX_CMD_SET_GPIO_LEVEL,
+            hiAddr,
+            loAddr,
+            gpio,
+            level,
+            E18_HEX_CMD_END_CMD
+    };
+
+    rc = send_cmd(fd, cmd, sizeof(cmd), kernel);
     usleep(100000);
 
     return rc;
@@ -84,14 +105,35 @@ ssize_t e18_cmd_init_gpio(int fd, uint16_t short_addr, uint8_t line, uint8_t mod
 
 ssize_t e18_cmd_get_baud_rate(int fd, Kernel *kernel) {
     ssize_t rc;
-    uint8_t getBaudCmd[] = {
+    uint8_t cmd[] = {
             E18_HEX_CMD_GET,
             0x01,
             E18_HEX_CMD_GET_UART_BAUD_RATE,
             E18_HEX_CMD_END_CMD
     };
 
-    rc = send_cmd(fd, getBaudCmd, sizeof(getBaudCmd), kernel);
+    rc = send_cmd(fd, cmd, sizeof(cmd), kernel);
+    usleep(100000);
+
+    return rc;
+}
+
+ssize_t e18_cmd_read_gpio_level(int fd, uint16_t short_addr, uint8_t gpio, Kernel *kernel) {
+    ssize_t rc;
+    uint8_t hiAddr = short_addr >> 8; // HI byte of addr // NOLINT(hicpp-signed-bitwise)
+    uint8_t loAddr = short_addr & 0xFF; // LO byte of addr // NOLINT(hicpp-signed-bitwise)
+
+    uint8_t cmd[] = {
+            E18_HEX_CMD_GET,
+            0x04,
+            E18_HEX_CMD_GET_GPIO_LEVEL,
+            hiAddr,
+            loAddr,
+            gpio,
+            E18_HEX_CMD_END_CMD
+    };
+
+    rc = send_cmd(fd, cmd, sizeof(cmd), kernel);
     usleep(100000);
 
     return rc;
@@ -106,8 +148,6 @@ ssize_t e18_read_fixed_data(int coordinatorFd, uint8_t *buffer, ssize_t size) {
         readed = read(coordinatorFd, &buffer[count], size - count);
         if (readed >= 0) {
             count += readed;
-        } else {
-            return readed;
         }
 
         if (time(nullptr) - currentTime > 5) {

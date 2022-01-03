@@ -94,8 +94,9 @@ void mtmZigbeePktListener(DBase *dBase, int32_t threadId) {
     bool isNetwork = false;
     bool isCmdRun = false;
     uint8_t currentCmd = 0;
-    time_t currentTime, heartBeatTime = 0, syncTimeTime = 0, checkSensorTime = 0, checkAstroTime = 0,
-            checkOutPacket = 0, checkCoordinatorTime = 0, checkLinkState = 0;
+    time_t currentTime, heartBeatTime = 0, syncTimeTime = 0, checkDoorSensorTime = 0, checkContactorSensorTime = 0,
+            checkRelaySensorTime = 0, checkAstroTime = 0, checkOutPacket = 0, checkCoordinatorTime = 0,
+            checkLinkState = 0;
     struct tm *localTime;
 
     struct zb_pkt_item {
@@ -127,6 +128,9 @@ void mtmZigbeePktListener(DBase *dBase, int32_t threadId) {
                     case E18_HEX_CMD_GET_UART_BAUD_RATE :
                         readDataLen = 1;
                         break;
+                    case E18_HEX_CMD_GET_GPIO_LEVEL:
+                        readDataLen = 5;
+                        break;
                     default:
                         readDataLen = 0;
                         break;
@@ -146,6 +150,9 @@ void mtmZigbeePktListener(DBase *dBase, int32_t threadId) {
                         break;
                     case E18_HEX_CMD_GET_UART_BAUD_RATE :
                         isCheckCoordinatorRespond = true;
+                        break;
+                    case E18_HEX_CMD_GET_GPIO_LEVEL:
+                        printf("Addr: 0x%02X%02X, In: %d, Out: %d\n", seek[1], seek[2], seek[3], seek[4]);
                         break;
                     default:
                         break;
@@ -402,54 +409,81 @@ void mtmZigbeePktListener(DBase *dBase, int32_t threadId) {
                         currentTimeCmd.brightLevel[idx] = lightGroupBright[idx];
                     }
 
-                    ssize_t rc = send_e18_hex_cmd(coordinatorFd, 0xFFFF, &currentTimeCmd, kernel);
+                    printf("Send packets with time\n");
+                    ssize_t rc = send_e18_hex_cmd(coordinatorFd, E18_BROADCAST_ADDRESS, &currentTimeCmd, kernel);
+
+                    if (kernel->isDebug) {
+                        kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] Written %ld bytes.", TAG, rc);
+                    }
+
                     if (rc == -1) {
                         lostZBCoordinator(dBase, threadId, &coordinatorUuid);
                         return;
                     }
 
-                    if (kernel->isDebug) {
-                        kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] Written %ld bytes.", TAG, rc);
-                    }
                 }
             }
 
-            // опрашиваем датчики на локальном координаторе
-//            currentTime = time(nullptr);
-//            if (currentTime - checkSensorTime >= 10) {
-//                checkSensorTime = currentTime;
-//                zigbee_mt_cmd_af_data_request req = {0};
-//                req.dst_addr = 0x0000;
-//                req.sep = 0xE8;
-//                req.dep = 0xE8;
-//                req.cid = MBEE_API_LOCAL_IOSTATUS_CLUSTER;
-//                ssize_t rc = send_zb_cmd(coordinatorFd, AF_DATA_REQUEST, &req, kernel);
-//                if (rc == -1) {
-//                    lostZBCoordinator(dBase, threadId, &coordinatorUuid);
-//                    return;
-//                }
-//                if (kernel->isDebug) {
-//                    kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] rc=%ld", TAG, rc);
-//                }
-//
-//                req = {0};
-//                req.dst_addr = 0x0000;
-//                req.sep = 0xE8;
-//                req.dep = 0xE8;
-//                req.cid = MBEE_API_GET_TEMP_CLUSTER;
-//                rc = send_zb_cmd(coordinatorFd, AF_DATA_REQUEST, &req, kernel);
-//                if (rc == -1) {
-//                    lostZBCoordinator(dBase, threadId, &coordinatorUuid);
-//                    return;
-//                }
-//                if (kernel->isDebug) {
-//                    kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] rc=%ld", TAG, rc);
-//                }
-//            }
-
-            // получаем версию модуля, по полученному ответу понимаем что модуль работает
+            // опрашиваем датчик двери шкафа
             currentTime = time(nullptr);
-            if (currentTime - checkCoordinatorTime >= 15) {
+            if (!isCmdRun && currentTime - checkDoorSensorTime >= 10) {
+                isCmdRun = true;
+                currentCmd = E18_HEX_CMD_GET_GPIO_LEVEL;
+                checkDoorSensorTime = currentTime;
+                printf("Check door sensor\n");
+                ssize_t rc = e18_cmd_read_gpio_level(coordinatorFd, E18_LOCAL_DATA_ADDRESS, E18_PIN_DOOR, kernel);
+
+                if (kernel->isDebug) {
+                    kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] rc=%ld", TAG, rc);
+                }
+
+                if (rc == -1) {
+                    lostZBCoordinator(dBase, threadId, &coordinatorUuid);
+                    return;
+                }
+            }
+
+            // опрашиваем датчик контактора
+            currentTime = time(nullptr);
+            if (!isCmdRun && currentTime - checkContactorSensorTime >= 10) {
+                isCmdRun = true;
+                currentCmd = E18_HEX_CMD_GET_GPIO_LEVEL;
+                checkContactorSensorTime = currentTime;
+                printf("Check contactor sensor\n");
+                ssize_t rc = e18_cmd_read_gpio_level(coordinatorFd, E18_LOCAL_DATA_ADDRESS, E18_PIN_CONTACTOR, kernel);
+
+                if (kernel->isDebug) {
+                    kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] rc=%ld", TAG, rc);
+                }
+
+                if (rc == -1) {
+                    lostZBCoordinator(dBase, threadId, &coordinatorUuid);
+                    return;
+                }
+            }
+
+            // опрашиваем датчик реле
+            currentTime = time(nullptr);
+            if (!isCmdRun && currentTime - checkRelaySensorTime >= 10) {
+                isCmdRun = true;
+                currentCmd = E18_HEX_CMD_GET_GPIO_LEVEL;
+                checkRelaySensorTime = currentTime;
+                printf("Check relay sensor\n");
+                ssize_t rc = e18_cmd_read_gpio_level(coordinatorFd, E18_LOCAL_DATA_ADDRESS, E18_PIN_RELAY, kernel);
+
+                if (kernel->isDebug) {
+                    kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] rc=%ld", TAG, rc);
+                }
+
+                if (rc == -1) {
+                    lostZBCoordinator(dBase, threadId, &coordinatorUuid);
+                    return;
+                }
+            }
+
+            // получаем скорость порта, по полученному ответу понимаем что модуль работает
+            currentTime = time(nullptr);
+            if (!isCmdRun && currentTime - checkCoordinatorTime >= 15) {
                 if (!isCheckCoordinatorRespond) {
                     // координатор не ответил
                     kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] ERROR Coordinator not answer for request module version",
@@ -471,14 +505,16 @@ void mtmZigbeePktListener(DBase *dBase, int32_t threadId) {
                 checkCoordinatorTime = currentTime;
                 isCmdRun = true;
                 currentCmd = E18_HEX_CMD_GET_UART_BAUD_RATE;
+                printf("Check baud rate\n");
                 ssize_t rc = e18_cmd_get_baud_rate(coordinatorFd, kernel);
-                if (rc == -1) {
-                    lostZBCoordinator(dBase, threadId, &coordinatorUuid);
-                    return;
-                }
 
                 if (kernel->isDebug) {
                     kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] rc=%ld", TAG, rc);
+                }
+
+                if (rc == -1) {
+                    lostZBCoordinator(dBase, threadId, &coordinatorUuid);
+                    return;
                 }
             }
 
@@ -1092,13 +1128,15 @@ int32_t mtmZigbeeInit(int32_t mode, uint8_t *path, uint64_t speed) {
 
         // Инициализируем внешние линии координатора e18
         // индикатор
-        e18_cmd_init_gpio(coordinatorFd, 0xFFFF, E18_PIN_LED, E18_PIN_OUTPUT, kernel);
+        e18_cmd_init_gpio(coordinatorFd, E18_LOCAL_DATA_ADDRESS, E18_PIN_LED, E18_PIN_OUTPUT, kernel);
         // реле
-        e18_cmd_init_gpio(coordinatorFd, 0xFFFF, E18_PIN_RELAY, E18_PIN_OUTPUT, kernel);
+        e18_cmd_init_gpio(coordinatorFd, E18_LOCAL_DATA_ADDRESS, E18_PIN_RELAY, E18_PIN_OUTPUT, kernel);
         // дверь
-        e18_cmd_init_gpio(coordinatorFd, 0xFFFF, E18_PIN_DOOR, E18_PIN_INPUT, kernel);
+        e18_cmd_init_gpio(coordinatorFd, E18_LOCAL_DATA_ADDRESS, E18_PIN_DOOR, E18_PIN_INPUT, kernel);
         // контактор
-        e18_cmd_init_gpio(coordinatorFd, 0xFFFF, E18_PIN_CONTACTOR, E18_PIN_INPUT, kernel);
+        e18_cmd_init_gpio(coordinatorFd, E18_LOCAL_DATA_ADDRESS, E18_PIN_CONTACTOR, E18_PIN_INPUT, kernel);
+        // отключаем реле
+        e18_cmd_set_gpio_level(coordinatorFd, E18_LOCAL_DATA_ADDRESS, E18_PIN_RELAY, E18_LEVEL_LOW, kernel);
 
         tcflush(coordinatorFd, TCIFLUSH);   /* Discards old data in the rx buffer            */
     }

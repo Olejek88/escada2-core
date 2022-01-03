@@ -96,6 +96,12 @@
 #define E18_PIN_INPUT       0x01
 #define E18_PIN_OUTPUT      0x00
 
+#define E18_LEVEL_HI       0x01
+#define E18_LEVEL_LOW      0x00
+
+#define E18_LOCAL_DATA_ADDRESS  0xFFFF
+#define E18_BROADCAST_ADDRESS  0xFFFF
+
 
 ssize_t send_e18_hex_cmd(int fd, uint16_t short_addr, void *mtm_cmd, Kernel *kernel);
 
@@ -104,5 +110,11 @@ ssize_t e18_cmd_init_gpio(int fd, uint16_t short_addr, uint8_t line, uint8_t mod
 ssize_t e18_cmd_get_baud_rate(int fd, Kernel *kernel);
 
 ssize_t e18_read_fixed_data(int coordinatorFd, uint8_t *buffer, ssize_t len);
+
+ssize_t e18_cmd_read_gpio_level(int fd, uint16_t short_addr, uint8_t gpio, Kernel *kernel);
+
+//ssize_t e18_write_cmd(int fd, uint8_t *data, ssize_t size, Kernel *kernel);
+
+ssize_t e18_cmd_set_gpio_level(int fd, uint16_t short_addr, uint8_t gpio, uint8_t level, Kernel *kernel);
 
 #endif //ESCADA2_CORE_E18_E18_H
