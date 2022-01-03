@@ -13,6 +13,7 @@
 #include <ctime>
 #include "drivers/SensorChannel.h"
 #include "drivers/Device.h"
+#include "e18.h"
 
 extern Kernel *kernel;
 extern bool isSunInit;
@@ -386,7 +387,7 @@ void makeCoordinatorStatus(DBase *dBase, uint8_t *address, const uint8_t *packet
     // найти канал по устройству sensor_channel и regIdx
     std::string in1ChannelUuid = findSChannel(dBase, deviceUuid, MTM_ZB_CHANNEL_COORD_DOOR_IDX, CHANNEL_DOOR_STATE);
     if (!in1ChannelUuid.empty()) {
-        uint16_t value = *(uint16_t * )(&packetBuffer[34]);
+        uint16_t value = *(uint16_t *) (&packetBuffer[34]);
         // получаем конфигурацию канала измерения
         threshold = 1024;
         std::string config = getSChannelConfig(dBase, &in1ChannelUuid);
@@ -437,7 +438,7 @@ void makeCoordinatorStatus(DBase *dBase, uint8_t *address, const uint8_t *packet
     std::string in2ChannelUuid = findSChannel(dBase, deviceUuid, MTM_ZB_CHANNEL_COORD_CONTACTOR_IDX,
                                               CHANNEL_CONTACTOR_STATE);
     if (!in2ChannelUuid.empty()) {
-        uint16_t value = *(uint16_t * )(&packetBuffer[36]);
+        uint16_t value = *(uint16_t *) (&packetBuffer[36]);
         // получаем конфигурацию канала измерения
         threshold = 1024;
         std::string config = getSChannelConfig(dBase, &in2ChannelUuid);
@@ -486,7 +487,7 @@ void makeCoordinatorStatus(DBase *dBase, uint8_t *address, const uint8_t *packet
     // найти канал по устройству sensor_channel и regIdx (цифровой пин управления контактором)
     std::string digi1ChannelUuid = findSChannel(dBase, deviceUuid, MTM_ZB_CHANNEL_COORD_RELAY_IDX, CHANNEL_RELAY_STATE);
     if (!digi1ChannelUuid.empty()) {
-        uint16_t value = *(uint16_t * )(&packetBuffer[32]);
+        uint16_t value = *(uint16_t *) (&packetBuffer[32]);
         value &= 0x0040u;
         value = value >> 6; // NOLINT(hicpp-signed-bitwise)
         oldValue = 0;
@@ -563,7 +564,7 @@ void makeCoordinatorTemperature(DBase *dBase, uint8_t *address, const uint8_t *p
     sChannelUuid = findSChannel(dBase, deviceUuid, MTM_ZB_CHANNEL_LIGHT_TEMPERATURE_IDX, CHANNEL_T);
     if (!sChannelUuid.empty()) {
         // температура лежит в двух байтах начиная с 21-го
-        uint16_t tempCount = *(uint16_t * ) & packetBuffer[21];
+        uint16_t tempCount = *(uint16_t *) &packetBuffer[21];
         value = (int8_t) ((tempCount - 1480) / 4.5) + 25;
         measureUuid = findMeasure(dBase, &sChannelUuid, MTM_ZB_CHANNEL_LIGHT_TEMPERATURE_IDX);
         if (!measureUuid.empty()) {
@@ -681,8 +682,8 @@ void checkAstroEvents(time_t currentTime, double lon, double lat, DBase *dBase, 
 
         // расчитываем время начала/конца сумерек относительно рассвета/заката (которые возможно получили из календаря)
         // устанавливая их длительность пропорционально изменившейся длительности ночи
-        twilightStartTime = sunRiseTime - (uint64_t)(twilightLength * nightRate);
-        twilightEndTime = sunSetTime + (uint64_t)(twilightLength * nightRate);
+        twilightStartTime = sunRiseTime - (uint64_t) (twilightLength * nightRate);
+        twilightEndTime = sunSetTime + (uint64_t) (twilightLength * nightRate);
 
         action.header.type = MTM_CMD_TYPE_ACTION;
         action.header.protoVersion = MTM_VERSION_0;
@@ -730,7 +731,7 @@ void checkAstroEvents(time_t currentTime, double lon, double lat, DBase *dBase, 
 
             // передаём команду "астро событие" "закат"
             action.data = (0x02 << 8 | 0x01); // NOLINT(hicpp-signed-bitwise)
-            rc = send_mtm_cmd(coordinatorFd, 0xFFFF, &action, kernel);
+            rc = send_e18_cmd(coordinatorFd, 0xFFFF, &action, kernel);
             if (rc == -1) {
                 lostZBCoordinator(dBase, threadId, &coordinatorUuid);
                 return;
@@ -760,7 +761,7 @@ void checkAstroEvents(time_t currentTime, double lon, double lat, DBase *dBase, 
 
             // передаём команду "астро событие" "конец сумерек"
             action.data = (0x01 << 8 | 0x00); // NOLINT(hicpp-signed-bitwise)
-            ssize_t rc = send_mtm_cmd(coordinatorFd, 0xFFFF, &action, kernel);
+            ssize_t rc = send_e18_cmd(coordinatorFd, 0xFFFF, &action, kernel);
             if (rc == -1) {
                 lostZBCoordinator(dBase, threadId, &coordinatorUuid);
                 return;
@@ -790,7 +791,7 @@ void checkAstroEvents(time_t currentTime, double lon, double lat, DBase *dBase, 
 
             // передаём команду "астро событие" "начало сумерек"
             action.data = (0x03 << 8 | 0x00); // NOLINT(hicpp-signed-bitwise)
-            ssize_t rc = send_mtm_cmd(coordinatorFd, 0xFFFF, &action, kernel);
+            ssize_t rc = send_e18_cmd(coordinatorFd, 0xFFFF, &action, kernel);
             if (rc == -1) {
                 lostZBCoordinator(dBase, threadId, &coordinatorUuid);
                 return;
@@ -818,7 +819,7 @@ void checkAstroEvents(time_t currentTime, double lon, double lat, DBase *dBase, 
             switchAllLight(0);
             // передаём команду "астро событие" "восход"
             action.data = (0x00 << 8 | 0x00); // NOLINT(hicpp-signed-bitwise)
-            ssize_t rc = send_mtm_cmd(coordinatorFd, 0xFFFF, &action, kernel);
+            ssize_t rc = send_e18_cmd(coordinatorFd, 0xFFFF, &action, kernel);
             if (rc == -1) {
                 lostZBCoordinator(dBase, threadId, &coordinatorUuid);
                 return;
@@ -861,7 +862,7 @@ ssize_t sendLightLevel(char *addrString, char *level) {
     action.device = MTM_DEVICE_LIGHT;
     action.data = std::stoi(level);
     uint64_t addr = std::stoull(addrString, nullptr, 16);
-    return send_mtm_cmd_ext(coordinatorFd, addr, &action, kernel);
+    return send_e18_cmd(coordinatorFd, addr, &action, kernel);
 }
 
 void mtmZigbeeStopThread(DBase *dBase, int32_t threadId) {

@@ -166,6 +166,12 @@ typedef struct _mtm_cmd_header {
     uint8_t protoVersion;
 } mtm_cmd_header;
 
+// общая структура команды MTM
+typedef struct _mtm_cmd {
+    mtm_cmd_header header;
+    void *data;
+} mtm_cmd;
+
 // флаги аварии для конечных устройств/датчиков
 typedef union _mtm_device_alert {
     uint16_t devices;

@@ -13,8 +13,9 @@ ssize_t send_e18_cmd(int fd, uint16_t short_addr, void *mtm_cmd, Kernel *kernel)
     uint8_t bufferSize;
     uint8_t sendBufferSize = 0;
     ssize_t rc;
+    uint8_t cmdType = ((mtm_cmd_header *) mtm_cmd)->type;
 
-    bufferSize = get_mtm_command_size(((mtm_cmd_header *) mtm_cmd)->type);
+    bufferSize = get_mtm_command_size(cmdType);
     // формируем данные для отправки
     sendBuffer[sendBufferSize++] = E18_HEX_CMD;
     sendBuffer[sendBufferSize++] = 0; // размер передаваемых данных нам пока не известен
@@ -30,7 +31,7 @@ ssize_t send_e18_cmd(int fd, uint16_t short_addr, void *mtm_cmd, Kernel *kernel)
 
     sendBuffer[sendBufferSize++] = E18_SOF;
 
-    zigbeemtm_get_mtm_cmd_data(((mtm_cmd_header *) mtm_cmd)->type, mtm_cmd, buffer);
+    zigbeemtm_get_mtm_cmd_data(cmdType, mtm_cmd, buffer);
     // переносим данные команды в буфер отправки, при необходимости экранируем данные
     for (uint16_t i = 0; i < bufferSize; i++) {
         switch (buffer[i]) {
