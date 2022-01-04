@@ -11,6 +11,7 @@
 #define SOF 0xFE
 
 #define MTM_VERSION_0 0x00
+#define MTM_VERSION_1 0x01
 
 #define ZDO_NWK_ADDR_REQ 0x0025
 #define AF_DATA_REQUEST 0x0124
@@ -203,6 +204,14 @@ typedef struct _mtm_cmd_status {
     uint16_t data[16];
 } mtm_cmd_status;
 
+typedef struct _mtm_cmd_status_v1 {
+    mtm_cmd_header header;
+    uint8_t mac[8];
+    uint8_t parentMac[8];
+    mtm_device_alert alert;
+    uint16_t data[16];
+} mtm_cmd_status_v1;
+
 // структура пакета МТМ "Конфигурация датчика"
 typedef struct _mtm_cmd_config {
     mtm_cmd_header header;
@@ -254,7 +263,9 @@ int64_t zigbeemtm_get_mtm_cmd_data(uint8_t cmd, void *data, uint8_t *buffer);
 
 ssize_t send_cmd(int fd, uint8_t *buffer, size_t size, Kernel *kernel);
 
-int8_t get_mtm_command_size(uint8_t type);
+int8_t get_mtm_command_size(uint8_t type, uint8_t protoVersion);
+
+int8_t get_mtm_status_data_start(uint8_t protoVersion);
 
 ssize_t send_mtm_cmd(int fd, uint16_t short_addr, void *cmd, Kernel *kernel);
 

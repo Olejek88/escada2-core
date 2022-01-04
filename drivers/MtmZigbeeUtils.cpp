@@ -24,7 +24,7 @@ extern std::string coordinatorUuid;
 void log_buffer_hex(uint8_t *buffer, size_t buffer_size) {
     uint8_t message[1024];
     for (int i = 0; i < buffer_size; i++) {
-        sprintf((char *) &message[i * 2], "%02x", buffer[i]);
+        sprintf((char *) &message[i * 2], "%02X", buffer[i]);
     }
 
     kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] MTM packet: %s", TAG, message);
@@ -294,8 +294,8 @@ bool insertMeasureValue(DBase *dBase, uint8_t *uuid, std::string *channelUuid, i
     char query[1024];
 
     sprintf(query,
-            "INSERT INTO data (uuid, sensorChannelUuid, type, value, date, createdAt) value('%s', '%s', %d, %f, FROM_UNIXTIME(%ld), FROM_UNIXTIME(%ld))",
-            uuid, channelUuid->data(), type, value, createTime, changedTime);
+            "INSERT INTO data (uuid, sensorChannelUuid, type, value, date, createdAt, changedAt) value('%s', '%s', %d, %f, FROM_UNIXTIME(%ld), FROM_UNIXTIME(%ld), FROM_UNIXTIME(%ld))",
+            uuid, channelUuid->data(), type, value, createTime, changedTime, changedTime);
     if (kernel->isDebug) {
         kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] %s", TAG, query);
     }
