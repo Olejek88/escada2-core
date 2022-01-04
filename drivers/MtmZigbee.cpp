@@ -94,10 +94,13 @@ void mtmZigbeePktListener(DBase *dBase, int32_t threadId) {
     bool isNetwork = false;
     bool isCmdRun = false;
     uint8_t currentCmd = 0;
+    uint8_t currentSensor = 0;
     time_t currentTime, heartBeatTime = 0, syncTimeTime = 0, checkDoorSensorTime = 0, checkContactorSensorTime = 0,
             checkRelaySensorTime = 0, checkAstroTime = 0, checkOutPacket = 0, checkCoordinatorTime = 0,
             checkLinkState = 0;
     struct tm *localTime;
+    uint16_t addr;
+    uint8_t inState, outState;
 
     struct zb_pkt_item {
         void *pkt;
@@ -152,8 +155,28 @@ void mtmZigbeePktListener(DBase *dBase, int32_t threadId) {
                     case E18_HEX_CMD_GET_UART_BAUD_RATE :
                         isCheckCoordinatorRespond = true;
                         break;
-                    case E18_HEX_CMD_GET_GPIO_LEVEL:
-                        printf("Addr: 0x%02X%02X, In: %d, Out: %d\n", seek[1], seek[2], seek[3], seek[4]);
+                    case E18_HEX_CMD_GET_GPIO_LEVEL :
+                        addr = *(uint16_t *) &seek[1];
+                        inState = seek[3];
+                        outState = seek[4];
+                        printf("Addr: 0x%04X, In: %d, Out: %d\n", addr, inState, outState);
+                        switch (currentSensor) {
+                            case E18_PIN_DOOR :
+                                printf("door status: in=%d, out=%d\n", inState, outState);
+                                storeCoordinatorDoorStatus(dBase, &coordinatorUuid, inState == 1, outState == 1);
+                                break;
+                            case E18_PIN_CONTACTOR :
+                                printf("contactor status: in=%d, out=%d\n", inState, outState);
+                                storeCoordinatorContactorStatus(dBase, &coordinatorUuid, inState == 1, outState == 1);
+                                break;
+                            case E18_PIN_RELAY :
+                                printf("relay status: in=%d, out=%d\n", inState, outState);
+                                storeCoordinatorRelayStatus(dBase, &coordinatorUuid, inState == 1, outState == 1);
+                                break;
+                            default:
+                                break;
+                        }
+
                         break;
                     default:
                         break;
@@ -161,6 +184,7 @@ void mtmZigbeePktListener(DBase *dBase, int32_t threadId) {
 
                 isCmdRun = false;
                 currentCmd = 0;
+                currentSensor = 0;
             } else if (isCmdRun && data == E18_SET_ANSWER) {
                 // ответ на команду установки данных
                 printf("get write data of %02X command\n", currentCmd);
@@ -436,6 +460,7 @@ void mtmZigbeePktListener(DBase *dBase, int32_t threadId) {
             if (!isCmdRun && currentTime - checkDoorSensorTime >= 10) {
                 isCmdRun = true;
                 currentCmd = E18_HEX_CMD_GET_GPIO_LEVEL;
+                currentSensor = E18_PIN_DOOR;
                 checkDoorSensorTime = currentTime;
                 printf("Check door sensor\n");
                 ssize_t rc = e18_cmd_read_gpio_level(coordinatorFd, E18_LOCAL_DATA_ADDRESS, E18_PIN_DOOR, kernel);
@@ -455,6 +480,7 @@ void mtmZigbeePktListener(DBase *dBase, int32_t threadId) {
             if (!isCmdRun && currentTime - checkContactorSensorTime >= 10) {
                 isCmdRun = true;
                 currentCmd = E18_HEX_CMD_GET_GPIO_LEVEL;
+                currentSensor = E18_PIN_CONTACTOR;
                 checkContactorSensorTime = currentTime;
                 printf("Check contactor sensor\n");
                 ssize_t rc = e18_cmd_read_gpio_level(coordinatorFd, E18_LOCAL_DATA_ADDRESS, E18_PIN_CONTACTOR, kernel);
@@ -474,6 +500,7 @@ void mtmZigbeePktListener(DBase *dBase, int32_t threadId) {
             if (!isCmdRun && currentTime - checkRelaySensorTime >= 10) {
                 isCmdRun = true;
                 currentCmd = E18_HEX_CMD_GET_GPIO_LEVEL;
+                currentSensor = E18_PIN_RELAY;
                 checkRelaySensorTime = currentTime;
                 printf("Check relay sensor\n");
                 ssize_t rc = e18_cmd_read_gpio_level(coordinatorFd, E18_LOCAL_DATA_ADDRESS, E18_PIN_RELAY, kernel);
@@ -487,6 +514,9 @@ void mtmZigbeePktListener(DBase *dBase, int32_t threadId) {
                     return;
                 }
             }
+
+            // опрашиваем датчик температуры на координаторе
+            //
 
             // получаем скорость порта, по полученному ответу понимаем что модуль работает
             currentTime = time(nullptr);
@@ -965,49 +995,6 @@ void mtmZigbeeProcessInPacket(uint8_t *pktBuff, uint32_t length) {
             printf("skip mtm packet\n");
             break;
     }
-
-
-//    switch (cmd) {
-//        case AF_DATA_RESPONSE:
-//
-//            switch (cluster) { // NOLINT
-//                case MBEE_API_LOCAL_IOSTATUS_CLUSTER :
-//                    // состояние линий модуля zigbee
-//                    memset(address, 0, 32);
-//                    sprintf((char *) address, "%02X%02X%02X%02X%02X%02X%02X%02X",
-//                            pktBuff[17], pktBuff[16], pktBuff[15], pktBuff[14],
-//                            pktBuff[13], pktBuff[12], pktBuff[11], pktBuff[10]);
-//
-//                    if (kernel->isDebug) {
-//                        kernel->log.ulogw(LOG_LEVEL_INFO, "Get sensor data packet");
-//                    }
-//
-//                    makeCoordinatorStatus(mtmZigbeeDBase, address, pktBuff);
-//                    break;
-//
-//                case MBEE_API_GET_TEMP_CLUSTER :
-//                    // температура модуля zigbee
-//                    memset(address, 0, 32);
-//                    sprintf((char *) address, "%02X%02X%02X%02X%02X%02X%02X%02X",
-//                            pktBuff[17], pktBuff[16], pktBuff[15], pktBuff[14],
-//                            pktBuff[13], pktBuff[12], pktBuff[11], pktBuff[10]);
-//
-//                    if (kernel->isDebug) {
-//                        kernel->log.ulogw(LOG_LEVEL_INFO, "Get temperature data packet");
-//                    }
-//
-//                    makeCoordinatorTemperature(mtmZigbeeDBase, address, pktBuff);
-//                    break;
-//
-//                default:
-//                    break;
-//            }
-//
-//            break;
-//
-//        default:
-//            break;
-//    }
 }
 
 int32_t mtmZigbeeInit(int32_t mode, uint8_t *path, uint64_t speed) {

@@ -75,6 +75,12 @@ ssize_t resetCoordinator();
 
 void makeCoordinatorStatus(DBase *dBase, uint8_t *address, const uint8_t *packetBuffer);
 
+void storeCoordinatorDoorStatus(DBase *dBase, std::string *address, bool in, bool out);
+
+void storeCoordinatorContactorStatus(DBase *dBase, std::string *address, bool in, bool out);
+
+void storeCoordinatorRelayStatus(DBase *dBase, std::string *address, bool in, bool out);
+
 std::string findMeasure(DBase *dBase, std::string *sChannelUuid, uint8_t regIdx);
 
 bool updateMeasureValue(DBase *dBase, uint8_t *uuid, double value, time_t changedTime);

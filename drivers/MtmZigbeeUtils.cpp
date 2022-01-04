@@ -30,7 +30,7 @@ void log_buffer_hex(uint8_t *buffer, size_t buffer_size) {
     kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] MTM packet: %s", TAG, message);
 }
 
-bool findDevice(DBase *dBase, uint8_t *addr, uint8_t *uuid) {
+bool findDevice(DBase *dBase, std::string *deviceUuid, uint8_t *uuid) {
     ulong nRows;
     uint32_t nFields;
     MYSQL_FIELD *field;
@@ -42,7 +42,7 @@ bool findDevice(DBase *dBase, uint8_t *addr, uint8_t *uuid) {
     uint8_t query[1024];
     MYSQL_RES *res;
 
-    sprintf((char *) query, "SELECT * FROM device WHERE address LIKE '%s'", addr);
+    sprintf((char *) query, "SELECT * FROM device WHERE uuid = '%s'", deviceUuid->data());
     res = dBase->sqlexec((char *) query);
     if (res) {
         nRows = mysql_num_rows(res);
@@ -273,8 +273,8 @@ bool storeMeasureValue(DBase *dBase, uint8_t *uuid, std::string *channelUuid, do
     char query[1024];
 
     sprintf(query,
-            "INSERT INTO data (uuid, sensorChannelUuid, value, date, createdAt) value('%s', '%s', %f, FROM_UNIXTIME(%ld), FROM_UNIXTIME(%ld))",
-            uuid, channelUuid->data(), value, createTime, changedTime);
+            "INSERT INTO data (uuid, sensorChannelUuid, value, date, createdAt, changedAt) value('%s', '%s', %f, FROM_UNIXTIME(%ld), FROM_UNIXTIME(%ld), FROM_UNIXTIME(%ld))",
+            uuid, channelUuid->data(), value, createTime, changedTime, changedTime);
     if (kernel->isDebug) {
         kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] %s", TAG, query);
     }
@@ -361,6 +361,179 @@ std::string findMeasure(DBase *dBase, std::string *sChannelUuid, uint8_t regIdx)
     return result;
 }
 
+void storeCoordinatorDoorStatus(DBase *dBase, std::string *address, bool in, bool out) {
+    uint8_t deviceUuid[37];
+    uuid_t newUuid;
+    uint8_t newUuidString[37];
+    std::string measureUuid;
+    time_t createTime = time(nullptr);
+    Json::Reader reader;
+    Json::Value obj;
+    char message[1024];
+    uint16_t oldValue;
+    char query[1024];
+    MYSQL_RES *res;
+    MYSQL_ROW row;
+
+    memset(deviceUuid, 0, 37);
+    if (!findDevice(dBase, address, deviceUuid)) {
+        sprintf(message, "Не удалось найти устройство с адресом %s", address->data());
+        kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] %s %s", TAG, message);
+        AddDeviceRegister(dBase, (char *) coordinatorUuid.data(), message);
+        return;
+    }
+
+    // найти канал по устройству sensor_channel и regIdx
+    std::string channelUuid = findSChannel(dBase, deviceUuid, MTM_ZB_CHANNEL_COORD_DOOR_IDX, CHANNEL_DOOR_STATE);
+    if (!channelUuid.empty()) {
+        oldValue = 0;
+        measureUuid = findMeasure(dBase, &channelUuid, MTM_ZB_CHANNEL_COORD_DOOR_IDX);
+        if (!measureUuid.empty()) {
+            sprintf(query, "SELECT * FROM data WHERE uuid='%s'", measureUuid.data());
+            res = dBase->sqlexec(query);
+            dBase->makeFieldsList(res);
+            row = mysql_fetch_row(res);
+            oldValue = (uint16_t) std::stoi(row[dBase->getFieldIndex("value")]);
+            mysql_free_result(res);
+            if (updateMeasureValue(dBase, (uint8_t *) measureUuid.data(), out, createTime)) {
+                kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] %s %s", TAG,
+                                  "Не удалось обновить измерение", MTM_ZB_CHANNEL_COORD_DOOR_TITLE);
+            }
+        } else {
+            // создать новое измерение для канала
+            uuid_generate(newUuid);
+            memset(newUuidString, 0, 37);
+            uuid_unparse_upper(newUuid, (char *) newUuidString);
+            if (storeMeasureValue(dBase, newUuidString, &channelUuid, out, createTime, createTime)) {
+                kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] %s %s", TAG,
+                                  "Не удалось сохранить измерение", MTM_ZB_CHANNEL_COORD_DOOR_TITLE);
+            }
+        }
+
+        if (oldValue != out) {
+            sprintf(message, "Дверь %s.", out == 0 ? "закрыта" : "открыта");
+            kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] %s", TAG, message);
+            AddDeviceRegister(dBase, (char *) coordinatorUuid.data(), message);
+        }
+    }
+}
+
+void storeCoordinatorContactorStatus(DBase *dBase, std::string *address, bool in, bool out) {
+    uint8_t deviceUuid[37];
+    uuid_t newUuid;
+    uint8_t newUuidString[37];
+    std::string measureUuid;
+    time_t createTime = time(nullptr);
+    Json::Reader reader;
+    Json::Value obj;
+    char message[1024];
+    uint16_t oldValue;
+    char query[1024];
+    MYSQL_RES *res;
+    MYSQL_ROW row;
+
+    memset(deviceUuid, 0, 37);
+    if (!findDevice(dBase, address, deviceUuid)) {
+        sprintf(message, "Не удалось найти устройство с адресом %s", address->data());
+        kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] %s %s", TAG, message);
+        AddDeviceRegister(dBase, (char *) coordinatorUuid.data(), message);
+        return;
+    }
+
+    // найти канал по устройству sensor_channel и regIdx
+    std::string channelUuid = findSChannel(dBase, deviceUuid, MTM_ZB_CHANNEL_COORD_CONTACTOR_IDX,
+                                           CHANNEL_CONTACTOR_STATE);
+    if (!channelUuid.empty()) {
+        oldValue = 0;
+        measureUuid = findMeasure(dBase, &channelUuid, MTM_ZB_CHANNEL_COORD_CONTACTOR_IDX);
+        if (!measureUuid.empty()) {
+            sprintf(query, "SELECT * FROM data WHERE uuid='%s'", measureUuid.data());
+            res = dBase->sqlexec(query);
+            dBase->makeFieldsList(res);
+            row = mysql_fetch_row(res);
+            oldValue = (uint16_t) std::stoi(row[dBase->getFieldIndex("value")]);
+            mysql_free_result(res);
+            if (updateMeasureValue(dBase, (uint8_t *) measureUuid.data(), out, createTime)) {
+                kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] %s %s", TAG,
+                                  "Не удалось обновить измерение", MTM_ZB_CHANNEL_COORD_CONTACTOR_TITLE);
+            }
+        } else {
+            // создать новое измерение для канала
+            uuid_generate(newUuid);
+            memset(newUuidString, 0, 37);
+            uuid_unparse_upper(newUuid, (char *) newUuidString);
+            if (storeMeasureValue(dBase, newUuidString, &channelUuid, out, createTime, createTime)) {
+                kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] %s %s", TAG,
+                                  "Не удалось сохранить измерение", MTM_ZB_CHANNEL_COORD_CONTACTOR_TITLE);
+            }
+        }
+
+        if (oldValue != out) {
+            sprintf(message, "Контактор %s.", out == 0 ? "включен" : "отключен");
+            kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] %s", TAG, message);
+            AddDeviceRegister(dBase, (char *) coordinatorUuid.data(), message);
+        }
+    }
+}
+
+void storeCoordinatorRelayStatus(DBase *dBase, std::string *address, bool in, bool out) {
+    uint8_t deviceUuid[37];
+    uuid_t newUuid;
+    uint8_t newUuidString[37];
+    std::string measureUuid;
+    time_t createTime = time(nullptr);
+    Json::Reader reader;
+    Json::Value obj;
+    char message[1024];
+    uint16_t oldValue;
+    char query[1024];
+    MYSQL_RES *res;
+    MYSQL_ROW row;
+
+    memset(deviceUuid, 0, 37);
+    if (!findDevice(dBase, address, deviceUuid)) {
+        sprintf(message, "Не удалось найти устройство с адресом %s", address->data());
+        kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] %s %s", TAG, message);
+        AddDeviceRegister(dBase, (char *) coordinatorUuid.data(), message);
+        return;
+    }
+
+    // найти канал по устройству sensor_channel и regIdx
+    std::string in1ChannelUuid = findSChannel(dBase, deviceUuid, MTM_ZB_CHANNEL_COORD_RELAY_IDX, CHANNEL_RELAY_STATE);
+    if (!in1ChannelUuid.empty()) {
+        oldValue = 0;
+        measureUuid = findMeasure(dBase, &in1ChannelUuid, MTM_ZB_CHANNEL_COORD_RELAY_IDX);
+        if (!measureUuid.empty()) {
+            sprintf(query, "SELECT * FROM data WHERE uuid='%s'", measureUuid.data());
+            res = dBase->sqlexec(query);
+            dBase->makeFieldsList(res);
+            row = mysql_fetch_row(res);
+            oldValue = (uint16_t) std::stoi(row[dBase->getFieldIndex("value")]);
+            mysql_free_result(res);
+            if (updateMeasureValue(dBase, (uint8_t *) measureUuid.data(), out, createTime)) {
+                kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] %s %s", TAG,
+                                  "Не удалось обновить измерение", MTM_ZB_CHANNEL_COORD_RELAY_TITLE);
+            }
+        } else {
+            // создать новое измерение для канала
+            uuid_generate(newUuid);
+            memset(newUuidString, 0, 37);
+            uuid_unparse_upper(newUuid, (char *) newUuidString);
+            if (storeMeasureValue(dBase, newUuidString, &in1ChannelUuid, out, createTime, createTime)) {
+                kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] %s %s", TAG,
+                                  "Не удалось сохранить измерение", MTM_ZB_CHANNEL_COORD_RELAY_TITLE);
+            }
+        }
+
+        if (oldValue != out) {
+            sprintf(message, "Реле контактора %s.", out == 0 ? "отключено" : "включено");
+            kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] %s", TAG, message);
+            AddDeviceRegister(dBase, (char *) coordinatorUuid.data(), message);
+        }
+    }
+}
+
+/*
 void makeCoordinatorStatus(DBase *dBase, uint8_t *address, const uint8_t *packetBuffer) {
     uint8_t deviceUuid[37];
     uuid_t newUuid;
@@ -383,56 +556,6 @@ void makeCoordinatorStatus(DBase *dBase, uint8_t *address, const uint8_t *packet
         AddDeviceRegister(dBase, (char *) coordinatorUuid.data(), message);
         return;
     }
-
-    // найти канал по устройству sensor_channel и regIdx
-    std::string in1ChannelUuid = findSChannel(dBase, deviceUuid, MTM_ZB_CHANNEL_COORD_DOOR_IDX, CHANNEL_DOOR_STATE);
-    if (!in1ChannelUuid.empty()) {
-        uint16_t value = *(uint16_t *) (&packetBuffer[34]);
-        // получаем конфигурацию канала измерения
-        threshold = 1024;
-        std::string config = getSChannelConfig(dBase, &in1ChannelUuid);
-        if (!config.empty()) {
-            reader.parse(config, obj); // reader can also read strings
-            if (!obj["threshold"].empty()) {
-                try {
-                    threshold = stoi(obj["threshold"].asString());
-                } catch (std::invalid_argument &invalidArgument) {
-                }
-            }
-        }
-
-        oldValue = 0;
-        value = value > threshold;
-        measureUuid = findMeasure(dBase, &in1ChannelUuid, MTM_ZB_CHANNEL_COORD_DOOR_IDX);
-        if (!measureUuid.empty()) {
-            sprintf(query, "SELECT * FROM data WHERE uuid='%s'", measureUuid.data());
-            res = dBase->sqlexec(query);
-            dBase->makeFieldsList(res);
-            row = mysql_fetch_row(res);
-            oldValue = (uint16_t) std::stoi(row[dBase->getFieldIndex("value")]);
-            mysql_free_result(res);
-            if (updateMeasureValue(dBase, (uint8_t *) measureUuid.data(), value, createTime)) {
-                kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] %s %s", TAG,
-                                  "Не удалось обновить измерение", MTM_ZB_CHANNEL_COORD_DOOR_TITLE);
-            }
-        } else {
-            // создать новое измерение для канала
-            uuid_generate(newUuid);
-            memset(newUuidString, 0, 37);
-            uuid_unparse_upper(newUuid, (char *) newUuidString);
-            if (storeMeasureValue(dBase, newUuidString, &in1ChannelUuid, (double) value, createTime, createTime)) {
-                kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] %s %s", TAG,
-                                  "Не удалось сохранить измерение", MTM_ZB_CHANNEL_COORD_DOOR_TITLE);
-            }
-        }
-
-        if (oldValue != value) {
-            sprintf(message, "Дверь %s.", value == 0 ? "закрыта" : "открыта");
-            kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] %s", TAG, message);
-            AddDeviceRegister(dBase, (char *) coordinatorUuid.data(), message);
-        }
-    }
-
 
     // найти канал по устройству sensor_channel и regIdx
     std::string in2ChannelUuid = findSChannel(dBase, deviceUuid, MTM_ZB_CHANNEL_COORD_CONTACTOR_IDX,
@@ -520,6 +643,7 @@ void makeCoordinatorStatus(DBase *dBase, uint8_t *address, const uint8_t *packet
         }
     }
 }
+ */
 
 void storeMeasureValueExt(DBase *dBase, SensorChannel *sc, int16_t value, bool instant) {
     uuid_t newUuid;
@@ -542,6 +666,7 @@ void storeMeasureValueExt(DBase *dBase, SensorChannel *sc, int16_t value, bool i
     }
 }
 
+/*
 void makeCoordinatorTemperature(DBase *dBase, uint8_t *address, const uint8_t *packetBuffer) {
     uint8_t deviceUuid[37];
     std::string sChannelUuid;
@@ -583,6 +708,7 @@ void makeCoordinatorTemperature(DBase *dBase, uint8_t *address, const uint8_t *p
         }
     }
 }
+*/
 
 /**
  *
