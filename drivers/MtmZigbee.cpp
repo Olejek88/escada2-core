@@ -819,7 +819,7 @@ void mtmZigbeeProcessOutPacket(int32_t threadId) {
                                 sprintf(message, "Получена команда %s реле контактора.",
                                         mtmPkt[3] == 0 ? "выключения" : "включения");
                                 kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] %s", TAG, message);
-                                rc = switchContactor(mtmPkt[3], mtmPkt[2]);
+                                rc = switchContactor(mtmPkt[3], E18_PIN_RELAY);
                                 AddDeviceRegister(mtmZigbeeDBase, (char *) coordinatorUuid.data(), message);
                                 break;
                             case MTM_CMD_TYPE_RESET_COORDINATOR:

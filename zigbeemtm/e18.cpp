@@ -25,8 +25,8 @@ ssize_t send_e18_hex_cmd(int fd, uint16_t short_addr, void *mtm_cmd, Kernel *ker
     } else {
         sendBuffer[sendBufferSize++] = E18_HEX_CMD_UNICAST;
         sendBuffer[sendBufferSize++] = E18_HEX_CMD_UNICAST_TRANSPARENT;
-        sendBuffer[sendBufferSize++] = short_addr >> 8; // HI byte of addr // NOLINT(hicpp-signed-bitwise)
-        sendBuffer[sendBufferSize++] = short_addr & 0xFF; // LO byte of addr // NOLINT(hicpp-signed-bitwise)
+        sendBuffer[sendBufferSize++] = short_addr & 0xFF; // HI byte of addr // NOLINT(hicpp-signed-bitwise)
+        sendBuffer[sendBufferSize++] = short_addr >> 8; // LO byte of addr // NOLINT(hicpp-signed-bitwise)
     }
 
     sendBuffer[sendBufferSize++] = E18_SOF;
