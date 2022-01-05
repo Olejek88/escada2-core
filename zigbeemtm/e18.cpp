@@ -6,6 +6,10 @@
 #include "e18.h"
 #include "zigbeemtm.h"
 #include <sys/queue.h>
+#include <drivers/Device.h>
+#include <drivers/MtmZigbee.h>
+#include <drivers/EntityParameter.h>
+#include <uuid/uuid.h>
 
 
 // отправляем mtm команду
@@ -115,6 +119,7 @@ ssize_t e18_cmd_set_gpio_level(int fd, uint16_t short_addr, uint8_t gpio, uint8_
     cmdItem->len = sizeof(cmd);
     cmdItem->data = malloc(cmdItem->len);
     cmdItem->cmd = E18_HEX_CMD_SET_GPIO_LEVEL;
+    cmdItem->extra = gpio;
     memcpy(cmdItem->data, (const void *) cmd, cmdItem->len);
     SLIST_INSERT_HEAD(&e18_cmd_queue_head, cmdItem, cmds);
 
@@ -254,42 +259,35 @@ ssize_t e18_cmd_get_remote_short_address(int fd, uint8_t *mac, Kernel *kernel) {
 }
 
 bool e18_store_short_address(DBase *dBase, uint8_t *currentMac, uint16_t shortAddr, Kernel *kernel) {
-    char query[1024] = {0};
-    uint8_t devUuid[37] = {0};
-    sprintf(query, "SELECT uuid FROM device WHERE address = '%s';", currentMac);
-    MYSQL_RES *res = dBase->sqlexec(query);
-    if (res) {
-        my_ulonglong nRows = mysql_num_rows(res);
-        if (nRows == 1) {
-            dBase->makeFieldsList(res);
-            MYSQL_ROW row = mysql_fetch_row(res);
-            if (row != nullptr) {
-                // TODO: вытащить uuid из записи
-                memcpy(devUuid, row[dBase->getFieldIndex("uuid")], 36);
-                printf("Device UUID: %s\n", devUuid);
-                // TODO: проверить существование записи с параметром shortAddr
-                // if(paramShortAddr) {
-                //     updateParameter();
-                // } else {
-                //     createParameter();
-                // }
-//                isWork = std::stoi(row[mtmZigbeeDBase->getFieldIndex("work")]);
-                // если записи нет, создаём. если есть обновляем
-//                sprintf(query, "UPDATE threads SET status=%d, changedAt=FROM_UNIXTIME(%lu) WHERE _id=%d", 0,
-//                        currentTime, threadId);
-//                res = mtmZigbeeDBase->sqlexec(query);
-//                mysql_free_result(res);
+    std::string macString((const char *) currentMac);
+    char shortAddrString[5] = {0};
 
-            } else {
-                // ошибка получения записи из базы, останавливаем поток
-//                kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] Read thread record get null", TAG);
-//                kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] Stopping thread", TAG);
-//                mysql_free_result(res);
-//                return;
-            }
+    sprintf(shortAddrString, "%04X", shortAddr);
+
+    Device *device = findDeviceByAddress(dBase, &macString);
+    if (device != nullptr) {
+        EntityParameter parameter(dBase);
+        if (!parameter.loadParameter(device->uuid, std::string("shortAddr"))) {
+            // параметра в базе нет, заполним поля
+            uuid_t newUuid;
+            uint8_t newUuidString[37] = {0};
+            uuid_generate(newUuid);
+            uuid_unparse_upper(newUuid, (char *) newUuidString);
+            parameter.uuid = (char *) newUuidString;
+            parameter.entityUuid = device->uuid;
+            parameter.parameter = "shortAddr";
         }
 
-        mysql_free_result(res);
+        parameter.value = shortAddrString;
+        // сохраняем в базу
+        if (!parameter.save()) {
+            // сообщение? о том что не смогли записать данные в базу
+            kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s]", TAG, "Не удалось сохранить параметр!!!");
+            return false;
+        } else {
+            return true;
+        }
     }
-    return true;
+
+    return false;
 }

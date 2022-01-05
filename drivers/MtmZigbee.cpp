@@ -237,6 +237,19 @@ void mtmZigbeePktListener(DBase *dBase, int32_t threadId) {
                     printf("write answer do not match! received %02X\n", seek[1]);
                 }
 
+                switch (currentCmd) {
+                    case E18_HEX_CMD_SET_GPIO_LEVEL :
+                        if (currentSensor == E18_PIN_RELAY) {
+                            // даём задержку для того чтоб стартанули модули в светильниках
+                            // т.к. неизвестно, питаются они через контактор или всё время под напряжением
+                            // задержка будет и при выключении реле
+                            sleep(5);
+                        }
+                        break;
+                    default:
+                        break;
+                }
+
                 isCmdRun = false;
                 currentCmd = 0;
             } else if (isCmdRun && data == E18_ERROR) {
@@ -251,7 +264,12 @@ void mtmZigbeePktListener(DBase *dBase, int32_t threadId) {
                 // возможно нужно выставить флаг ошибки команды,
                 // не снимать флаг выполнения команды, чтобы можно было обработать данную ситуацию
                 if (seek[0] == E18_ERROR_SYNTAX) {
-                    printf("error syntax of %02X command\n", currentCmd);
+                    if (currentCmd == E18_HEX_CMD_GET_REMOTE_SHORT_ADDR) {
+                        // это значит что светильник с указанным MAC сейчас либо выключен, либо не доступен
+                        printf("Unable get short address. Maybe zigbee module offline.\n");
+                    } else {
+                        printf("error syntax of %02X command\n", currentCmd);
+                    }
                 } else {
                     printf("unknown error of %02X command\n", currentCmd);
                 }
@@ -613,6 +631,9 @@ void mtmZigbeePktListener(DBase *dBase, int32_t threadId) {
             if (isNetwork && !isCmdRun && currentTime - checkShortAddresses > 30) {
                 checkShortAddresses = currentTime;
                 printf("check short addresses\n");
+                // TODO: решить как обновлять короткие адреса
+                // TODO: реализовать выборку маков для которых нет короткого адреса
+                // если делать по одному, нужно контролировать чтобы не опрашивать постоянно один не рабочий
                 auto *mac = (uint8_t *) "00124B001190C858";
                 currentMac = mac;
                 ssize_t rc = e18_cmd_get_remote_short_address(coordinatorFd, mac, kernel);
@@ -1112,6 +1133,8 @@ int32_t mtmZigbeeInit(int32_t mode, uint8_t *path, uint64_t speed) {
         }
 
         // Инициализируем внешние линии координатора e18
+        // отключаем реле
+        e18_cmd_set_gpio_level(coordinatorFd, E18_LOCAL_DATA_ADDRESS, E18_PIN_RELAY, E18_LEVEL_LOW, kernel);
         // индикатор
         e18_cmd_init_gpio(coordinatorFd, E18_LOCAL_DATA_ADDRESS, E18_PIN_LED, E18_PIN_OUTPUT, kernel);
         // реле
@@ -1120,8 +1143,6 @@ int32_t mtmZigbeeInit(int32_t mode, uint8_t *path, uint64_t speed) {
         e18_cmd_init_gpio(coordinatorFd, E18_LOCAL_DATA_ADDRESS, E18_PIN_DOOR, E18_PIN_INPUT, kernel);
         // контактор
         e18_cmd_init_gpio(coordinatorFd, E18_LOCAL_DATA_ADDRESS, E18_PIN_CONTACTOR, E18_PIN_INPUT, kernel);
-        // отключаем реле
-        e18_cmd_set_gpio_level(coordinatorFd, E18_LOCAL_DATA_ADDRESS, E18_PIN_RELAY, E18_LEVEL_LOW, kernel);
 
         tcflush(coordinatorFd, TCIFLUSH);   /* Discards old data in the rx buffer            */
     }

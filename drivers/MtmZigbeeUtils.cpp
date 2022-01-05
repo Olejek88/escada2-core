@@ -839,10 +839,6 @@ void checkAstroEvents(time_t currentTime, double lon, double lat, DBase *dBase, 
             switchContactor(true, E18_PIN_RELAY);
             AddDeviceRegister(dBase, (char *) coordinatorUuid.data(), message);
 
-            // даём задержку для того чтоб стартанули модули в светильниках
-            // т.к. неизвестно, питаются они через контактор или всё время под напряжением
-            sleep(5);
-
             // зажигаем светильники
             ssize_t rc;
 //            rc = switchAllLight(100);
@@ -880,10 +876,6 @@ void checkAstroEvents(time_t currentTime, double lon, double lat, DBase *dBase, 
             // включаем контактор
             switchContactor(true, E18_PIN_RELAY);
 //            AddDeviceRegister(dBase, (char *) coordinatorUuid.data(), message);
-
-            // даём задержку для того чтоб стартанули модули в светильниках
-            // т.к. неизвестно, питаются они через контактор или всё время под напряжением
-            sleep(5);
 
             // передаём команду "астро событие" "конец сумерек"
             action.data = (0x01 << 8 | 0x00); // NOLINT(hicpp-signed-bitwise)
