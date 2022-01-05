@@ -2,8 +2,10 @@
 // Created by koputo on 02.01.22.
 //
 
+#include <dbase.h>
 #include "e18.h"
 #include "zigbeemtm.h"
+#include <sys/queue.h>
 
 
 // отправляем mtm команду
@@ -62,7 +64,7 @@ ssize_t send_e18_hex_cmd(int fd, uint16_t short_addr, void *mtm_cmd, Kernel *ker
 
 
 ssize_t e18_cmd_init_gpio(int fd, uint16_t short_addr, uint8_t line, uint8_t mode, Kernel *kernel) {
-    ssize_t rc;
+    ssize_t rc = 0;
     uint8_t hiAddr = short_addr >> 8; // HI byte of addr // NOLINT(hicpp-signed-bitwise)
     uint8_t loAddr = short_addr & 0xFF; // LO byte of addr // NOLINT(hicpp-signed-bitwise)
     uint8_t cmd[] = {
@@ -76,14 +78,22 @@ ssize_t e18_cmd_init_gpio(int fd, uint16_t short_addr, uint8_t line, uint8_t mod
             E18_HEX_CMD_END_CMD
     };
 
-    rc = send_cmd(fd, cmd, sizeof(cmd), kernel);
-    usleep(100000);
+//    rc = send_cmd(fd, cmd, sizeof(cmd), kernel);
+//    usleep(100000);
+
+    // складываем команду в список
+    auto *cmdItem = (struct e18_cmd_item *) malloc(sizeof(struct e18_cmd_item));
+    cmdItem->len = sizeof(cmd);
+    cmdItem->data = malloc(cmdItem->len);
+    cmdItem->cmd = E18_HEX_CMD_SET_GPIO_IO_STATUS;
+    memcpy(cmdItem->data, (const void *) cmd, cmdItem->len);
+    SLIST_INSERT_HEAD(&e18_cmd_queue_head, cmdItem, cmds);
 
     return rc;
 }
 
 ssize_t e18_cmd_set_gpio_level(int fd, uint16_t short_addr, uint8_t gpio, uint8_t level, Kernel *kernel) {
-    ssize_t rc;
+    ssize_t rc = 0;
     uint8_t hiAddr = short_addr >> 8; // HI byte of addr // NOLINT(hicpp-signed-bitwise)
     uint8_t loAddr = short_addr & 0xFF; // LO byte of addr // NOLINT(hicpp-signed-bitwise)
     uint8_t cmd[] = {
@@ -97,14 +107,22 @@ ssize_t e18_cmd_set_gpio_level(int fd, uint16_t short_addr, uint8_t gpio, uint8_
             E18_HEX_CMD_END_CMD
     };
 
-    rc = send_cmd(fd, cmd, sizeof(cmd), kernel);
-    usleep(100000);
+//    rc = send_cmd(fd, cmd, sizeof(cmd), kernel);
+//    usleep(100000);
+
+    // складываем команду в список
+    auto *cmdItem = (struct e18_cmd_item *) malloc(sizeof(struct e18_cmd_item));
+    cmdItem->len = sizeof(cmd);
+    cmdItem->data = malloc(cmdItem->len);
+    cmdItem->cmd = E18_HEX_CMD_SET_GPIO_LEVEL;
+    memcpy(cmdItem->data, (const void *) cmd, cmdItem->len);
+    SLIST_INSERT_HEAD(&e18_cmd_queue_head, cmdItem, cmds);
 
     return rc;
 }
 
 ssize_t e18_cmd_get_baud_rate(int fd, Kernel *kernel) {
-    ssize_t rc;
+    ssize_t rc = 0;
     uint8_t cmd[] = {
             E18_HEX_CMD_GET,
             0x01,
@@ -112,14 +130,22 @@ ssize_t e18_cmd_get_baud_rate(int fd, Kernel *kernel) {
             E18_HEX_CMD_END_CMD
     };
 
-    rc = send_cmd(fd, cmd, sizeof(cmd), kernel);
-    usleep(100000);
+//    rc = send_cmd(fd, cmd, sizeof(cmd), kernel);
+//    usleep(100000);
+
+    // складываем команду в список
+    auto *cmdItem = (struct e18_cmd_item *) malloc(sizeof(struct e18_cmd_item));
+    cmdItem->len = sizeof(cmd);
+    cmdItem->data = malloc(cmdItem->len);
+    cmdItem->cmd = E18_HEX_CMD_GET_UART_BAUD_RATE;
+    memcpy(cmdItem->data, (const void *) cmd, cmdItem->len);
+    SLIST_INSERT_HEAD(&e18_cmd_queue_head, cmdItem, cmds);
 
     return rc;
 }
 
 ssize_t e18_cmd_read_gpio_level(int fd, uint16_t short_addr, uint8_t gpio, Kernel *kernel) {
-    ssize_t rc;
+    ssize_t rc = 0;
     uint8_t hiAddr = short_addr >> 8; // HI byte of addr // NOLINT(hicpp-signed-bitwise)
     uint8_t loAddr = short_addr & 0xFF; // LO byte of addr // NOLINT(hicpp-signed-bitwise)
 
@@ -133,8 +159,17 @@ ssize_t e18_cmd_read_gpio_level(int fd, uint16_t short_addr, uint8_t gpio, Kerne
             E18_HEX_CMD_END_CMD
     };
 
-    rc = send_cmd(fd, cmd, sizeof(cmd), kernel);
-    usleep(100000);
+//    rc = send_cmd(fd, cmd, sizeof(cmd), kernel);
+//    usleep(100000);
+
+    // складываем команду в список
+    auto *cmdItem = (struct e18_cmd_item *) malloc(sizeof(struct e18_cmd_item));
+    cmdItem->len = sizeof(cmd);
+    cmdItem->data = malloc(cmdItem->len);
+    cmdItem->cmd = E18_HEX_CMD_GET_GPIO_LEVEL;
+    cmdItem->extra = gpio;
+    memcpy(cmdItem->data, (const void *) cmd, cmdItem->len);
+    SLIST_INSERT_HEAD(&e18_cmd_queue_head, cmdItem, cmds);
 
     return rc;
 }
@@ -162,7 +197,7 @@ ssize_t e18_read_fixed_data(int coordinatorFd, uint8_t *buffer, ssize_t size) {
 }
 
 ssize_t e18_cmd_get_network_state(int fd, Kernel *kernel) {
-    ssize_t rc;
+    ssize_t rc = 0;
 
     uint8_t cmd[] = {
             E18_HEX_CMD_GET,
@@ -171,9 +206,90 @@ ssize_t e18_cmd_get_network_state(int fd, Kernel *kernel) {
             E18_HEX_CMD_END_CMD
     };
 
-    rc = send_cmd(fd, cmd, sizeof(cmd), kernel);
-    usleep(100000);
+//    rc = send_cmd(fd, cmd, sizeof(cmd), kernel);
+//    usleep(100000);
+
+    // складываем команду в список
+    auto *cmdItem = (struct e18_cmd_item *) malloc(sizeof(struct e18_cmd_item));
+    cmdItem->len = sizeof(cmd);
+    cmdItem->data = malloc(cmdItem->len);
+    cmdItem->cmd = E18_HEX_CMD_GET_NETWORK_STATE,
+            memcpy(cmdItem->data, (const void *) cmd, cmdItem->len);
+    SLIST_INSERT_HEAD(&e18_cmd_queue_head, cmdItem, cmds);
 
     return rc;
 }
 
+ssize_t e18_cmd_get_remote_short_address(int fd, uint8_t *mac, Kernel *kernel) {
+    ssize_t rc = 0;
+    uint64_t dstAddr = strtoull((char *) mac, nullptr, 16);
+
+    uint8_t cmd[] = {
+            E18_HEX_CMD_GET,
+            0x09,
+            E18_HEX_CMD_GET_REMOTE_SHORT_ADDR,
+            (uint8_t) (dstAddr & 0xFF), // NOLINT(hicpp-signed-bitwise)
+            (uint8_t) (dstAddr >> 8 & 0xFF), // NOLINT(hicpp-signed-bitwise)
+            (uint8_t) (dstAddr >> 16 & 0xFF), // NOLINT(hicpp-signed-bitwise)
+            (uint8_t) (dstAddr >> 24 & 0xFF), // NOLINT(hicpp-signed-bitwise)
+            (uint8_t) (dstAddr >> 32 & 0xFF), // NOLINT(hicpp-signed-bitwise)
+            (uint8_t) (dstAddr >> 40 & 0xFF), // NOLINT(hicpp-signed-bitwise)
+            (uint8_t) (dstAddr >> 48 & 0xFF), // NOLINT(hicpp-signed-bitwise)
+            (uint8_t) (dstAddr >> 56 & 0xFF), // NOLINT(hicpp-signed-bitwise)
+            E18_HEX_CMD_END_CMD
+    };
+
+//    rc = send_cmd(fd, cmd, sizeof(cmd), kernel);
+//    usleep(100000);
+
+    // складываем команду в список
+    auto *cmdItem = (struct e18_cmd_item *) malloc(sizeof(struct e18_cmd_item));
+    cmdItem->len = sizeof(cmd);
+    cmdItem->data = malloc(cmdItem->len);
+    cmdItem->cmd = E18_HEX_CMD_GET_REMOTE_SHORT_ADDR;
+    memcpy(cmdItem->data, (const void *) cmd, cmdItem->len);
+    SLIST_INSERT_HEAD(&e18_cmd_queue_head, cmdItem, cmds);
+
+    return rc;
+}
+
+bool e18_store_short_address(DBase *dBase, uint8_t *currentMac, uint16_t shortAddr, Kernel *kernel) {
+    char query[1024] = {0};
+    uint8_t devUuid[37] = {0};
+    sprintf(query, "SELECT uuid FROM device WHERE address = '%s';", currentMac);
+    MYSQL_RES *res = dBase->sqlexec(query);
+    if (res) {
+        my_ulonglong nRows = mysql_num_rows(res);
+        if (nRows == 1) {
+            dBase->makeFieldsList(res);
+            MYSQL_ROW row = mysql_fetch_row(res);
+            if (row != nullptr) {
+                // TODO: вытащить uuid из записи
+                memcpy(devUuid, row[dBase->getFieldIndex("uuid")], 36);
+                printf("Device UUID: %s\n", devUuid);
+                // TODO: проверить существование записи с параметром shortAddr
+                // if(paramShortAddr) {
+                //     updateParameter();
+                // } else {
+                //     createParameter();
+                // }
+//                isWork = std::stoi(row[mtmZigbeeDBase->getFieldIndex("work")]);
+                // если записи нет, создаём. если есть обновляем
+//                sprintf(query, "UPDATE threads SET status=%d, changedAt=FROM_UNIXTIME(%lu) WHERE _id=%d", 0,
+//                        currentTime, threadId);
+//                res = mtmZigbeeDBase->sqlexec(query);
+//                mysql_free_result(res);
+
+            } else {
+                // ошибка получения записи из базы, останавливаем поток
+//                kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] Read thread record get null", TAG);
+//                kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] Stopping thread", TAG);
+//                mysql_free_result(res);
+//                return;
+            }
+        }
+
+        mysql_free_result(res);
+    }
+    return true;
+}

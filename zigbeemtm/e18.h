@@ -8,6 +8,22 @@
 #include <stdint.h>
 #include <kernel.h>
 
+struct e18_cmd_item {
+    void *data;
+    uint8_t cmd;
+    uint8_t extra;
+    uint32_t len;
+    struct {
+        struct e18_cmd_item *sle_next;
+    } cmds;
+};
+
+struct e18_cmd_queue {
+    struct e18_cmd_item *slh_first;
+};
+
+extern e18_cmd_queue e18_cmd_queue_head;
+
 #define E18_HEX_CMD_END_CMD                 0xFF
 
 // read commands
@@ -116,5 +132,9 @@ ssize_t e18_cmd_read_gpio_level(int fd, uint16_t short_addr, uint8_t gpio, Kerne
 ssize_t e18_cmd_set_gpio_level(int fd, uint16_t short_addr, uint8_t gpio, uint8_t level, Kernel *kernel);
 
 ssize_t e18_cmd_get_network_state(int fd, Kernel *kernel);
+
+ssize_t e18_cmd_get_remote_short_address(int fd, uint8_t *mac, Kernel *kernel);
+
+bool e18_store_short_address(DBase *dBase, uint8_t *currentMac, uint16_t shortAddr, Kernel *kernel);
 
 #endif //ESCADA2_CORE_E18_E18_H

@@ -35,6 +35,7 @@ bool isSunInit;
 bool isSunSet, isTwilightEnd, isTwilightStart, isSunRise;
 std::string coordinatorUuid;
 bool isCheckCoordinatorRespond;
+e18_cmd_queue e18_cmd_queue_head = {nullptr};
 
 void *mtmZigbeeDeviceThread(void *pth) { // NOLINT
     uint64_t speed;
@@ -95,9 +96,10 @@ void mtmZigbeePktListener(DBase *dBase, int32_t threadId) {
     bool isCmdRun = false;
     uint8_t currentCmd = 0;
     uint8_t currentSensor = 0;
+    uint8_t *currentMac = nullptr;
     time_t currentTime, heartBeatTime = 0, syncTimeTime = 0, checkDoorSensorTime = 0, checkContactorSensorTime = 0,
             checkRelaySensorTime = 0, checkAstroTime = 0, checkOutPacket = 0, checkCoordinatorTime = 0,
-            checkLinkState = 0;
+            checkLinkState = 0, checkShortAddresses = 0;
     struct tm *localTime;
     uint16_t addr;
     uint8_t inState, outState;
@@ -119,7 +121,7 @@ void mtmZigbeePktListener(DBase *dBase, int32_t threadId) {
     while (run) {
         count = read(coordinatorFd, &data, 1);
         if (count > 0) {
-//            printf("data: %02X\n", data);
+            printf("data: %02X\n", data);
 
             if (isCmdRun && data == E18_GET_ANSWER) {
                 // ответ на команду получения данных
@@ -133,6 +135,9 @@ void mtmZigbeePktListener(DBase *dBase, int32_t threadId) {
                         break;
                     case E18_HEX_CMD_GET_GPIO_LEVEL:
                         readDataLen = 5;
+                        break;
+                    case E18_HEX_CMD_GET_REMOTE_SHORT_ADDR:
+                        readDataLen = 2;
                         break;
                     default:
                         readDataLen = 0;
@@ -177,6 +182,11 @@ void mtmZigbeePktListener(DBase *dBase, int32_t threadId) {
                                 break;
                         }
 
+                        break;
+                    case E18_HEX_CMD_GET_REMOTE_SHORT_ADDR :
+                        // сохраняем/обновляем запись с коротким адресом
+                        e18_store_short_address(dBase, currentMac, *(uint16_t *) seek, kernel);
+                        currentMac = nullptr;
                         break;
                     default:
                         break;
@@ -223,7 +233,7 @@ void mtmZigbeePktListener(DBase *dBase, int32_t threadId) {
                     return;
                 }
 
-                if (seek[1] != currentCmd) {
+                if (seek[0] != currentCmd) {
                     printf("write answer do not match! received %02X\n", seek[1]);
                 }
 
@@ -350,6 +360,22 @@ void mtmZigbeePktListener(DBase *dBase, int32_t threadId) {
                 free(zb_item);
             }
 
+            // если в очереди есть команда, отправляем её
+            if (!isCmdRun) {
+                if (!SLIST_EMPTY(&e18_cmd_queue_head)) {
+                    e18_cmd_item *cmdItem = SLIST_FIRST(&e18_cmd_queue_head);
+                    isCmdRun = true;
+                    currentCmd = cmdItem->cmd;
+                    currentSensor = cmdItem->extra;
+                    size_t rc = send_cmd(coordinatorFd, (uint8_t *) cmdItem->data, cmdItem->len, kernel);
+                    usleep(100000);
+                    SLIST_REMOVE_HEAD(&e18_cmd_queue_head, cmds);
+                    free(cmdItem->data);
+                    free(cmdItem);
+                    // TODO: проверка rc
+                }
+            }
+
             // проверяем, не отключили ли запуск потока, если да, остановить выполнение
             // обновляем значение c_time в таблице thread раз в 5 секунд
             currentTime = time(nullptr);
@@ -407,8 +433,6 @@ void mtmZigbeePktListener(DBase *dBase, int32_t threadId) {
             // при старте координатора можно "пропустить" сообщение о наличии сети, если сети нет,
             // проверяем отдельной командой её наличие
             if (!isCmdRun && !isNetwork) {
-                isCmdRun = true;
-                currentCmd = E18_HEX_CMD_GET_NETWORK_STATE;
                 printf("check network state\n");
                 ssize_t rc = e18_cmd_get_network_state(coordinatorFd, kernel);
 
@@ -458,9 +482,6 @@ void mtmZigbeePktListener(DBase *dBase, int32_t threadId) {
             // опрашиваем датчик двери шкафа
             currentTime = time(nullptr);
             if (!isCmdRun && currentTime - checkDoorSensorTime >= 10) {
-                isCmdRun = true;
-                currentCmd = E18_HEX_CMD_GET_GPIO_LEVEL;
-                currentSensor = E18_PIN_DOOR;
                 checkDoorSensorTime = currentTime;
                 printf("Check door sensor\n");
                 ssize_t rc = e18_cmd_read_gpio_level(coordinatorFd, E18_LOCAL_DATA_ADDRESS, E18_PIN_DOOR, kernel);
@@ -478,9 +499,6 @@ void mtmZigbeePktListener(DBase *dBase, int32_t threadId) {
             // опрашиваем датчик контактора
             currentTime = time(nullptr);
             if (!isCmdRun && currentTime - checkContactorSensorTime >= 10) {
-                isCmdRun = true;
-                currentCmd = E18_HEX_CMD_GET_GPIO_LEVEL;
-                currentSensor = E18_PIN_CONTACTOR;
                 checkContactorSensorTime = currentTime;
                 printf("Check contactor sensor\n");
                 ssize_t rc = e18_cmd_read_gpio_level(coordinatorFd, E18_LOCAL_DATA_ADDRESS, E18_PIN_CONTACTOR, kernel);
@@ -498,9 +516,6 @@ void mtmZigbeePktListener(DBase *dBase, int32_t threadId) {
             // опрашиваем датчик реле
             currentTime = time(nullptr);
             if (!isCmdRun && currentTime - checkRelaySensorTime >= 10) {
-                isCmdRun = true;
-                currentCmd = E18_HEX_CMD_GET_GPIO_LEVEL;
-                currentSensor = E18_PIN_RELAY;
                 checkRelaySensorTime = currentTime;
                 printf("Check relay sensor\n");
                 ssize_t rc = e18_cmd_read_gpio_level(coordinatorFd, E18_LOCAL_DATA_ADDRESS, E18_PIN_RELAY, kernel);
@@ -540,8 +555,6 @@ void mtmZigbeePktListener(DBase *dBase, int32_t threadId) {
 //                send_cmd(coordinatorFd, buff, sizeof(buff), kernel);
 
                 checkCoordinatorTime = currentTime;
-                isCmdRun = true;
-                currentCmd = E18_HEX_CMD_GET_UART_BAUD_RATE;
                 printf("Check baud rate\n");
                 ssize_t rc = e18_cmd_get_baud_rate(coordinatorFd, kernel);
 
@@ -590,10 +603,31 @@ void mtmZigbeePktListener(DBase *dBase, int32_t threadId) {
             }
 
             currentTime = time(nullptr);
-            if (currentTime - checkOutPacket > 2) {
+            if (isNetwork && currentTime - checkOutPacket > 2) {
                 checkOutPacket = currentTime;
                 mtmZigbeeProcessOutPacket(threadId);
             }
+
+            // получаем короткие адреса для светильников
+            currentTime = time(nullptr);
+            if (isNetwork && !isCmdRun && currentTime - checkShortAddresses > 30) {
+                checkShortAddresses = currentTime;
+                printf("check short addresses\n");
+                auto *mac = (uint8_t *) "00124B001190C858";
+                currentMac = mac;
+                ssize_t rc = e18_cmd_get_remote_short_address(coordinatorFd, mac, kernel);
+
+                if (kernel->isDebug) {
+                    kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] rc=%ld", TAG, rc);
+                }
+
+                if (rc == -1) {
+                    lostZBCoordinator(dBase, threadId, &coordinatorUuid);
+                    return;
+                }
+
+            }
+
 
             run = mtmZigbeeGetRun();
 
@@ -687,7 +721,8 @@ void mtmZigbeeProcessOutPacket(int32_t threadId) {
     uint64_t dstAddr;
     ssize_t rc;
 
-    sprintf((char *) query, "SELECT * FROM light_message WHERE dateOut IS NULL;");
+    sprintf((char *) query,
+            "SELECT lmt._id, lmt.data, ept.value AS address FROM light_message lmt LEFT JOIN device dt ON lmt.address=dt.address LEFT JOIN entity_parameter ept ON ept.entityUuid=dt.uuid AND ept.parameter='shortAddr' WHERE dateOut IS NULL;");
     if (kernel->isDebug) {
         kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] %s", TAG, query);
     }
