@@ -91,6 +91,9 @@ void mtmZigbeePktListener(DBase *dBase, int32_t threadId) {
     int64_t count;
     uint8_t data;
     uint8_t seek[1024];
+    // при старте счтаем что сети нет и начинаем отсчёт
+    time_t lostNetworkTime = time(nullptr);
+    bool isLostNetworkAlarmSent = false;
     bool isNetwork = false;
     bool isCmdRun = false;
     e18_cmd_item currentCmd = {nullptr};
@@ -154,6 +157,11 @@ void mtmZigbeePktListener(DBase *dBase, int32_t threadId) {
                     case E18_HEX_CMD_GET_NETWORK_STATE :
                         isNetwork = seek[0] == 1;
                         printf("get network state is %s\n", isNetwork ? "TRUE" : "FALSE");
+                        if (!isNetwork) {
+                            isLostNetworkAlarmSent = false;
+                            lostNetworkTime = time(nullptr);
+                        }
+
                         break;
                     case E18_HEX_CMD_GET_UART_BAUD_RATE :
                         isCheckCoordinatorRespond = true;
@@ -290,6 +298,8 @@ void mtmZigbeePktListener(DBase *dBase, int32_t threadId) {
                     // нет сети
                     printf("network lost\n");
                     isNetwork = false;
+                    lostNetworkTime = time(nullptr);
+                    isLostNetworkAlarmSent = false;
                 } else {
                     printf("unknown network state\n");
                 }
@@ -388,7 +398,15 @@ void mtmZigbeePktListener(DBase *dBase, int32_t threadId) {
                     SLIST_REMOVE_HEAD(&e18_cmd_queue_head, cmds);
                     free(cmdItem->data);
                     free(cmdItem);
-                    // TODO: проверка rc
+
+                    if (kernel->isDebug) {
+                        kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] Written %ld bytes.", TAG, rc);
+                    }
+
+                    if (rc == -1) {
+                        lostZBCoordinator(dBase, threadId, &coordinatorUuid);
+                        return;
+                    }
                 }
             }
 
@@ -445,7 +463,14 @@ void mtmZigbeePktListener(DBase *dBase, int32_t threadId) {
             }
 
 
-            // TODO: Следить за наличием сети!!! Отправка данных только если сеть есть. Если сеть не поднимается дольше чем 30 секунд, сообщение на сервер!
+            //  Если сеть не поднимается дольше чем 30 секунд, сообщение на сервер
+            if (!isNetwork && !isLostNetworkAlarmSent) {
+                if (time(nullptr) - lostNetworkTime > 30) {
+                    AddDeviceRegister(dBase, (char *) coordinatorUuid.c_str(), (char *) "Нет ZigBee сети!");
+                    isLostNetworkAlarmSent = true;
+                }
+            }
+
             // при старте координатора можно "пропустить" сообщение о наличии сети, если сети нет,
             // проверяем отдельной командой её наличие
             if (!isCmdRun && !isNetwork) {
@@ -482,7 +507,6 @@ void mtmZigbeePktListener(DBase *dBase, int32_t threadId) {
                         lostZBCoordinator(dBase, threadId, &coordinatorUuid);
                         return;
                     }
-
                 }
             }
 
@@ -1019,9 +1043,7 @@ void mtmZigbeeProcessInPacket(uint8_t *pktBuff, uint32_t length) {
 
 int32_t mtmZigbeeInit(int32_t mode, uint8_t *path, uint64_t speed) {
     struct termios serialPortSettings{};
-    ssize_t rc;
 
-    // TODO: видимо нужно как-то проверить что всё путём с соединением.
     mtmZigbeeDBase = new DBase();
 
     if (mtmZigbeeDBase->openConnection() != 0) {
