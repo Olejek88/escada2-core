@@ -1184,3 +1184,16 @@ void lostZBCoordinator(DBase *dBase, int32_t threadId, std::string *coordUuid) {
     mtmZigbeeStopThread(dBase, threadId);
     AddDeviceRegister(dBase, (char *) coordUuid->data(), (char *) "Ошибка записи в порт координатора");
 }
+
+void setDeviceStatus(DBase *dBase, std::string uuid, std::string statusUuid) {
+    std::string query;
+    MYSQL_RES *res;
+    query = "UPDATE device SET deviceStatusUuid='" + statusUuid +
+            "', changedAt=FROM_UNIXTIME(" + std::to_string(time(nullptr)) + ") WHERE uuid='" + uuid + "'";
+    if (kernel->isDebug) {
+        kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] %s", TAG, query.data());
+    }
+
+    res = dBase->sqlexec(query.data());
+    mysql_free_result(res);
+}

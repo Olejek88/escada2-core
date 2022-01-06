@@ -117,4 +117,6 @@ bool manualMode(DBase *dBase);
 
 void lostZBCoordinator(DBase *dBase, int32_t threadId, std::string *coordUuid);
 
+void setDeviceStatus(DBase *dBase, std::string uuid, std::string statusUuid);
+
 #endif //ESCADA_CORE_MTMZIGBEE_H

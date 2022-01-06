@@ -1018,6 +1018,12 @@ void mtmZigbeeProcessInPacket(uint8_t *pktBuff, uint32_t length) {
                                 uint16_t alerts = *(uint16_t *) &pktBuff[sensorDataStart - 2];
                                 int8_t value = alerts & 0x0001u;
                                 storeMeasureValueExt(mtmZigbeeDBase, &list[i], value, true);
+                                if (value == 1) {
+                                    AddDeviceRegister(mtmZigbeeDBase, (char *) list[i].deviceUuid.c_str(),
+                                                      (char *) "Аварийный статус!");
+                                    setDeviceStatus(mtmZigbeeDBase, list[i].deviceUuid,
+                                                    std::string(DEVICE_STATUS_NOT_WORK));
+                                }
                             } else if (list[i].measureTypeUuid == CHANNEL_W) {
                                 // данные по потребляемой мощности хранятся в младшем байте датчика 0 (reg = 0)
                                 int8_t value = pktBuff[sensorDataStart + reg * 2];
