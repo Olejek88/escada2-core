@@ -119,7 +119,7 @@ ssize_t e18_cmd_set_gpio_level(int fd, uint16_t short_addr, uint8_t gpio, uint8_
     cmdItem->len = sizeof(cmd);
     cmdItem->data = malloc(cmdItem->len);
     cmdItem->cmd = E18_HEX_CMD_SET_GPIO_LEVEL;
-    cmdItem->extra = gpio;
+    cmdItem->extra[0] = gpio;
     memcpy(cmdItem->data, (const void *) cmd, cmdItem->len);
     SLIST_INSERT_HEAD(&e18_cmd_queue_head, cmdItem, cmds);
 
@@ -172,7 +172,7 @@ ssize_t e18_cmd_read_gpio_level(int fd, uint16_t short_addr, uint8_t gpio, Kerne
     cmdItem->len = sizeof(cmd);
     cmdItem->data = malloc(cmdItem->len);
     cmdItem->cmd = E18_HEX_CMD_GET_GPIO_LEVEL;
-    cmdItem->extra = gpio;
+    cmdItem->extra[0] = gpio;
     memcpy(cmdItem->data, (const void *) cmd, cmdItem->len);
     SLIST_INSERT_HEAD(&e18_cmd_queue_head, cmdItem, cmds);
 
@@ -252,6 +252,8 @@ ssize_t e18_cmd_get_remote_short_address(int fd, uint8_t *mac, Kernel *kernel) {
     cmdItem->len = sizeof(cmd);
     cmdItem->data = malloc(cmdItem->len);
     cmdItem->cmd = E18_HEX_CMD_GET_REMOTE_SHORT_ADDR;
+    memset(cmdItem->extra, 0, 32);
+    memcpy(cmdItem->extra, mac, 16);
     memcpy(cmdItem->data, (const void *) cmd, cmdItem->len);
     SLIST_INSERT_HEAD(&e18_cmd_queue_head, cmdItem, cmds);
 

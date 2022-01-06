@@ -11,7 +11,7 @@
 struct e18_cmd_item {
     void *data;
     uint8_t cmd;
-    uint8_t extra;
+    uint8_t extra[32];
     uint32_t len;
     struct {
         struct e18_cmd_item *sle_next;

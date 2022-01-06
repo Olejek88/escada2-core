@@ -91,12 +91,10 @@ void mtmZigbeePktListener(DBase *dBase, int32_t threadId) {
     int64_t count;
     uint8_t data;
     uint8_t seek[1024];
-    //---
     bool isNetwork = false;
     bool isCmdRun = false;
-    uint8_t currentCmd = 0;
-    uint8_t currentSensor = 0;
-    uint8_t *currentMac = nullptr;
+    e18_cmd_item currentCmd = {nullptr};
+    currentCmd.data = malloc(128);
     time_t currentTime, heartBeatTime = 0, syncTimeTime = 0, checkDoorSensorTime = 0, checkContactorSensorTime = 0,
             checkRelaySensorTime = 0, checkAstroTime = 0, checkOutPacket = 0, checkCoordinatorTime = 0,
             checkLinkState = 0, checkShortAddresses = 0;
@@ -125,10 +123,10 @@ void mtmZigbeePktListener(DBase *dBase, int32_t threadId) {
 
             if (isCmdRun && data == E18_GET_ANSWER) {
                 // ответ на команду получения данных
-                printf("get read data of %02X command\n", currentCmd);
+                printf("get read data of %02X command\n", currentCmd.cmd);
                 uint8_t readDataLen;
 
-                switch (currentCmd) {
+                switch (currentCmd.cmd) {
                     case E18_HEX_CMD_GET_NETWORK_STATE :
                     case E18_HEX_CMD_GET_UART_BAUD_RATE :
                         readDataLen = 1;
@@ -152,7 +150,7 @@ void mtmZigbeePktListener(DBase *dBase, int32_t threadId) {
                 }
 
                 // обрабатываем при необходимости полученные данные
-                switch (currentCmd) {
+                switch (currentCmd.cmd) {
                     case E18_HEX_CMD_GET_NETWORK_STATE :
                         isNetwork = seek[0] == 1;
                         printf("get network state is %s\n", isNetwork ? "TRUE" : "FALSE");
@@ -165,7 +163,7 @@ void mtmZigbeePktListener(DBase *dBase, int32_t threadId) {
                         inState = seek[3];
                         outState = seek[4];
                         printf("Addr: 0x%04X, In: %d, Out: %d\n", addr, inState, outState);
-                        switch (currentSensor) {
+                        switch (currentCmd.extra[0]) {
                             case E18_PIN_DOOR :
                                 printf("door status: in=%d, out=%d\n", inState, outState);
                                 storeCoordinatorDoorStatus(dBase, &coordinatorUuid, inState == 1, outState == 1);
@@ -185,21 +183,18 @@ void mtmZigbeePktListener(DBase *dBase, int32_t threadId) {
                         break;
                     case E18_HEX_CMD_GET_REMOTE_SHORT_ADDR :
                         // сохраняем/обновляем запись с коротким адресом
-                        e18_store_short_address(dBase, currentMac, *(uint16_t *) seek, kernel);
-                        currentMac = nullptr;
+                        e18_store_short_address(dBase, currentCmd.extra, *(uint16_t *) seek, kernel);
                         break;
                     default:
                         break;
                 }
 
                 isCmdRun = false;
-                currentCmd = 0;
-                currentSensor = 0;
             } else if (isCmdRun && data == E18_SET_ANSWER) {
                 // ответ на команду установки данных
-                printf("get write data of %02X command\n", currentCmd);
+                printf("get write data of %02X command\n", currentCmd.cmd);
                 uint8_t readDataLen;
-                switch (currentCmd) {
+                switch (currentCmd.cmd) {
                     case E18_HEX_CMD_SET_DEVICE_TYPE:
                     case E18_HEX_CMD_SET_PANID:
                     case E18_HEX_CMD_SET_NETWORK_KEY:
@@ -233,13 +228,13 @@ void mtmZigbeePktListener(DBase *dBase, int32_t threadId) {
                     return;
                 }
 
-                if (seek[0] != currentCmd) {
+                if (seek[0] != currentCmd.cmd) {
                     printf("write answer do not match! received %02X\n", seek[1]);
                 }
 
-                switch (currentCmd) {
+                switch (currentCmd.cmd) {
                     case E18_HEX_CMD_SET_GPIO_LEVEL :
-                        if (currentSensor == E18_PIN_RELAY) {
+                        if (currentCmd.extra[0] == E18_PIN_RELAY) {
                             // даём задержку для того чтоб стартанули модули в светильниках
                             // т.к. неизвестно, питаются они через контактор или всё время под напряжением
                             // задержка будет и при выключении реле
@@ -251,7 +246,6 @@ void mtmZigbeePktListener(DBase *dBase, int32_t threadId) {
                 }
 
                 isCmdRun = false;
-                currentCmd = 0;
             } else if (isCmdRun && data == E18_ERROR) {
                 // ошибка
                 // читаем данные ответа
@@ -264,14 +258,14 @@ void mtmZigbeePktListener(DBase *dBase, int32_t threadId) {
                 // возможно нужно выставить флаг ошибки команды,
                 // не снимать флаг выполнения команды, чтобы можно было обработать данную ситуацию
                 if (seek[0] == E18_ERROR_SYNTAX) {
-                    if (currentCmd == E18_HEX_CMD_GET_REMOTE_SHORT_ADDR) {
+                    if (currentCmd.cmd == E18_HEX_CMD_GET_REMOTE_SHORT_ADDR) {
                         // это значит что светильник с указанным MAC сейчас либо выключен, либо не доступен
                         printf("Unable get short address. Maybe zigbee module offline.\n");
                     } else {
-                        printf("error syntax of %02X command\n", currentCmd);
+                        printf("error syntax of %02X command\n", currentCmd.cmd);
                     }
                 } else {
-                    printf("unknown error of %02X command\n", currentCmd);
+                    printf("unknown error of %02X command\n", currentCmd.cmd);
                 }
 
                 isCmdRun = false;
@@ -383,8 +377,12 @@ void mtmZigbeePktListener(DBase *dBase, int32_t threadId) {
                 if (!SLIST_EMPTY(&e18_cmd_queue_head)) {
                     e18_cmd_item *cmdItem = SLIST_FIRST(&e18_cmd_queue_head);
                     isCmdRun = true;
-                    currentCmd = cmdItem->cmd;
-                    currentSensor = cmdItem->extra;
+
+                    currentCmd.cmd = cmdItem->cmd;
+                    memcpy(currentCmd.extra, cmdItem->extra, 32);
+                    memcpy(currentCmd.data, cmdItem->data, cmdItem->len);
+                    currentCmd.len = cmdItem->len;
+
                     size_t rc = send_cmd(coordinatorFd, (uint8_t *) cmdItem->data, cmdItem->len, kernel);
                     usleep(100000);
                     SLIST_REMOVE_HEAD(&e18_cmd_queue_head, cmds);
@@ -628,25 +626,40 @@ void mtmZigbeePktListener(DBase *dBase, int32_t threadId) {
 
             // получаем короткие адреса для светильников
             currentTime = time(nullptr);
-            if (isNetwork && !isCmdRun && currentTime - checkShortAddresses > 30) {
+            if (isNetwork && !isCmdRun && currentTime - checkShortAddresses > 300) {
                 checkShortAddresses = currentTime;
                 printf("check short addresses\n");
-                // TODO: решить как обновлять короткие адреса
-                // TODO: реализовать выборку маков для которых нет короткого адреса
-                // если делать по одному, нужно контролировать чтобы не опрашивать постоянно один не рабочий
-                auto *mac = (uint8_t *) "00124B001190C858";
-                currentMac = mac;
-                ssize_t rc = e18_cmd_get_remote_short_address(coordinatorFd, mac, kernel);
 
-                if (kernel->isDebug) {
-                    kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] rc=%ld", TAG, rc);
+                // получаем все устройства типа управляемый светильник и координатор
+                std::string query;
+                query.append("SELECT * FROM device WHERE deviceTypeUuid IN ")
+                        .append("('" + std::string(DEVICE_TYPE_ZB_LIGHT) + "', ")
+                        .append("'" + std::string(DEVICE_TYPE_ZB_COORDINATOR) + "')");
+                MYSQL_RES *res = dBase->sqlexec(query.data());
+                if (res) {
+                    dBase->makeFieldsList(res);
+                    int nRows = mysql_num_rows(res);
+                    if (nRows > 0) {
+                        for (uint32_t i = 0; i < nRows; i++) {
+                            MYSQL_ROW row = mysql_fetch_row(res);
+                            if (row) {
+                                std::string address = dBase->getFieldValue(row, "address");
+                                ssize_t rc = e18_cmd_get_remote_short_address(coordinatorFd,
+                                                                              (uint8_t *) address.data(), kernel);
+                                if (kernel->isDebug) {
+                                    kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] rc=%ld", TAG, rc);
+                                }
+
+                                if (rc == -1) {
+                                    lostZBCoordinator(dBase, threadId, &coordinatorUuid);
+                                    return;
+                                }
+                            }
+                        }
+                    }
+
+                    mysql_free_result(res);
                 }
-
-                if (rc == -1) {
-                    lostZBCoordinator(dBase, threadId, &coordinatorUuid);
-                    return;
-                }
-
             }
 
 
