@@ -94,13 +94,15 @@ void mtmZigbeePktListener(DBase *dBase, int32_t threadId) {
     // при старте счтаем что сети нет и начинаем отсчёт
     time_t lostNetworkTime = time(nullptr);
     bool isLostNetworkAlarmSent = false;
+    // по умолчанию проверяем наличие сети
+    bool isNetworkCheck = true;
     bool isNetwork = false;
     bool isCmdRun = false;
     e18_cmd_item currentCmd = {nullptr};
     currentCmd.data = malloc(128);
     time_t currentTime, heartBeatTime = 0, syncTimeTime = 0, checkDoorSensorTime = 0, checkContactorSensorTime = 0,
             checkRelaySensorTime = 0, checkAstroTime = 0, checkOutPacket = 0, checkCoordinatorTime = 0,
-            checkLinkState = 0, checkShortAddresses = 0;
+            checkLinkState = 0, checkShortAddresses = 0, checkNetworkTime = 0;
     struct tm *localTime;
     uint16_t addr;
     uint8_t inState, outState;
@@ -158,8 +160,13 @@ void mtmZigbeePktListener(DBase *dBase, int32_t threadId) {
                         isNetwork = seek[0] == 1;
                         printf("get network state is %s\n", isNetwork ? "TRUE" : "FALSE");
                         if (!isNetwork) {
-                            isLostNetworkAlarmSent = false;
-                            lostNetworkTime = time(nullptr);
+                            if (!isNetworkCheck) {
+                                isLostNetworkAlarmSent = false;
+                                lostNetworkTime = time(nullptr);
+                                isNetworkCheck = true;
+                            }
+                        } else {
+                            isNetworkCheck = false;
                         }
 
                         break;
@@ -300,6 +307,7 @@ void mtmZigbeePktListener(DBase *dBase, int32_t threadId) {
                     isNetwork = false;
                     lostNetworkTime = time(nullptr);
                     isLostNetworkAlarmSent = false;
+                    isNetworkCheck = true;
                 } else {
                     printf("unknown network state\n");
                 }
@@ -462,7 +470,6 @@ void mtmZigbeePktListener(DBase *dBase, int32_t threadId) {
                 }
             }
 
-
             //  Если сеть не поднимается дольше чем 30 секунд, сообщение на сервер
             if (!isNetwork && !isLostNetworkAlarmSent) {
                 if (time(nullptr) - lostNetworkTime > 30) {
@@ -473,9 +480,16 @@ void mtmZigbeePktListener(DBase *dBase, int32_t threadId) {
 
             // при старте координатора можно "пропустить" сообщение о наличии сети, если сети нет,
             // проверяем отдельной командой её наличие
-            if (!isCmdRun && !isNetwork) {
+            currentTime = time(nullptr);
+            if (!isCmdRun && !isNetwork && currentTime - checkNetworkTime > 3) {
                 printf("check network state\n");
-                e18_cmd_get_network_state(coordinatorFd, kernel);
+                checkNetworkTime = currentTime;
+                if (!isNetworkCheck) {
+                    lostNetworkTime = time(nullptr);
+                    isNetworkCheck = true;
+                }
+
+                e18_cmd_get_network_state();
             }
 
             // рассылаем пакет с текущим "временем" раз в 10 секунд
@@ -515,7 +529,7 @@ void mtmZigbeePktListener(DBase *dBase, int32_t threadId) {
             if (!isCmdRun && currentTime - checkDoorSensorTime >= 10) {
                 checkDoorSensorTime = currentTime;
                 printf("Check door sensor\n");
-                e18_cmd_read_gpio_level(coordinatorFd, E18_LOCAL_DATA_ADDRESS, E18_PIN_DOOR, kernel);
+                e18_cmd_read_gpio_level(E18_LOCAL_DATA_ADDRESS, E18_PIN_DOOR);
             }
 
             // опрашиваем датчик контактора
@@ -523,7 +537,7 @@ void mtmZigbeePktListener(DBase *dBase, int32_t threadId) {
             if (!isCmdRun && currentTime - checkContactorSensorTime >= 10) {
                 checkContactorSensorTime = currentTime;
                 printf("Check contactor sensor\n");
-                e18_cmd_read_gpio_level(coordinatorFd, E18_LOCAL_DATA_ADDRESS, E18_PIN_CONTACTOR, kernel);
+                e18_cmd_read_gpio_level(E18_LOCAL_DATA_ADDRESS, E18_PIN_CONTACTOR);
             }
 
             // опрашиваем датчик реле
@@ -531,7 +545,7 @@ void mtmZigbeePktListener(DBase *dBase, int32_t threadId) {
             if (!isCmdRun && currentTime - checkRelaySensorTime >= 10) {
                 checkRelaySensorTime = currentTime;
                 printf("Check relay sensor\n");
-                e18_cmd_read_gpio_level(coordinatorFd, E18_LOCAL_DATA_ADDRESS, E18_PIN_RELAY, kernel);
+                e18_cmd_read_gpio_level(E18_LOCAL_DATA_ADDRESS, E18_PIN_RELAY);
             }
 
             // опрашиваем датчик температуры на координаторе
@@ -560,7 +574,7 @@ void mtmZigbeePktListener(DBase *dBase, int32_t threadId) {
 
                 checkCoordinatorTime = currentTime;
                 printf("Check baud rate\n");
-                e18_cmd_get_baud_rate(coordinatorFd, kernel);
+                e18_cmd_get_baud_rate();
             }
 
             // проверка на наступление астрономических событий
@@ -623,7 +637,7 @@ void mtmZigbeePktListener(DBase *dBase, int32_t threadId) {
                             MYSQL_ROW row = mysql_fetch_row(res);
                             if (row) {
                                 std::string address = dBase->getFieldValue(row, "address");
-                                e18_cmd_get_remote_short_address(coordinatorFd, (uint8_t *) address.data(), kernel);
+                                e18_cmd_get_remote_short_address((uint8_t *) address.data());
                             }
                         }
                     }
@@ -698,8 +712,7 @@ ssize_t switchAllLight(uint16_t level) {
 }
 
 void switchContactor(bool enable, uint8_t line) {
-    e18_cmd_set_gpio_level(coordinatorFd, E18_LOCAL_DATA_ADDRESS, line,
-                           enable ? E18_LEVEL_HI : E18_LEVEL_LOW, kernel);
+    e18_cmd_set_gpio_level(E18_LOCAL_DATA_ADDRESS, line, enable ? E18_LEVEL_HI : E18_LEVEL_LOW);
 }
 
 ssize_t resetCoordinator() {
@@ -1120,15 +1133,15 @@ int32_t mtmZigbeeInit(int32_t mode, uint8_t *path, uint64_t speed) {
 
         // Инициализируем внешние линии координатора e18
         // отключаем реле
-        e18_cmd_set_gpio_level(coordinatorFd, E18_LOCAL_DATA_ADDRESS, E18_PIN_RELAY, E18_LEVEL_LOW, kernel);
+        e18_cmd_set_gpio_level(E18_LOCAL_DATA_ADDRESS, E18_PIN_RELAY, E18_LEVEL_LOW);
         // индикатор
-        e18_cmd_init_gpio(coordinatorFd, E18_LOCAL_DATA_ADDRESS, E18_PIN_LED, E18_PIN_OUTPUT, kernel);
+        e18_cmd_init_gpio(E18_LOCAL_DATA_ADDRESS, E18_PIN_LED, E18_PIN_OUTPUT);
         // реле
-        e18_cmd_init_gpio(coordinatorFd, E18_LOCAL_DATA_ADDRESS, E18_PIN_RELAY, E18_PIN_OUTPUT, kernel);
+        e18_cmd_init_gpio(E18_LOCAL_DATA_ADDRESS, E18_PIN_RELAY, E18_PIN_OUTPUT);
         // дверь
-        e18_cmd_init_gpio(coordinatorFd, E18_LOCAL_DATA_ADDRESS, E18_PIN_DOOR, E18_PIN_INPUT, kernel);
+        e18_cmd_init_gpio(E18_LOCAL_DATA_ADDRESS, E18_PIN_DOOR, E18_PIN_INPUT);
         // контактор
-        e18_cmd_init_gpio(coordinatorFd, E18_LOCAL_DATA_ADDRESS, E18_PIN_CONTACTOR, E18_PIN_INPUT, kernel);
+        e18_cmd_init_gpio(E18_LOCAL_DATA_ADDRESS, E18_PIN_CONTACTOR, E18_PIN_INPUT);
 
         tcflush(coordinatorFd, TCIFLUSH);   /* Discards old data in the rx buffer            */
     }

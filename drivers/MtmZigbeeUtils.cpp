@@ -93,7 +93,7 @@ Device *findDeviceByAddress(DBase *dBase, std::string *address) {
             dBase->makeFieldsList(res);
             row = mysql_fetch_row(res);
             if (row) {
-                item->_id = std::stoi(dBase->getFieldValue(row, "_id"));
+                item->_id = std::stoull(dBase->getFieldValue(row, "_id"));
                 item->uuid = dBase->getFieldValue(row, "uuid");
                 item->name = dBase->getFieldValue(row, "name");
                 item->address = dBase->getFieldValue(row, "address");
@@ -205,7 +205,7 @@ SensorChannel *findSensorChannelsByDevice(DBase *dBase, std::string *deviceUuid,
             dBase->makeFieldsList(res);
             uint16_t idx = 0;
             while ((row = mysql_fetch_row(res)) != nullptr) {
-                list[idx]._id = std::stoi(dBase->getFieldValue(row, "_id"));
+                list[idx]._id = std::stoll(dBase->getFieldValue(row, "_id"));
                 list[idx].uuid = dBase->getFieldValue(row, "uuid");
                 list[idx].title = dBase->getFieldValue(row, "title");
                 list[idx].reg = std::stoi(dBase->getFieldValue(row, "register"));

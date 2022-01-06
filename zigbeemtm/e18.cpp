@@ -67,7 +67,7 @@ ssize_t send_e18_hex_cmd(int fd, uint16_t short_addr, void *mtm_cmd, Kernel *ker
 }
 
 
-void e18_cmd_init_gpio(int fd, uint16_t short_addr, uint8_t line, uint8_t mode, Kernel *kernel) {
+void e18_cmd_init_gpio(uint16_t short_addr, uint8_t line, uint8_t mode) {
     uint8_t hiAddr = short_addr >> 8; // HI byte of addr // NOLINT(hicpp-signed-bitwise)
     uint8_t loAddr = short_addr & 0xFF; // LO byte of addr // NOLINT(hicpp-signed-bitwise)
     uint8_t cmd[] = {
@@ -90,8 +90,7 @@ void e18_cmd_init_gpio(int fd, uint16_t short_addr, uint8_t line, uint8_t mode, 
     SLIST_INSERT_HEAD(&e18_cmd_queue_head, cmdItem, cmds);
 }
 
-void e18_cmd_set_gpio_level(int fd, uint16_t short_addr, uint8_t gpio, uint8_t level, Kernel *kernel) {
-    ssize_t rc = 1;
+void e18_cmd_set_gpio_level(uint16_t short_addr, uint8_t gpio, uint8_t level) {
     uint8_t hiAddr = short_addr >> 8; // HI byte of addr // NOLINT(hicpp-signed-bitwise)
     uint8_t loAddr = short_addr & 0xFF; // LO byte of addr // NOLINT(hicpp-signed-bitwise)
     uint8_t cmd[] = {
@@ -113,11 +112,9 @@ void e18_cmd_set_gpio_level(int fd, uint16_t short_addr, uint8_t gpio, uint8_t l
     cmdItem->extra[0] = gpio;
     memcpy(cmdItem->data, (const void *) cmd, cmdItem->len);
     SLIST_INSERT_HEAD(&e18_cmd_queue_head, cmdItem, cmds);
-
 }
 
-void e18_cmd_get_baud_rate(int fd, Kernel *kernel) {
-    ssize_t rc = 0;
+void e18_cmd_get_baud_rate() {
     uint8_t cmd[] = {
             E18_HEX_CMD_GET,
             0x01,
@@ -135,8 +132,7 @@ void e18_cmd_get_baud_rate(int fd, Kernel *kernel) {
 
 }
 
-void e18_cmd_read_gpio_level(int fd, uint16_t short_addr, uint8_t gpio, Kernel *kernel) {
-    ssize_t rc = 0;
+void e18_cmd_read_gpio_level(uint16_t short_addr, uint8_t gpio) {
     uint8_t hiAddr = short_addr >> 8; // HI byte of addr // NOLINT(hicpp-signed-bitwise)
     uint8_t loAddr = short_addr & 0xFF; // LO byte of addr // NOLINT(hicpp-signed-bitwise)
 
@@ -182,9 +178,7 @@ ssize_t e18_read_fixed_data(int coordinatorFd, uint8_t *buffer, ssize_t size) {
     return count;
 }
 
-void e18_cmd_get_network_state(int fd, Kernel *kernel) {
-    ssize_t rc = 0;
-
+void e18_cmd_get_network_state() {
     uint8_t cmd[] = {
             E18_HEX_CMD_GET,
             0x01,
@@ -196,13 +190,12 @@ void e18_cmd_get_network_state(int fd, Kernel *kernel) {
     auto *cmdItem = (struct e18_cmd_item *) malloc(sizeof(struct e18_cmd_item));
     cmdItem->len = sizeof(cmd);
     cmdItem->data = malloc(cmdItem->len);
-    cmdItem->cmd = E18_HEX_CMD_GET_NETWORK_STATE,
-            memcpy(cmdItem->data, (const void *) cmd, cmdItem->len);
+    cmdItem->cmd = E18_HEX_CMD_GET_NETWORK_STATE;
+    memcpy(cmdItem->data, (const void *) cmd, cmdItem->len);
     SLIST_INSERT_HEAD(&e18_cmd_queue_head, cmdItem, cmds);
 }
 
-void e18_cmd_get_remote_short_address(int fd, uint8_t *mac, Kernel *kernel) {
-    ssize_t rc = 0;
+void e18_cmd_get_remote_short_address(uint8_t *mac) {
     uint64_t dstAddr = strtoull((char *) mac, nullptr, 16);
 
     uint8_t cmd[] = {
@@ -263,4 +256,21 @@ bool e18_store_short_address(DBase *dBase, uint8_t *currentMac, uint16_t shortAd
     }
 
     return false;
+}
+
+void e18_cmd_set_network_off() {
+    uint8_t cmd[] = {
+            E18_HEX_CMD_SET,
+            0x01,
+            E18_HEX_CMD_OFF_NETWORK_AND_RESTART,
+            E18_HEX_CMD_END_CMD
+    };
+
+    // складываем команду в список
+    auto *cmdItem = (struct e18_cmd_item *) malloc(sizeof(struct e18_cmd_item));
+    cmdItem->len = sizeof(cmd);
+    cmdItem->data = malloc(cmdItem->len);
+    cmdItem->cmd = E18_HEX_CMD_OFF_NETWORK_AND_RESTART;
+    memcpy(cmdItem->data, (const void *) cmd, cmdItem->len);
+    SLIST_INSERT_HEAD(&e18_cmd_queue_head, cmdItem, cmds);
 }
