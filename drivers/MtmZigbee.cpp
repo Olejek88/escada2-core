@@ -763,6 +763,11 @@ void mtmZigbeeProcessOutPacket(int32_t threadId) {
                 lengths = mysql_fetch_lengths(res);
                 fieldIdx = mtmZigbeeDBase->getFieldIndex("address");
                 flen = lengths[fieldIdx];
+                if (flen == 0) {
+                    // короткого адреса нет, ни чего не отправляем
+                    continue;
+                }
+
                 memset(tmpAddr, 0, 1024);
                 strncpy((char *) tmpAddr, row[fieldIdx], flen);
                 if (kernel->isDebug) {
