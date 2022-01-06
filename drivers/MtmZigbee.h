@@ -60,7 +60,7 @@ std::string findSChannel(DBase *dBase, uint8_t *deviceUuid, uint8_t regIdx, cons
 
 void log_buffer_hex(uint8_t *buffer, size_t buffer_size);
 
-ssize_t switchContactor(bool enable, uint8_t line);
+void switchContactor(bool enable, uint8_t line);
 
 ssize_t switchAllLight(uint16_t level);
 

@@ -1010,7 +1010,10 @@ void mtmCheckLinkState(DBase *dBase) {
     query.append("LEFT JOIN data AS mt ON mt.sensorChannelUuid=sct.uuid ");
     query.append("WHERE dt.deviceTypeUuid='" + std::string(DEVICE_TYPE_ZB_COORDINATOR) + "' ");
     query.append("AND sct.measureTypeUuid='" + std::string(CHANNEL_CONTACTOR_STATE) + "'");
-//    kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] contactor query: %s", TAG, query.data());
+    if (kernel->isDebug) {
+        kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] contactor query: %s", TAG, query.data());
+    }
+
     res = dBase->sqlexec(query.data());
     if (res) {
         nRows = mysql_num_rows(res);
@@ -1033,25 +1036,25 @@ void mtmCheckLinkState(DBase *dBase) {
         return;
     }
 
-    // для всех светильников от которых не было пакетов со статусом более linkTimeOut секунд,
+    // для всех светильников от которых не было пакетов с коротким адресом более linkTimeOut секунд,
     // а статус был "В порядке", устанавливаем статус "Нет связи"
     // для этого, сначала выбираем все устройства которые будут менять статус
     query = "SELECT dt.uuid, dt.address as devAddr, nt.address as nodeAddr, dt.deviceTypeUuid FROM device AS dt ";
     query.append("LEFT JOIN node AS nt ON nt.uuid=dt.nodeUuid ");
-    query.append("LEFT JOIN sensor_channel AS sct ON sct.deviceUuid=dt.uuid ");
-    query.append("LEFT JOIN data AS mt ON mt.sensorChannelUuid=sct.uuid ");
-    query.append("WHERE (timestampdiff(second,  mt.changedAt, current_timestamp()) > dt.linkTimeout ");
-    query.append("OR mt.changedAt IS NULL) ");
+    query.append("LEFT JOIN entity_parameter ept on ept.entityUuid=dt.uuid ");
+    query.append("WHERE (timestampdiff(second,  ept.changedAt, current_timestamp()) > dt.linkTimeout ");
+    query.append("OR ept.changedAt IS NULL) ");
     query.append("AND (");
-    query.append("(dt.deviceTypeUuid='" + std::string(DEVICE_TYPE_ZB_LIGHT)
-                 + "' AND sct.measureTypeUuid='" + std::string(CHANNEL_STATUS) + "')");
+    query.append("(dt.deviceTypeUuid='" + std::string(DEVICE_TYPE_ZB_LIGHT) + "')");
     query.append(" OR ");
-    query.append("(dt.deviceTypeUuid='" + std::string(DEVICE_TYPE_ZB_COORDINATOR)
-                 + "' AND sct.measureTypeUuid='" + std::string(CHANNEL_RELAY_STATE) + "')");
+    query.append("(dt.deviceTypeUuid='" + std::string(DEVICE_TYPE_ZB_COORDINATOR) + "')");
     query.append(") ");
     query.append("AND dt.deviceStatusUuid='" + std::string(DEVICE_STATUS_WORK) + "' ");
     query.append("GROUP BY dt.uuid");
-//    kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] select to not link query: %s", TAG, query.data());
+    if (kernel->isDebug) {
+        kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] select to not link query: %s", TAG, query.data());
+    }
+
     res = dBase->sqlexec(query.data());
     firstItem = true;
     if (res) {
@@ -1083,28 +1086,31 @@ void mtmCheckLinkState(DBase *dBase) {
         query = "UPDATE device SET deviceStatusUuid='" + std::string(DEVICE_STATUS_NO_CONNECT) +
                 "', changedAt=current_timestamp() ";
         query.append("WHERE device.uuid IN (" + inParamList + ")");
-//        kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] update to not link query: %s", TAG, query.data());
+        if (kernel->isDebug) {
+            kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] update to not link query: %s", TAG, query.data());
+        }
+
         res = dBase->sqlexec(query.data());
         mysql_free_result(res);
     }
 
-    // для всех светильников от которых были получены пакеты со статусом менее 30 секунд назад,
+    // для всех светильников от которых были получены пакеты с коротким адресом менее linkTimeout секунд назад,
     // а статус был "Нет связи", устанавливаем статус "В порядке"
     query = "SELECT dt.uuid, dt.address as devAddr, nt.address as nodeAddr, dt.deviceTypeUuid FROM device AS dt ";
     query.append("LEFT JOIN node AS nt ON nt.uuid=dt.nodeUuid ");
-    query.append("LEFT JOIN sensor_channel AS sct ON sct.deviceUuid=dt.uuid ");
-    query.append("LEFT JOIN data as mt on mt.sensorChannelUuid=sct.uuid ");
-    query.append("WHERE (timestampdiff(second,  mt.changedAt, current_timestamp()) < dt.linkTimeout) ");
+    query.append("LEFT JOIN entity_parameter ept on ept.entityUuid=dt.uuid ");
+    query.append("WHERE (timestampdiff(second,  ept.changedAt, current_timestamp()) < dt.linkTimeout) ");
     query.append("AND (");
-    query.append("(dt.deviceTypeUuid='" + std::string(DEVICE_TYPE_ZB_LIGHT)
-                 + "' AND sct.measureTypeUuid='" + std::string(CHANNEL_STATUS) + "')");
+    query.append("(dt.deviceTypeUuid='" + std::string(DEVICE_TYPE_ZB_LIGHT) + "')");
     query.append(" OR ");
-    query.append("(dt.deviceTypeUuid='" + std::string(DEVICE_TYPE_ZB_COORDINATOR)
-                 + "' AND sct.measureTypeUuid='" + std::string(CHANNEL_RELAY_STATE) + "')");
+    query.append("(dt.deviceTypeUuid='" + std::string(DEVICE_TYPE_ZB_COORDINATOR) + "')");
     query.append(") ");
     query.append("AND dt.deviceStatusUuid='" + std::string(DEVICE_STATUS_NO_CONNECT) + "' ");
     query.append("GROUP BY dt.uuid");
-//    kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] select to work query: %s", TAG, query.data());
+    if (kernel->isDebug) {
+        kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] select to work query: %s", TAG, query.data());
+    }
+
     res = dBase->sqlexec(query.data());
     firstItem = true;
     inParamList.clear();
@@ -1137,7 +1143,10 @@ void mtmCheckLinkState(DBase *dBase) {
         query = "UPDATE device SET deviceStatusUuid='" + std::string(DEVICE_STATUS_WORK) +
                 "', changedAt=current_timestamp() ";
         query.append("WHERE device.uuid IN (" + inParamList + ")");
-//        kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] update to work query: %s", TAG, query.data());
+        if (kernel->isDebug) {
+            kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] update to work query: %s", TAG, query.data());
+        }
+
         res = dBase->sqlexec(query.data());
         mysql_free_result(res);
     }
@@ -1151,7 +1160,10 @@ void mtmCheckLinkState(DBase *dBase) {
     query.append("AND device.deviceTypeUuid IN ('" + std::string(DEVICE_TYPE_ZB_LIGHT) + "', '" +
                  std::string(DEVICE_TYPE_ZB_COORDINATOR) + "') ");
     query.append("AND device.deviceStatusUuid='" + std::string(DEVICE_STATUS_WORK) + "'");
-//    kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] update without measure to not link query: %s", TAG, query.data());
+    if (kernel->isDebug) {
+        kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] update without measure to not link query: %s", TAG, query.data());
+    }
+
     res = dBase->sqlexec(query.data());
     mysql_free_result(res);
 }

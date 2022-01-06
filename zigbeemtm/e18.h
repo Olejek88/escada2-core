@@ -121,19 +121,19 @@ extern e18_cmd_queue e18_cmd_queue_head;
 
 ssize_t send_e18_hex_cmd(int fd, uint16_t short_addr, void *mtm_cmd, Kernel *kernel);
 
-ssize_t e18_cmd_init_gpio(int fd, uint16_t short_addr, uint8_t line, uint8_t mode, Kernel *kernel);
+void e18_cmd_init_gpio(int fd, uint16_t short_addr, uint8_t line, uint8_t mode, Kernel *kernel);
 
-ssize_t e18_cmd_get_baud_rate(int fd, Kernel *kernel);
+void e18_cmd_get_baud_rate(int fd, Kernel *kernel);
 
 ssize_t e18_read_fixed_data(int coordinatorFd, uint8_t *buffer, ssize_t len);
 
-ssize_t e18_cmd_read_gpio_level(int fd, uint16_t short_addr, uint8_t gpio, Kernel *kernel);
+void e18_cmd_read_gpio_level(int fd, uint16_t short_addr, uint8_t gpio, Kernel *kernel);
 
-ssize_t e18_cmd_set_gpio_level(int fd, uint16_t short_addr, uint8_t gpio, uint8_t level, Kernel *kernel);
+void e18_cmd_set_gpio_level(int fd, uint16_t short_addr, uint8_t gpio, uint8_t level, Kernel *kernel);
 
-ssize_t e18_cmd_get_network_state(int fd, Kernel *kernel);
+void e18_cmd_get_network_state(int fd, Kernel *kernel);
 
-ssize_t e18_cmd_get_remote_short_address(int fd, uint8_t *mac, Kernel *kernel);
+void e18_cmd_get_remote_short_address(int fd, uint8_t *mac, Kernel *kernel);
 
 bool e18_store_short_address(DBase *dBase, uint8_t *currentMac, uint16_t shortAddr, Kernel *kernel);
 

@@ -450,16 +450,7 @@ void mtmZigbeePktListener(DBase *dBase, int32_t threadId) {
             // проверяем отдельной командой её наличие
             if (!isCmdRun && !isNetwork) {
                 printf("check network state\n");
-                ssize_t rc = e18_cmd_get_network_state(coordinatorFd, kernel);
-
-                if (kernel->isDebug) {
-                    kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] rc=%ld", TAG, rc);
-                }
-
-                if (rc == -1) {
-                    lostZBCoordinator(dBase, threadId, &coordinatorUuid);
-                    return;
-                }
+                e18_cmd_get_network_state(coordinatorFd, kernel);
             }
 
             // рассылаем пакет с текущим "временем" раз в 10 секунд
@@ -500,16 +491,7 @@ void mtmZigbeePktListener(DBase *dBase, int32_t threadId) {
             if (!isCmdRun && currentTime - checkDoorSensorTime >= 10) {
                 checkDoorSensorTime = currentTime;
                 printf("Check door sensor\n");
-                ssize_t rc = e18_cmd_read_gpio_level(coordinatorFd, E18_LOCAL_DATA_ADDRESS, E18_PIN_DOOR, kernel);
-
-                if (kernel->isDebug) {
-                    kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] rc=%ld", TAG, rc);
-                }
-
-                if (rc == -1) {
-                    lostZBCoordinator(dBase, threadId, &coordinatorUuid);
-                    return;
-                }
+                e18_cmd_read_gpio_level(coordinatorFd, E18_LOCAL_DATA_ADDRESS, E18_PIN_DOOR, kernel);
             }
 
             // опрашиваем датчик контактора
@@ -517,16 +499,7 @@ void mtmZigbeePktListener(DBase *dBase, int32_t threadId) {
             if (!isCmdRun && currentTime - checkContactorSensorTime >= 10) {
                 checkContactorSensorTime = currentTime;
                 printf("Check contactor sensor\n");
-                ssize_t rc = e18_cmd_read_gpio_level(coordinatorFd, E18_LOCAL_DATA_ADDRESS, E18_PIN_CONTACTOR, kernel);
-
-                if (kernel->isDebug) {
-                    kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] rc=%ld", TAG, rc);
-                }
-
-                if (rc == -1) {
-                    lostZBCoordinator(dBase, threadId, &coordinatorUuid);
-                    return;
-                }
+                e18_cmd_read_gpio_level(coordinatorFd, E18_LOCAL_DATA_ADDRESS, E18_PIN_CONTACTOR, kernel);
             }
 
             // опрашиваем датчик реле
@@ -534,16 +507,7 @@ void mtmZigbeePktListener(DBase *dBase, int32_t threadId) {
             if (!isCmdRun && currentTime - checkRelaySensorTime >= 10) {
                 checkRelaySensorTime = currentTime;
                 printf("Check relay sensor\n");
-                ssize_t rc = e18_cmd_read_gpio_level(coordinatorFd, E18_LOCAL_DATA_ADDRESS, E18_PIN_RELAY, kernel);
-
-                if (kernel->isDebug) {
-                    kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] rc=%ld", TAG, rc);
-                }
-
-                if (rc == -1) {
-                    lostZBCoordinator(dBase, threadId, &coordinatorUuid);
-                    return;
-                }
+                e18_cmd_read_gpio_level(coordinatorFd, E18_LOCAL_DATA_ADDRESS, E18_PIN_RELAY, kernel);
             }
 
             // опрашиваем датчик температуры на координаторе
@@ -572,16 +536,7 @@ void mtmZigbeePktListener(DBase *dBase, int32_t threadId) {
 
                 checkCoordinatorTime = currentTime;
                 printf("Check baud rate\n");
-                ssize_t rc = e18_cmd_get_baud_rate(coordinatorFd, kernel);
-
-                if (kernel->isDebug) {
-                    kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] rc=%ld", TAG, rc);
-                }
-
-                if (rc == -1) {
-                    lostZBCoordinator(dBase, threadId, &coordinatorUuid);
-                    return;
-                }
+                e18_cmd_get_baud_rate(coordinatorFd, kernel);
             }
 
             // проверка на наступление астрономических событий
@@ -644,16 +599,7 @@ void mtmZigbeePktListener(DBase *dBase, int32_t threadId) {
                             MYSQL_ROW row = mysql_fetch_row(res);
                             if (row) {
                                 std::string address = dBase->getFieldValue(row, "address");
-                                ssize_t rc = e18_cmd_get_remote_short_address(coordinatorFd,
-                                                                              (uint8_t *) address.data(), kernel);
-                                if (kernel->isDebug) {
-                                    kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] rc=%ld", TAG, rc);
-                                }
-
-                                if (rc == -1) {
-                                    lostZBCoordinator(dBase, threadId, &coordinatorUuid);
-                                    return;
-                                }
+                                e18_cmd_get_remote_short_address(coordinatorFd, (uint8_t *) address.data(), kernel);
                             }
                         }
                     }
@@ -727,10 +673,9 @@ ssize_t switchAllLight(uint16_t level) {
     return rc;
 }
 
-ssize_t switchContactor(bool enable, uint8_t line) {
-    ssize_t rc = e18_cmd_set_gpio_level(coordinatorFd, E18_LOCAL_DATA_ADDRESS, line,
-                                        enable ? E18_LEVEL_HI : E18_LEVEL_LOW, kernel);
-    return rc;
+void switchContactor(bool enable, uint8_t line) {
+    e18_cmd_set_gpio_level(coordinatorFd, E18_LOCAL_DATA_ADDRESS, line,
+                           enable ? E18_LEVEL_HI : E18_LEVEL_LOW, kernel);
 }
 
 ssize_t resetCoordinator() {
@@ -893,8 +838,9 @@ void mtmZigbeeProcessOutPacket(int32_t threadId) {
                                 sprintf(message, "Получена команда %s реле контактора.",
                                         mtmPkt[3] == 0 ? "выключения" : "включения");
                                 kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] %s", TAG, message);
-                                rc = switchContactor(mtmPkt[3], E18_PIN_RELAY);
+                                switchContactor(mtmPkt[3], E18_PIN_RELAY);
                                 AddDeviceRegister(mtmZigbeeDBase, (char *) coordinatorUuid.data(), message);
+                                rc = 1; // костыль от старой реализации
                                 break;
                             case MTM_CMD_TYPE_RESET_COORDINATOR:
                                 if (kernel->isDebug) {
