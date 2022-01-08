@@ -7,6 +7,7 @@
 
 #include <stdint.h>
 #include <kernel.h>
+#include <string>
 
 struct e18_cmd_item {
     void *data;
@@ -135,7 +136,8 @@ void e18_cmd_get_network_state();
 
 void e18_cmd_get_remote_short_address(uint8_t *mac);
 
-bool e18_store_short_address(DBase *dBase, uint8_t *currentMac, uint16_t shortAddr, Kernel *kernel);
+bool
+e18_store_parameter(DBase *dBase, std::string deviceMac, std::string parameterName, std::string value, Kernel *kernel);
 
 void e18_cmd_set_network_off();
 

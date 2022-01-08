@@ -224,16 +224,12 @@ void e18_cmd_get_remote_short_address(uint8_t *mac) {
     SLIST_INSERT_HEAD(&e18_cmd_queue_head, cmdItem, cmds);
 }
 
-bool e18_store_short_address(DBase *dBase, uint8_t *currentMac, uint16_t shortAddr, Kernel *kernel) {
-    std::string macString((const char *) currentMac);
-    char shortAddrString[5] = {0};
-
-    sprintf(shortAddrString, "%04X", shortAddr);
-
-    Device *device = findDeviceByAddress(dBase, &macString);
+bool
+e18_store_parameter(DBase *dBase, std::string deviceMac, std::string parameterName, std::string value, Kernel *kernel) {
+    Device *device = findDeviceByAddress(dBase, &deviceMac);
     if (device != nullptr) {
         EntityParameter parameter(dBase);
-        if (!parameter.loadParameter(device->uuid, std::string("shortAddr"))) {
+        if (!parameter.loadParameter(device->uuid, parameterName)) {
             // параметра в базе нет, заполним поля
             uuid_t newUuid;
             uint8_t newUuidString[37] = {0};
@@ -241,10 +237,10 @@ bool e18_store_short_address(DBase *dBase, uint8_t *currentMac, uint16_t shortAd
             uuid_unparse_upper(newUuid, (char *) newUuidString);
             parameter.uuid = (char *) newUuidString;
             parameter.entityUuid = device->uuid;
-            parameter.parameter = "shortAddr";
+            parameter.parameter = parameterName;
         }
 
-        parameter.value = shortAddrString;
+        parameter.value = value;
         // сохраняем в базу
         if (!parameter.save()) {
             // сообщение? о том что не смогли записать данные в базу

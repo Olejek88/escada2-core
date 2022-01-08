@@ -19,6 +19,7 @@
 #include <jsoncpp/json/json.h>
 #include <jsoncpp/json/value.h>
 #include <main.h>
+#include <sstream>
 #include "lightUtils.h"
 #include "ce102.h"
 #include "e18.h"
@@ -106,6 +107,7 @@ void mtmZigbeePktListener(DBase *dBase, int32_t threadId) {
     struct tm *localTime;
     uint16_t addr;
     uint8_t inState, outState;
+    std::stringstream sstream;
 
     struct zb_pkt_item {
         void *pkt;
@@ -198,7 +200,10 @@ void mtmZigbeePktListener(DBase *dBase, int32_t threadId) {
                         break;
                     case E18_HEX_CMD_GET_REMOTE_SHORT_ADDR :
                         // сохраняем/обновляем запись с коротким адресом
-                        e18_store_short_address(dBase, currentCmd.extra, *(uint16_t *) seek, kernel);
+                        sstream.str("");
+                        sstream << std::hex << *(uint16_t *) seek;
+                        e18_store_parameter(dBase, std::string((char *) currentCmd.extra), std::string("shortAddr"),
+                                            std::string(sstream.str()), kernel);
                         break;
                     default:
                         break;
@@ -969,6 +974,9 @@ void mtmZigbeeProcessInPacket(uint8_t *pktBuff, uint32_t length) {
                 memset(parentAddress, 0, 32);
                 sprintf((char *) parentAddress, "%016lX", *(uint64_t *) pkt->parentMac);
                 parentAddressStr->assign((char *) parentAddress);
+                // сохраняем/обновляем запись с адресом родителя
+                e18_store_parameter(mtmZigbeeDBase, std::string((char *) address), std::string("parentAddr"),
+                                    *parentAddressStr, kernel);
             } else {
                 // неизвестная версия протокола
                 kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] Не известная версия протокола: %d", TAG,
