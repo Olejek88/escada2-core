@@ -702,6 +702,8 @@ void mtmZigbeeProcessOutPacket(int32_t threadId) {
 void mtmZigbeeProcessInPacket(uint8_t *pktBuff, uint32_t length) {
     uint16_t cmd = *(uint16_t *) (&pktBuff[2]);
     uint8_t pktType;
+    uint8_t pktVersion;
+    uint8_t sensorDataStart;
     uint8_t dstEndPoint;
     uint16_t cluster;
     uint8_t address[32];
@@ -792,6 +794,7 @@ void mtmZigbeeProcessInPacket(uint8_t *pktBuff, uint32_t length) {
             }
 
             pktType = pktBuff[21];
+            pktVersion = pktBuff[22];
             switch (pktType) {
                 case MTM_CMD_TYPE_STATUS:
                     // размер полезных данных в zb пакете
@@ -833,8 +836,20 @@ void mtmZigbeeProcessInPacket(uint8_t *pktBuff, uint32_t length) {
                         }
                     }
 
+                    // в нулевой версии протокола данные сенсоров в пакете zigbee начинаются с 33 байта
+                    sensorDataStart = 33;
+
                     // из размера пакета вычитаем два байта заголовка, восемь байт адреса, два байта флагов аварии
-                    sensorDataCount = (mtmLightStatusPktSize - 12) / 2;
+                    sensorDataCount = (mtmLightStatusPktSize - 12);
+                    if (pktVersion == MTM_VERSION_1) {
+                        // вычитаем ещё 8 байт родительского MAC
+                        sensorDataCount -= 8;
+                        // смещаем начало данных сенсоров на 8 байт
+                        sensorDataStart += 8;
+                        // TODO: реализовать сохранение родительского адреса
+                    }
+
+                    sensorDataCount /= 2;
                     // получаем устройство
                     device = findDeviceByAddress(mtmZigbeeDBase, addressStr);
                     if (device != nullptr) {
@@ -846,27 +861,27 @@ void mtmZigbeeProcessInPacket(uint8_t *pktBuff, uint32_t length) {
                                 if (reg < sensorDataCount) {
                                     // добавляем измерение
                                     if (list[i].measureTypeUuid == CHANNEL_STATUS) {
-                                        uint16_t alerts = *(uint16_t *) &pktBuff[31];
+                                        uint16_t alerts = *(uint16_t *) &pktBuff[sensorDataStart - 2];
                                         int8_t value = alerts & 0x0001u;
                                         storeMeasureValueExt(mtmZigbeeDBase, &list[i], value, true);
                                     } else if (list[i].measureTypeUuid == CHANNEL_W) {
-                                        int idx = 33 + reg * 2;
+                                        int idx = sensorDataStart + reg * 2;
                                         int8_t value = pktBuff[idx];
                                         storeMeasureValueExt(mtmZigbeeDBase, &list[i], value, true);
                                     } else if (list[i].measureTypeUuid == CHANNEL_T) {
-                                        int idx = 33 + reg * 2 + 1;
+                                        int idx = sensorDataStart + reg * 2 + 1;
                                         int8_t value = pktBuff[idx];
                                         storeMeasureValueExt(mtmZigbeeDBase, &list[i], value, true);
                                     } else if (list[i].measureTypeUuid == CHANNEL_RSSI) {
-                                        int idx = 33 + reg * 2;
+                                        int idx = sensorDataStart + reg * 2;
                                         int8_t value = pktBuff[idx];
                                         storeMeasureValueExt(mtmZigbeeDBase, &list[i], value, true);
                                     } else if (list[i].measureTypeUuid == CHANNEL_HOP_COUNT) {
-                                        int idx = 33 + reg * 2 + 1;
+                                        int idx = sensorDataStart + reg * 2 + 1;
                                         int8_t value = pktBuff[idx];
                                         storeMeasureValueExt(mtmZigbeeDBase, &list[i], value, true);
                                     } else if (list[i].measureTypeUuid == CHANNEL_CO2) {
-                                        int idx = 33 + reg * 2;
+                                        int idx = sensorDataStart + reg * 2;
                                         uint16_t value = *(uint16_t *) &pktBuff[idx];
                                         storeMeasureValueExt(mtmZigbeeDBase, &list[i], value, false);
                                     }
