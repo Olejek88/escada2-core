@@ -19,10 +19,8 @@
 #include <jsoncpp/json/json.h>
 #include <jsoncpp/json/value.h>
 #include <main.h>
-#include <sstream>
 #include "lightUtils.h"
 #include "ce102.h"
-#include "e18.h"
 
 int coordinatorFd;
 bool mtmZigbeeStarted = false;
@@ -31,17 +29,15 @@ pthread_mutex_t mtmZigbeeStopMutex;
 bool mtmZigbeeStopIssued;
 DBase *mtmZigbeeDBase;
 int32_t mtmZigBeeThreadId;
-Kernel *kernel;
 bool isSunInit;
 bool isSunSet, isTwilightEnd, isTwilightStart, isSunRise;
 std::string coordinatorUuid;
 bool isCheckCoordinatorRespond;
-e18_cmd_queue e18_cmd_queue_head = {nullptr};
 
 void *mtmZigbeeDeviceThread(void *pth) { // NOLINT
     uint64_t speed;
     uint8_t *port;
-    kernel = &Kernel::Instance();
+    Kernel *kernel = &Kernel::Instance();
     auto *tInfo = (TypeThread *) pth;
 
     mtmZigBeeThreadId = tInfo->id;
@@ -90,35 +86,34 @@ void *mtmZigbeeDeviceThread(void *pth) { // NOLINT
 void mtmZigbeePktListener(DBase *dBase, int32_t threadId) {
     bool run = true;
     int64_t count;
+    uint32_t i = 0;
     uint8_t data;
     uint8_t seek[1024];
-    // при старте счтаем что сети нет и начинаем отсчёт
-    time_t lostNetworkTime = time(nullptr);
-    bool isLostNetworkAlarmSent = false;
-    // по умолчанию проверяем наличие сети
-    bool isNetworkCheck = true;
-    bool isNetwork = false;
-    bool isCmdRun = false;
-    e18_cmd_item currentCmd = {nullptr};
-    currentCmd.data = malloc(128);
-    time_t currentTime, heartBeatTime = 0, syncTimeTime = 0, checkDoorSensorTime = 0, checkContactorSensorTime = 0,
-            checkRelaySensorTime = 0, checkAstroTime = 0, checkOutPacket = 0, checkCoordinatorTime = 0,
-            checkLinkState = 0, checkShortAddresses = 0, checkNetworkTime = 0;
+    //---
+    bool isSof = false;
+    bool isFrameLen = false;
+    uint8_t frameLen = 0;
+    bool isCommand = false;
+    uint16_t commandByteCount = 0;
+    bool isFrameData = false;
+    uint8_t frameDataByteCount = 0;
+    uint8_t fcs;
+    time_t currentTime, heartBeatTime = 0, syncTimeTime = 0, checkSensorTime = 0, checkAstroTime = 0,
+            checkOutPacket = 0, checkCoordinatorTime = 0, checkLinkState = 0;
     struct tm *localTime;
-    uint16_t addr;
-    uint8_t inState, outState;
-    std::stringstream sstream;
+    Kernel *kernel = &Kernel::Instance();
 
     struct zb_pkt_item {
+//        zigbee_frame frame;
         void *pkt;
         uint32_t len;
         SLIST_ENTRY(zb_pkt_item) items;
     };
-
+//    struct zb_queue *zb_queue_ptr;
     SLIST_HEAD(zb_queue, zb_pkt_item)
             zb_queue_head = SLIST_HEAD_INITIALIZER(zb_queue_head);
     SLIST_INIT(&zb_queue_head);
-
+//    zb_queue_ptr = (struct zb_queue *) (&zb_queue_head);
     struct zb_pkt_item *zb_item;
 
     mtmZigbeeSetRun(true);
@@ -126,260 +121,80 @@ void mtmZigbeePktListener(DBase *dBase, int32_t threadId) {
     while (run) {
         count = read(coordinatorFd, &data, 1);
         if (count > 0) {
-            printf("data: %02X\n", data);
+//            printf("data: %02X\n", data);
 
-            if (isCmdRun && data == E18_GET_ANSWER) {
-                // ответ на команду получения данных
-                printf("get read data of %02X command\n", currentCmd.cmd);
-                uint8_t readDataLen;
-
-                switch (currentCmd.cmd) {
-                    case E18_HEX_CMD_GET_NETWORK_STATE :
-                    case E18_HEX_CMD_GET_UART_BAUD_RATE :
-                        readDataLen = 1;
-                        break;
-                    case E18_HEX_CMD_GET_GPIO_LEVEL:
-                        readDataLen = 5;
-                        break;
-                    case E18_HEX_CMD_GET_REMOTE_SHORT_ADDR:
-                        readDataLen = 2;
-                        break;
-                    default:
-                        readDataLen = 0;
-                        break;
+            // TODO: сделать вложенные if
+            // начинаем разбор
+            if (!isSof && data == SOF) {
+                i = 0;
+                isSof = true;
+                seek[i++] = data;
+                if (kernel->isDebug) {
+//                kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] found SOF", TAG);
                 }
-
-                // читаем данные ответа
-                if (e18_read_fixed_data(coordinatorFd, seek, readDataLen) < 0) {
-                    // ошибка чтения данных, нужно остановить поток
-                    lostZBCoordinator(dBase, threadId, &coordinatorUuid);
-                    return;
+            } else if (!isFrameLen) {
+                isFrameLen = true;
+                seek[i++] = frameLen = data;
+                if (kernel->isDebug) {
+//                kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] found frame len", TAG);
                 }
-
-                // обрабатываем при необходимости полученные данные
-                switch (currentCmd.cmd) {
-                    case E18_HEX_CMD_GET_NETWORK_STATE :
-                        isNetwork = seek[0] == 1;
-                        printf("get network state is %s\n", isNetwork ? "TRUE" : "FALSE");
-                        if (!isNetwork) {
-                            if (!isNetworkCheck) {
-                                isLostNetworkAlarmSent = false;
-                                lostNetworkTime = time(nullptr);
-                                isNetworkCheck = true;
-                            }
-                        } else {
-                            isNetworkCheck = false;
-                        }
-
-                        break;
-                    case E18_HEX_CMD_GET_UART_BAUD_RATE :
-                        isCheckCoordinatorRespond = true;
-                        break;
-                    case E18_HEX_CMD_GET_GPIO_LEVEL :
-                        addr = *(uint16_t *) &seek[1];
-                        inState = seek[3];
-                        outState = seek[4];
-                        printf("Addr: 0x%04X, In: %d, Out: %d\n", addr, inState, outState);
-                        switch (currentCmd.extra[0]) {
-                            case E18_PIN_DOOR :
-                                printf("door status: in=%d, out=%d\n", inState, outState);
-                                storeCoordinatorDoorStatus(dBase, &coordinatorUuid, inState == 1, outState == 1);
-                                break;
-                            case E18_PIN_CONTACTOR :
-                                printf("contactor status: in=%d, out=%d\n", inState, outState);
-                                storeCoordinatorContactorStatus(dBase, &coordinatorUuid, inState == 1, outState == 1);
-                                break;
-                            case E18_PIN_RELAY :
-                                printf("relay status: in=%d, out=%d\n", inState, outState);
-                                storeCoordinatorRelayStatus(dBase, &coordinatorUuid, inState == 1, outState == 1);
-                                break;
-                            default:
-                                break;
-                        }
-
-                        break;
-                    case E18_HEX_CMD_GET_REMOTE_SHORT_ADDR :
-                        // сохраняем/обновляем запись с коротким адресом
-                        sstream.str("");
-                        sstream << std::hex << *(uint16_t *) seek;
-                        e18_store_parameter(dBase, std::string((char *) currentCmd.extra), std::string("shortAddr"),
-                                            std::string(sstream.str()), kernel);
-                        break;
-                    default:
-                        break;
-                }
-
-                isCmdRun = false;
-            } else if (isCmdRun && data == E18_SET_ANSWER) {
-                // ответ на команду установки данных
-                printf("get write data of %02X command\n", currentCmd.cmd);
-                uint8_t readDataLen;
-                switch (currentCmd.cmd) {
-                    case E18_HEX_CMD_SET_DEVICE_TYPE:
-                    case E18_HEX_CMD_SET_PANID:
-                    case E18_HEX_CMD_SET_NETWORK_KEY:
-                    case E18_HEX_CMD_SET_NETWORK_GROUP:
-                    case E18_HEX_CMD_SET_NETWORK_CHANNEL:
-                    case E18_HEX_CMD_SET_TX_POWER:
-                    case E18_HEX_CMD_SET_UART_BAUD_RATE:
-                    case E18_HEX_CMD_SET_SLEEP_STATE:
-                    case E18_HEX_CMD_SET_RETENTION_TIME:
-                    case E18_HEX_CMD_SET_JOIN_PERIOD:
-                    case E18_HEX_CMD_SET_ALL_DEVICE_INFO:
-                    case E18_HEX_CMD_DEVICE_RESTART:
-                    case E18_HEX_CMD_RECOVER_FACTORY:
-                    case E18_HEX_CMD_OFF_NETWORK_AND_RESTART:
-                        readDataLen = 1;
-                        break;
-                    case E18_HEX_CMD_SET_GPIO_IO_STATUS:
-                    case E18_HEX_CMD_SET_GPIO_LEVEL:
-                    case E18_HEX_CMD_SET_PWM_STATUS:
-                        readDataLen = 3;
-                        break;
-                    default:
-                        readDataLen = 0;
-                        break;
-                }
-
-                // читаем данные ответа
-                if (e18_read_fixed_data(coordinatorFd, seek, readDataLen) < 0) {
-                    // ошибка чтения данных, нужно остановить поток
-                    lostZBCoordinator(dBase, threadId, &coordinatorUuid);
-                    return;
-                }
-
-                if (seek[0] != currentCmd.cmd) {
-                    printf("write answer do not match! received %02X\n", seek[1]);
-                }
-
-                switch (currentCmd.cmd) {
-                    case E18_HEX_CMD_SET_GPIO_LEVEL :
-                        if (currentCmd.extra[0] == E18_PIN_RELAY) {
-                            // даём задержку для того чтоб стартанули модули в светильниках
-                            // т.к. неизвестно, питаются они через контактор или всё время под напряжением
-                            // задержка будет и при выключении реле
-                            sleep(5);
-                        }
-                        break;
-                    default:
-                        break;
-                }
-
-                isCmdRun = false;
-            } else if (isCmdRun && data == E18_ERROR) {
-                // ошибка
-                // читаем данные ответа
-                if (e18_read_fixed_data(coordinatorFd, seek, 1) < 0) {
-                    // ошибка чтения данных, нужно остановить поток
-                    lostZBCoordinator(dBase, threadId, &coordinatorUuid);
-                    return;
-                }
-
-                // возможно нужно выставить флаг ошибки команды,
-                // не снимать флаг выполнения команды, чтобы можно было обработать данную ситуацию
-                if (seek[0] == E18_ERROR_SYNTAX) {
-                    if (currentCmd.cmd == E18_HEX_CMD_GET_REMOTE_SHORT_ADDR) {
-                        // это значит что светильник с указанным MAC сейчас либо выключен, либо не доступен
-                        printf("Unable get short address. Maybe zigbee module offline.\n");
-                    } else {
-                        printf("error syntax of %02X command\n", currentCmd.cmd);
+            } else if (!isCommand) {
+                commandByteCount++;
+                seek[i++] = data;
+                if (commandByteCount == 2) {
+                    commandByteCount = 0;
+                    isCommand = true;
+                    if (kernel->isDebug) {
+//                    kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] found command", TAG);
                     }
-                } else {
-                    printf("unknown error of %02X command\n", currentCmd.cmd);
+                }
+            } else if (!isFrameData && frameDataByteCount < frameLen) {
+                seek[i++] = data;
+                frameDataByteCount++;
+                if (frameDataByteCount == frameLen) {
+                    isFrameData = true;
+                    frameDataByteCount = 0;
+                    if (kernel->isDebug) {
+//                    kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] found frame data", TAG);
+                    }
+                }
+            } else {
+                // нашли контрольную сумму
+                seek[i++] = data;
+                if (kernel->isDebug) {
+//                kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] found FCS", TAG);
                 }
 
-                isCmdRun = false;
-            } else if (data == E18_NETWORK_STATE) {
-                // состояние сети
-                // читаем данные ответа
-                if (e18_read_fixed_data(coordinatorFd, seek, 1) < 0) {
-                    // ошибка чтения данных, нужно остановить поток
-                    lostZBCoordinator(dBase, threadId, &coordinatorUuid);
-                    return;
-                }
-
-                if (seek[0] == E18_NETWORK_STATE_UP) {
-                    // координатор запустил сеть
-                    printf("network up\n");
-                    isNetwork = true;
-                } else if (seek[0] == E18_NETWORK_STATE_JOIN) {
-                    // устройство подключилось к сети
-                    printf("join to network\n");
-                    isNetwork = true;
-                } else if (seek[0] == E18_NETWORK_STATE_LOST) {
-                    // нет сети
-                    printf("network lost\n");
-                    isNetwork = false;
-                    lostNetworkTime = time(nullptr);
-                    isLostNetworkAlarmSent = false;
-                    isNetworkCheck = true;
-                } else {
-                    printf("unknown network state\n");
-                }
-            } else if (data == E18_SOF) {
-                printf("SOF\n");
-                // начало фрейма
-                // читаем данные до символа конца фрейма или максимум 255(?) байт.
-                bool isComplete = false;
-                bool isEsc = false;
-                uint8_t i = 0;
-                time_t startReadTime = time(nullptr);
-
-                while (true) {
-                    count = read(coordinatorFd, &data, 1);
-                    if (count > 0) {
-                        printf("frame data: %02X\n", data);
-
-                        if (data == E18_EOF) {
-                            printf("EOF\n");
-                            isComplete = true;
-                            break;
-                        }
-
-                        if (data == E18_ESC) {
-                            printf("ESC\n");
-                            isEsc = true;
-                            continue;
-                        }
-
-                        if (isEsc) {
-                            data = data ^ 0x20u;
-                            printf("un ESC %02X\n", data);
-                            isEsc = false;
-                        }
-
-                        seek[i++] = data;
+                // пакет вроде как разобран
+                // нужно проверить контрольную сумму фрейма
+                fcs = compute_fcs(seek, i);
+                if (fcs == seek[i - 1]) {
+                    if (kernel->isDebug) {
+//                    kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] frame good", TAG);
                     }
 
-                    if (i == 255) {
-                        // что-то пошло не так
-                        printf("Error: size frame limit reached!!!\n");
-                        break;
-                    }
-
-                    if (time(nullptr) - startReadTime > 5) {
-                        // в течении 5 секунд не смогли прочитать все данные, останавливаем поток
-                        lostZBCoordinator(dBase, threadId, &coordinatorUuid);
-                        return;
-                    }
-
-                    usleep(1000);
-                }
-
-                // чтение данных закончили, либо штатно, либо с ошибкой
-                if (isComplete) {
-                    printf("frame received, len = %i\n", i);
-
-                    // пакет вроде как разобран
                     // складываем полученный пакет в список
                     zb_item = (struct zb_pkt_item *) malloc(sizeof(struct zb_pkt_item));
                     zb_item->len = i;
                     zb_item->pkt = malloc(zb_item->len);
-                    memcpy(zb_item->pkt, (const void *) seek, zb_item->len);
+                    memcpy(zb_item->pkt, seek, zb_item->len);
                     SLIST_INSERT_HEAD(&zb_queue_head, zb_item, items);
                 } else {
-                    printf("bad frame, not found EOF\n");
+                    if (kernel->isDebug) {
+//                    kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] frame bad", TAG);
+                    }
+                    // вероятно то что попадает в порт с модуля zigbee уже проверено им самим
+                    // как проверить это предположение? попробовать послать порченый пакет.
+                    // либо он не будет отправлен, либо не попадёт в порт т.к. порченый, либо попадёт в порт мне на обработку
+                    // считаем что такое не возможно - проверить
                 }
+
+                // сбрасываем состояние алгоритма разбора пакета zigbee
+                isSof = false;
+                isFrameLen = false;
+                isCommand = false;
+                isFrameData = false;
+                i = 0;
             }
         } else {
             // есть свободное время, разбираем список полученных пакетов
@@ -393,34 +208,6 @@ void mtmZigbeePktListener(DBase *dBase, int32_t threadId) {
                 SLIST_REMOVE_HEAD(&zb_queue_head, items);
                 free(zb_item->pkt);
                 free(zb_item);
-            }
-
-            // если в очереди есть команда, отправляем её
-            if (!isCmdRun) {
-                if (!SLIST_EMPTY(&e18_cmd_queue_head)) {
-                    e18_cmd_item *cmdItem = SLIST_FIRST(&e18_cmd_queue_head);
-                    isCmdRun = true;
-
-                    currentCmd.cmd = cmdItem->cmd;
-                    memcpy(currentCmd.extra, cmdItem->extra, 32);
-                    memcpy(currentCmd.data, cmdItem->data, cmdItem->len);
-                    currentCmd.len = cmdItem->len;
-
-                    size_t rc = send_cmd(coordinatorFd, (uint8_t *) cmdItem->data, cmdItem->len, kernel);
-                    usleep(100000);
-                    SLIST_REMOVE_HEAD(&e18_cmd_queue_head, cmds);
-                    free(cmdItem->data);
-                    free(cmdItem);
-
-                    if (kernel->isDebug) {
-                        kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] Written %ld bytes.", TAG, rc);
-                    }
-
-                    if (rc == -1) {
-                        lostZBCoordinator(dBase, threadId, &coordinatorUuid);
-                        return;
-                    }
-                }
             }
 
             // проверяем, не отключили ли запуск потока, если да, остановить выполнение
@@ -475,90 +262,71 @@ void mtmZigbeePktListener(DBase *dBase, int32_t threadId) {
                 }
             }
 
-            //  Если сеть не поднимается дольше чем 30 секунд, сообщение на сервер
-            if (!isNetwork && !isLostNetworkAlarmSent) {
-                if (time(nullptr) - lostNetworkTime > 30) {
-                    AddDeviceRegister(dBase, (char *) coordinatorUuid.c_str(), (char *) "Нет ZigBee сети!");
-                    isLostNetworkAlarmSent = true;
-                }
-            }
-
-            // при старте координатора можно "пропустить" сообщение о наличии сети, если сети нет,
-            // проверяем отдельной командой её наличие
-            currentTime = time(nullptr);
-            if (!isCmdRun && !isNetwork && currentTime - checkNetworkTime > 3) {
-                printf("check network state\n");
-                checkNetworkTime = currentTime;
-                if (!isNetworkCheck) {
-                    lostNetworkTime = time(nullptr);
-                    isNetworkCheck = true;
-                }
-
-                e18_cmd_get_network_state();
-            }
-
             // рассылаем пакет с текущим "временем" раз в 10 секунд
-            currentTime = time(nullptr) + kernel->timeOffset;
-            if (isNetwork && !isCmdRun && currentTime - syncTimeTime >= 10) {
+            currentTime = time(nullptr);
+            if (currentTime - syncTimeTime >= 10) {
                 // В "ручном" режиме пакет со времменем не рассылаем, т.к. в нём передаётся уровень диммирования для
                 // каждой группы. При этом какое бы значение мы не установили по умолчанию, оно "затрёт" установленное
                 // вручную оператором, что для демонстрационного режима неприемлемо.
-                syncTimeTime = currentTime;
-
                 if (!manualMode(dBase)) {
-                    mtm_cmd_current_time currentTimeCmd;
-                    currentTimeCmd.header.type = MTM_CMD_TYPE_CURRENT_TIME;
-                    currentTimeCmd.header.protoVersion = MTM_VERSION_0;
+                    syncTimeTime = currentTime;
+                    mtm_cmd_current_time current_time;
+                    current_time.header.type = MTM_CMD_TYPE_CURRENT_TIME;
+                    current_time.header.protoVersion = MTM_VERSION_0;
                     localTime = localtime(&currentTime);
-                    currentTimeCmd.time = localTime->tm_hour * 60 + localTime->tm_min;
+                    current_time.time = localTime->tm_hour * 60 + localTime->tm_min;
                     for (int idx = 0; idx < 16; idx++) {
-                        currentTimeCmd.brightLevel[idx] = lightGroupBright[idx];
+                        current_time.brightLevel[idx] = lightGroupBright[idx];
                     }
 
-                    printf("Send packets with time\n");
-                    ssize_t rc = send_e18_hex_cmd(coordinatorFd, E18_BROADCAST_ADDRESS, &currentTimeCmd, kernel);
-
-                    if (kernel->isDebug) {
-                        kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] Written %ld bytes.", TAG, rc);
-                    }
-
+                    ssize_t rc = send_mtm_cmd(coordinatorFd, 0xFFFF, &current_time, kernel);
                     if (rc == -1) {
                         lostZBCoordinator(dBase, threadId, &coordinatorUuid);
                         return;
                     }
+
+                    if (kernel->isDebug) {
+                        kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] Written %ld bytes.", TAG, rc);
+                    }
                 }
             }
 
-            // опрашиваем датчик двери шкафа
+            // опрашиваем датчики на локальном координаторе
             currentTime = time(nullptr);
-            if (!isCmdRun && currentTime - checkDoorSensorTime >= 10) {
-                checkDoorSensorTime = currentTime;
-                printf("Check door sensor\n");
-                e18_cmd_read_gpio_level(E18_LOCAL_DATA_ADDRESS, E18_PIN_DOOR);
+            if (currentTime - checkSensorTime >= 10) {
+                checkSensorTime = currentTime;
+                zigbee_mt_cmd_af_data_request req = {0};
+                req.dst_addr = 0x0000;
+                req.sep = 0xE8;
+                req.dep = 0xE8;
+                req.cid = MBEE_API_LOCAL_IOSTATUS_CLUSTER;
+                ssize_t rc = send_zb_cmd(coordinatorFd, AF_DATA_REQUEST, &req, kernel);
+                if (rc == -1) {
+                    lostZBCoordinator(dBase, threadId, &coordinatorUuid);
+                    return;
+                }
+                if (kernel->isDebug) {
+                    kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] rc=%ld", TAG, rc);
+                }
+
+                req = {0};
+                req.dst_addr = 0x0000;
+                req.sep = 0xE8;
+                req.dep = 0xE8;
+                req.cid = MBEE_API_GET_TEMP_CLUSTER;
+                rc = send_zb_cmd(coordinatorFd, AF_DATA_REQUEST, &req, kernel);
+                if (rc == -1) {
+                    lostZBCoordinator(dBase, threadId, &coordinatorUuid);
+                    return;
+                }
+                if (kernel->isDebug) {
+                    kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] rc=%ld", TAG, rc);
+                }
             }
 
-            // опрашиваем датчик контактора
+            // получаем версию модуля, по полученному ответу понимаем что модуль работает
             currentTime = time(nullptr);
-            if (!isCmdRun && currentTime - checkContactorSensorTime >= 10) {
-                checkContactorSensorTime = currentTime;
-                printf("Check contactor sensor\n");
-                e18_cmd_read_gpio_level(E18_LOCAL_DATA_ADDRESS, E18_PIN_CONTACTOR);
-            }
-
-            // опрашиваем датчик реле
-            currentTime = time(nullptr);
-            if (!isCmdRun && currentTime - checkRelaySensorTime >= 10) {
-                checkRelaySensorTime = currentTime;
-                printf("Check relay sensor\n");
-                e18_cmd_read_gpio_level(E18_LOCAL_DATA_ADDRESS, E18_PIN_RELAY);
-            }
-
-            // опрашиваем датчик температуры на координаторе
-            //
-
-            // получаем скорость порта, по полученному ответу понимаем что модуль работает
-            currentTime = time(nullptr);
-            if (!isCmdRun && currentTime - checkCoordinatorTime >= 15) {
+            if (currentTime - checkCoordinatorTime >= 15) {
                 if (!isCheckCoordinatorRespond) {
                     // координатор не ответил
                     kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] ERROR Coordinator not answer for request module version",
@@ -573,18 +341,32 @@ void mtmZigbeePktListener(DBase *dBase, int32_t threadId) {
                 // сбрасываем флаг полученного ответа от координатора
                 isCheckCoordinatorRespond = false;
 //                uint8_t buff[] = {
-//                        0xFB, 0x09
+//                        0xFE, 0x16, 0x48, 0x81, 0x00, 0x01, 0xE8, 0x00,
+//                        0xFF, 0xFF, 0x07, 0x06, 0x05, 0x04, 0x03, 0x02,
+//                        0x01, 0x00, 0x00, 0x00, 0x05, 0x01, 0x02, 0x03,
+//                        0x04, 0x05, 0x32
 //                };
 //                send_cmd(coordinatorFd, buff, sizeof(buff), kernel);
 
                 checkCoordinatorTime = currentTime;
-                printf("Check baud rate\n");
-                e18_cmd_get_baud_rate();
+                zigbee_mt_cmd_af_data_request req = {0};
+                req.dst_addr = 0x0000;
+                req.sep = 0xE8;
+                req.dep = 0xE8;
+                req.cid = 0x0100;
+                ssize_t rc = send_zb_cmd(coordinatorFd, AF_DATA_REQUEST, &req, kernel);
+                if (rc == -1) {
+                    lostZBCoordinator(dBase, threadId, &coordinatorUuid);
+                    return;
+                }
+                if (kernel->isDebug) {
+                    kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] rc=%ld", TAG, rc);
+                }
             }
 
             // проверка на наступление астрономических событий
-            currentTime = time(nullptr) + kernel->timeOffset;
-            if (isNetwork && !isCmdRun && currentTime - checkAstroTime > 60) {
+            currentTime = time(nullptr);
+            if (currentTime - checkAstroTime > 60) {
                 // костыль для демонстрационных целей, т.е. когда флаг установлен, ни какого автоматического
                 // управления светильниками не происходит. только ручной режим.
                 if (!manualMode(dBase)) {
@@ -617,40 +399,10 @@ void mtmZigbeePktListener(DBase *dBase, int32_t threadId) {
             }
 
             currentTime = time(nullptr);
-            if (isNetwork && currentTime - checkOutPacket > 2) {
+            if (currentTime - checkOutPacket > 2) {
                 checkOutPacket = currentTime;
                 mtmZigbeeProcessOutPacket(threadId);
             }
-
-            // получаем короткие адреса для светильников
-            currentTime = time(nullptr);
-            if (isNetwork && !isCmdRun && currentTime - checkShortAddresses > 300) {
-                checkShortAddresses = currentTime;
-                printf("check short addresses\n");
-
-                // получаем все устройства типа управляемый светильник и координатор
-                std::string query;
-                query.append("SELECT * FROM device WHERE deviceTypeUuid IN ")
-                        .append("('" + std::string(DEVICE_TYPE_ZB_LIGHT) + "', ")
-                        .append("'" + std::string(DEVICE_TYPE_ZB_COORDINATOR) + "')");
-                MYSQL_RES *res = dBase->sqlexec(query.data());
-                if (res) {
-                    dBase->makeFieldsList(res);
-                    int nRows = mysql_num_rows(res);
-                    if (nRows > 0) {
-                        for (uint32_t i = 0; i < nRows; i++) {
-                            MYSQL_ROW row = mysql_fetch_row(res);
-                            if (row) {
-                                std::string address = dBase->getFieldValue(row, "address");
-                                e18_cmd_get_remote_short_address((uint8_t *) address.data());
-                            }
-                        }
-                    }
-
-                    mysql_free_result(res);
-                }
-            }
-
 
             run = mtmZigbeeGetRun();
 
@@ -707,17 +459,29 @@ bool manualMode(DBase *dBase) {
 }
 
 ssize_t switchAllLight(uint16_t level) {
+    Kernel *kernel = &Kernel::Instance();
     mtm_cmd_action action = {0};
     action.header.type = MTM_CMD_TYPE_ACTION;
     action.header.protoVersion = MTM_VERSION_0;
     action.device = MTM_DEVICE_LIGHT;
     action.data = level;
-    ssize_t rc = send_e18_hex_cmd(coordinatorFd, E18_BROADCAST_ADDRESS, &action, kernel);
+    ssize_t rc = send_mtm_cmd(coordinatorFd, 0xFFFF, &action, kernel);
     return rc;
 }
 
-void switchContactor(bool enable, uint8_t line) {
-    e18_cmd_set_gpio_level(E18_LOCAL_DATA_ADDRESS, line, enable ? E18_LEVEL_HI : E18_LEVEL_LOW);
+ssize_t switchContactor(bool enable, uint8_t line) {
+    Kernel *kernel = &Kernel::Instance();
+    zigbee_mt_cmd_af_data_request request = {0};
+    request.dst_addr = 0x0000; // пока тупо локальному координатору отправляем
+    request.dep = MBEE_API_END_POINT;
+    request.sep = MBEE_API_END_POINT;
+    request.cid = enable ? line : line | 0x80u;
+    request.tid = 0x00;
+    request.opt = ZB_O_APS_ACKNOWLEDGE; // флаг для получения подтверждения с конечного устройства а не с первого хопа.
+    request.rad = MAX_PACKET_HOPS;
+    request.adl = 0x00;
+    ssize_t rc = send_zb_cmd(coordinatorFd, AF_DATA_REQUEST, &request, kernel);
+    return rc;
 }
 
 ssize_t resetCoordinator() {
@@ -741,9 +505,9 @@ void mtmZigbeeProcessOutPacket(int32_t threadId) {
     uint8_t mtmPkt[512];
     uint64_t dstAddr;
     ssize_t rc;
+    Kernel *kernel = &Kernel::Instance();
 
-    sprintf((char *) query,
-            "SELECT lmt._id, lmt.data, ept.value AS address FROM light_message lmt LEFT JOIN device dt ON lmt.address=dt.address LEFT JOIN entity_parameter ept ON ept.entityUuid=dt.uuid AND ept.parameter='shortAddr' WHERE dateOut IS NULL;");
+    sprintf((char *) query, "SELECT * FROM light_message WHERE dateOut IS NULL;");
     if (kernel->isDebug) {
         kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] %s", TAG, query);
     }
@@ -763,11 +527,6 @@ void mtmZigbeeProcessOutPacket(int32_t threadId) {
                 lengths = mysql_fetch_lengths(res);
                 fieldIdx = mtmZigbeeDBase->getFieldIndex("address");
                 flen = lengths[fieldIdx];
-                if (flen == 0) {
-                    // короткого адреса нет, ни чего не отправляем
-                    continue;
-                }
-
                 memset(tmpAddr, 0, 1024);
                 strncpy((char *) tmpAddr, row[fieldIdx], flen);
                 if (kernel->isDebug) {
@@ -803,7 +562,11 @@ void mtmZigbeeProcessOutPacket(int32_t threadId) {
                                 config.min = *(uint16_t *) &mtmPkt[3];
                                 config.max = *(uint16_t *) &mtmPkt[5];
 
-                                rc = send_e18_hex_cmd(coordinatorFd, dstAddr, &config, kernel);
+                                if (dstAddr == 0xffff) {
+                                    rc = send_mtm_cmd(coordinatorFd, dstAddr, &config, kernel);
+                                } else {
+                                    rc = send_mtm_cmd_ext(coordinatorFd, dstAddr, &config, kernel);
+                                }
 
                                 if (kernel->isDebug) {
                                     log_buffer_hex(mtmPkt, decoded);
@@ -825,7 +588,11 @@ void mtmZigbeeProcessOutPacket(int32_t threadId) {
                                     config_light.config[nCfg].value = *(uint16_t *) &mtmPkt[3 + nCfg * 4 + 2];
                                 }
 
-                                rc = send_e18_hex_cmd(coordinatorFd, dstAddr, &config_light, kernel);
+                                if (dstAddr == 0xFFFF) {
+                                    rc = send_mtm_cmd(coordinatorFd, dstAddr, &config_light, kernel);
+                                } else {
+                                    rc = send_mtm_cmd_ext(coordinatorFd, dstAddr, &config_light, kernel);
+                                }
 
                                 if (kernel->isDebug) {
                                     log_buffer_hex(mtmPkt, decoded);
@@ -843,7 +610,11 @@ void mtmZigbeeProcessOutPacket(int32_t threadId) {
                                 current_time.header.protoVersion = mtmPkt[1];
                                 current_time.time = *(uint16_t *) &mtmPkt[2];
 
-                                rc = send_e18_hex_cmd(coordinatorFd, dstAddr, &current_time, kernel);
+                                if (dstAddr == 0xFFFF) {
+                                    rc = send_mtm_cmd(coordinatorFd, dstAddr, &current_time, kernel);
+                                } else {
+                                    rc = send_mtm_cmd_ext(coordinatorFd, dstAddr, &current_time, kernel);
+                                }
 
                                 if (kernel->isDebug) {
                                     kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] Written %ld bytes.", TAG, rc);
@@ -862,7 +633,11 @@ void mtmZigbeeProcessOutPacket(int32_t threadId) {
                                 action.device = mtmPkt[2];
                                 action.data = *(uint16_t *) &mtmPkt[3];
 
-                                rc = send_e18_hex_cmd(coordinatorFd, dstAddr, &action, kernel);
+                                if (dstAddr == 0xFFFF) {
+                                    rc = send_mtm_cmd(coordinatorFd, dstAddr, &action, kernel);
+                                } else {
+                                    rc = send_mtm_cmd_ext(coordinatorFd, dstAddr, &action, kernel);
+                                }
 
                                 if (kernel->isDebug) {
                                     kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] Written %ld bytes.", TAG, rc);
@@ -876,13 +651,12 @@ void mtmZigbeeProcessOutPacket(int32_t threadId) {
                                     log_buffer_hex(mtmPkt, decoded);
                                 }
 
+                                rc = switchContactor(mtmPkt[3], mtmPkt[2]);
                                 char message[1024];
                                 sprintf(message, "Получена команда %s реле контактора.",
                                         mtmPkt[3] == 0 ? "выключения" : "включения");
                                 kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] %s", TAG, message);
-                                switchContactor(mtmPkt[3], E18_PIN_RELAY);
                                 AddDeviceRegister(mtmZigbeeDBase, (char *) coordinatorUuid.data(), message);
-                                rc = 1; // костыль от старой реализации
                                 break;
                             case MTM_CMD_TYPE_RESET_COORDINATOR:
                                 if (kernel->isDebug) {
@@ -926,14 +700,17 @@ void mtmZigbeeProcessOutPacket(int32_t threadId) {
 }
 
 void mtmZigbeeProcessInPacket(uint8_t *pktBuff, uint32_t length) {
+    uint16_t cmd = *(uint16_t *) (&pktBuff[2]);
+    uint8_t pktType;
+    uint8_t dstEndPoint;
+    uint16_t cluster;
     uint8_t address[32];
-    uint8_t parentAddress[32];
+    uint8_t mtmLightStatusPktSize;
     auto *addressStr = new std::string();
-    auto *parentAddressStr = new std::string();
     uint16_t sensorDataCount;
     Device *device;
+    Kernel *kernel = &Kernel::Instance();
 
-    auto *pktHeader = (mtm_cmd_header *) pktBuff;
     if (kernel->isDebug) {
         char pktStr[2048] = {0};
         kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] RAW in packet", TAG);
@@ -948,129 +725,184 @@ void mtmZigbeeProcessInPacket(uint8_t *pktBuff, uint32_t length) {
     struct base64_encode_ctx b64_ctx = {};
     int encoded_bytes;
 
-    switch (pktHeader->type) {
-        case MTM_CMD_TYPE_STATUS :
+    switch (cmd) {
+        case AF_DATA_RESPONSE:
             if (kernel->isDebug) {
-                kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] MTM_CMD_TYPE_STATUS", TAG);
-                log_buffer_hex(pktBuff, length);
+                kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] AF_DATA_RESPONSE", TAG);
             }
 
-            // из размера пакета вычитаем два байта заголовка, восемь байт адреса, два байта флагов аварии
-            sensorDataCount = (length - 12);
-            if (pktHeader->protoVersion == MTM_VERSION_1) {
-                // вычитаем ещё 8 байт родительского MAC
-                sensorDataCount -= 8;
-            }
-
-            sensorDataCount /= 2;
-
-            memset(address, 0, 32);
-            if (pktHeader->protoVersion == MTM_VERSION_0) {
-                auto *pkt = (mtm_cmd_status *) pktBuff;
-                sprintf((char *) address, "%016lX", *(uint64_t *) pkt->mac);
-            } else if (pktHeader->protoVersion == MTM_VERSION_1) {
-                auto *pkt = (mtm_cmd_status_v1 *) pktBuff;
-                sprintf((char *) address, "%016lX", *(uint64_t *) pkt->mac);
-                memset(parentAddress, 0, 32);
-                sprintf((char *) parentAddress, "%016lX", *(uint64_t *) pkt->parentMac);
-                parentAddressStr->assign((char *) parentAddress);
-                // сохраняем/обновляем запись с адресом родителя
-                e18_store_parameter(mtmZigbeeDBase, std::string((char *) address), std::string("parentAddr"),
-                                    *parentAddressStr, kernel);
-            } else {
-                // неизвестная версия протокола
-                kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] Не известная версия протокола: %d", TAG,
-                                  pktHeader->protoVersion);
+            dstEndPoint = pktBuff[6];
+            cluster = *(uint16_t *) (&pktBuff[4]);
+            if (dstEndPoint != MBEE_API_END_POINT) {
                 return;
             }
 
-            addressStr->assign((char *) address);
+            switch (cluster) { // NOLINT
+                case MBEE_API_LOCAL_IOSTATUS_CLUSTER :
+                    // состояние линий модуля zigbee
+                    memset(address, 0, 32);
+                    sprintf((char *) address, "%02X%02X%02X%02X%02X%02X%02X%02X",
+                            pktBuff[17], pktBuff[16], pktBuff[15], pktBuff[14],
+                            pktBuff[13], pktBuff[12], pktBuff[11], pktBuff[10]);
 
-            base64_encode_init(&b64_ctx);
-#ifdef __APPLE__
-        encoded_bytes = base64_encode_update(&b64_ctx, (char *) resultBuff, mtmLightStatusPktSize, pktBuff);
-        base64_encode_final(&b64_ctx, reinterpret_cast<char *>(resultBuff + encoded_bytes));
-#elif __USE_GNU
-            encoded_bytes = base64_encode_update(&b64_ctx, (char *) resultBuff, length, pktBuff);
-            base64_encode_final(&b64_ctx, (char *) (resultBuff + encoded_bytes));
-#endif
+                    if (kernel->isDebug) {
+                        kernel->log.ulogw(LOG_LEVEL_INFO, "Get sensor data packet");
+                    }
 
-            if (kernel->isDebug) {
-                // для отладочных целей, сохраняем пакет в базу
-                uint8_t query[1024];
-                MYSQL_RES *res;
-                time_t createTime = time(nullptr);
+                    makeCoordinatorStatus(mtmZigbeeDBase, address, pktBuff);
+                    break;
 
-                sprintf((char *) query,
-                        "INSERT INTO light_answer (address, data, createdAt, changedAt, dateIn) value('%s', '%s', FROM_UNIXTIME(%ld), FROM_UNIXTIME(%ld), FROM_UNIXTIME(%ld))",
-                        address, resultBuff, createTime, createTime, createTime);
-                kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] %s", TAG, query);
-                res = mtmZigbeeDBase->sqlexec((const char *) query);
-                if (res) {
-                    mysql_free_result(res);
-                }
+                case MBEE_API_LOCAL_MODULE_VERSION_CLUSTER :
+                    // ни чего не проверяем, ответ получен, значит координатор работает
+                    isCheckCoordinatorRespond = true;
+                    if (kernel->isDebug) {
+                        kernel->log.ulogw(LOG_LEVEL_INFO, "Get module version packet");
+                    }
+                    break;
+
+                case MBEE_API_GET_TEMP_CLUSTER :
+                    // температура модуля zigbee
+                    memset(address, 0, 32);
+                    sprintf((char *) address, "%02X%02X%02X%02X%02X%02X%02X%02X",
+                            pktBuff[17], pktBuff[16], pktBuff[15], pktBuff[14],
+                            pktBuff[13], pktBuff[12], pktBuff[11], pktBuff[10]);
+
+                    if (kernel->isDebug) {
+                        kernel->log.ulogw(LOG_LEVEL_INFO, "Get temperature data packet");
+                    }
+
+                    makeCoordinatorTemperature(mtmZigbeeDBase, address, pktBuff);
+                    break;
+
+                default:
+                    break;
             }
 
-            // получаем устройство
-            device = findDeviceByAddress(mtmZigbeeDBase, addressStr);
-            if (device != nullptr) {
-                uint16_t listLength;
-                SensorChannel *list = findSensorChannelsByDevice(mtmZigbeeDBase, &device->uuid, &listLength);
-                if (list != nullptr) {
-                    for (uint16_t i = 0; i < listLength; i++) {
-                        uint16_t reg = list[i].reg;
-                        uint8_t sensorDataStart = get_mtm_status_data_start(pktHeader->protoVersion);
-                        if (reg < sensorDataCount) {
-                            // добавляем измерение
-                            if (list[i].measureTypeUuid == CHANNEL_STATUS) {
-                                uint16_t alerts = *(uint16_t *) &pktBuff[sensorDataStart - 2];
-                                int8_t value = alerts & 0x0001u;
-                                storeMeasureValueExt(mtmZigbeeDBase, &list[i], value, true);
-                                if (value == 1) {
-                                    AddDeviceRegister(mtmZigbeeDBase, (char *) list[i].deviceUuid.c_str(),
-                                                      (char *) "Аварийный статус!");
-                                    setDeviceStatus(mtmZigbeeDBase, list[i].deviceUuid,
-                                                    std::string(DEVICE_STATUS_NOT_WORK));
+            break;
+
+        case AF_INCOMING_MSG:
+            if (kernel->isDebug) {
+                kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] AF_INCOMING_MSG", TAG);
+            }
+
+            dstEndPoint = pktBuff[11];
+            cluster = *(uint16_t *) (&pktBuff[6]);
+            if (dstEndPoint != MTM_API_END_POINT || cluster != MTM_API_CLUSTER) {
+                break;
+            }
+
+            pktType = pktBuff[21];
+            switch (pktType) {
+                case MTM_CMD_TYPE_STATUS:
+                    // размер полезных данных в zb пакете
+                    mtmLightStatusPktSize = pktBuff[20];
+                    if (kernel->isDebug) {
+                        kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] MTM_CMD_TYPE_STATUS", TAG);
+                        log_buffer_hex(&pktBuff[21], mtmLightStatusPktSize);
+                    }
+
+                    memset(address, 0, 32);
+                    sprintf((char *) address, "%02X%02X%02X%02X%02X%02X%02X%02X",
+                            pktBuff[30], pktBuff[29], pktBuff[28], pktBuff[27],
+                            pktBuff[26], pktBuff[25], pktBuff[24], pktBuff[23]);
+                    addressStr->assign((char *) address);
+
+                    base64_encode_init(&b64_ctx);
+#ifdef __APPLE__
+                encoded_bytes = base64_encode_update(&b64_ctx, (char *) resultBuff, get_mtm_command_size(pktType, MTM_VERSION_0),
+                                                     reinterpret_cast<const uint8_t *>((size_t) &pktBuff[21]));
+                base64_encode_final(&b64_ctx, reinterpret_cast<char *>(resultBuff + encoded_bytes));
+#elif __USE_GNU
+                    encoded_bytes = base64_encode_update(&b64_ctx, (char *) resultBuff, mtmLightStatusPktSize,
+                                                         &pktBuff[21]);
+                    base64_encode_final(&b64_ctx, (char *) (resultBuff + encoded_bytes));
+#endif
+
+                    if (kernel->isDebug) {
+                        uint8_t query[1024];
+                        MYSQL_RES *res;
+                        time_t createTime = time(nullptr);
+
+                        sprintf((char *) query,
+                                "INSERT INTO light_answer (address, data, createdAt, changedAt, dateIn) value('%s', '%s', FROM_UNIXTIME(%ld), FROM_UNIXTIME(%ld), FROM_UNIXTIME(%ld))",
+                                address, resultBuff, createTime, createTime, createTime);
+                        kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] %s", TAG, query);
+                        res = mtmZigbeeDBase->sqlexec((const char *) query);
+                        if (res) {
+                            mysql_free_result(res);
+                        }
+                    }
+
+                    // из размера пакета вычитаем два байта заголовка, восемь байт адреса, два байта флагов аварии
+                    sensorDataCount = (mtmLightStatusPktSize - 12) / 2;
+                    // получаем устройство
+                    device = findDeviceByAddress(mtmZigbeeDBase, addressStr);
+                    if (device != nullptr) {
+                        uint16_t listLength;
+                        SensorChannel *list = findSensorChannelsByDevice(mtmZigbeeDBase, &device->uuid, &listLength);
+                        if (list != nullptr) {
+                            for (uint16_t i = 0; i < listLength; i++) {
+                                uint16_t reg = list[i].reg;
+                                if (reg < sensorDataCount) {
+                                    // добавляем измерение
+                                    if (list[i].measureTypeUuid == CHANNEL_STATUS) {
+                                        uint16_t alerts = *(uint16_t *) &pktBuff[31];
+                                        int8_t value = alerts & 0x0001u;
+                                        storeMeasureValueExt(mtmZigbeeDBase, &list[i], value, true);
+                                    } else if (list[i].measureTypeUuid == CHANNEL_W) {
+                                        int idx = 33 + reg * 2;
+                                        int8_t value = pktBuff[idx];
+                                        storeMeasureValueExt(mtmZigbeeDBase, &list[i], value, true);
+                                    } else if (list[i].measureTypeUuid == CHANNEL_T) {
+                                        int idx = 33 + reg * 2 + 1;
+                                        int8_t value = pktBuff[idx];
+                                        storeMeasureValueExt(mtmZigbeeDBase, &list[i], value, true);
+                                    } else if (list[i].measureTypeUuid == CHANNEL_RSSI) {
+                                        int idx = 33 + reg * 2;
+                                        int8_t value = pktBuff[idx];
+                                        storeMeasureValueExt(mtmZigbeeDBase, &list[i], value, true);
+                                    } else if (list[i].measureTypeUuid == CHANNEL_HOP_COUNT) {
+                                        int idx = 33 + reg * 2 + 1;
+                                        int8_t value = pktBuff[idx];
+                                        storeMeasureValueExt(mtmZigbeeDBase, &list[i], value, true);
+                                    } else if (list[i].measureTypeUuid == CHANNEL_CO2) {
+                                        int idx = 33 + reg * 2;
+                                        uint16_t value = *(uint16_t *) &pktBuff[idx];
+                                        storeMeasureValueExt(mtmZigbeeDBase, &list[i], value, false);
+                                    }
                                 }
-                            } else if (list[i].measureTypeUuid == CHANNEL_W) {
-                                // данные по потребляемой мощности хранятся в младшем байте датчика 0 (reg = 0)
-                                int8_t value = pktBuff[sensorDataStart + reg * 2];
-                                storeMeasureValueExt(mtmZigbeeDBase, &list[i], value, true);
-                            } else if (list[i].measureTypeUuid == CHANNEL_T) {
-                                // данные по температуре хранятся в старшем байте датчика 0 (reg = 0)
-                                int8_t value = pktBuff[sensorDataStart + reg * 2 + 1];
-                                storeMeasureValueExt(mtmZigbeeDBase, &list[i], value, true);
-                            } else if (list[i].measureTypeUuid == CHANNEL_RSSI) {
-                                // данные по rssi хранятся в младшем байте датчика 1 (reg = 1)
-                                int8_t value = pktBuff[sensorDataStart + reg * 2];
-                                storeMeasureValueExt(mtmZigbeeDBase, &list[i], value, true);
-                            } else if (list[i].measureTypeUuid == CHANNEL_HOP_COUNT) {
-                                // данные по количеству хопов хранятся в старшем байте датчика 0 (reg = 1)
-                                int8_t value = pktBuff[sensorDataStart + reg * 2 + 1];
-                                storeMeasureValueExt(mtmZigbeeDBase, &list[i], value, true);
-                            } else if (list[i].measureTypeUuid == CHANNEL_CO2) {
-                                // данные по CO2 хранятся в виде 16 бит значения датчика 2 (reg = 2)
-                                uint16_t value = *(uint16_t *) &pktBuff[sensorDataStart + reg * 2];
-                                storeMeasureValueExt(mtmZigbeeDBase, &list[i], value, false);
                             }
                         }
                     }
-                }
+                    break;
+
+                case MTM_CMD_TYPE_CONFIG:
+                case MTM_CMD_TYPE_CONFIG_LIGHT:
+                case MTM_CMD_TYPE_CURRENT_TIME:
+                case MTM_CMD_TYPE_ACTION:
+                default:
+                    break;
             }
             break;
-        case MTM_CMD_TYPE_CONFIG:
-        case MTM_CMD_TYPE_CONFIG_LIGHT:
-        case MTM_CMD_TYPE_CURRENT_TIME:
-        case MTM_CMD_TYPE_ACTION:
+
+        case AF_INCOMING_MSG_EXT:
+            if (kernel->isDebug) {
+                kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] AF_INCOMING_MSG_EXT", TAG);
+            }
+
+            break;
+
         default:
-            printf("skip mtm packet\n");
             break;
     }
 }
 
 int32_t mtmZigbeeInit(int32_t mode, uint8_t *path, uint64_t speed) {
     struct termios serialPortSettings{};
+    ssize_t rc;
+    Kernel *kernel = &Kernel::Instance();
 
+    // TODO: видимо нужно как-то проверить что всё путём с соединением.
     mtmZigbeeDBase = new DBase();
 
     if (mtmZigbeeDBase->openConnection() != 0) {
@@ -1145,20 +977,97 @@ int32_t mtmZigbeeInit(int32_t mode, uint8_t *path, uint64_t speed) {
             kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] BaudRate = %i StopBits = 1 Parity = none\n", TAG, speed);
         }
 
-        // Инициализируем внешние линии координатора e18
-        // отключаем реле
-        e18_cmd_set_gpio_level(E18_LOCAL_DATA_ADDRESS, E18_PIN_RELAY, E18_LEVEL_LOW);
-        // индикатор
-        e18_cmd_init_gpio(E18_LOCAL_DATA_ADDRESS, E18_PIN_LED, E18_PIN_OUTPUT);
-        // реле
-        e18_cmd_init_gpio(E18_LOCAL_DATA_ADDRESS, E18_PIN_RELAY, E18_PIN_OUTPUT);
-        // дверь
-        e18_cmd_init_gpio(E18_LOCAL_DATA_ADDRESS, E18_PIN_DOOR, E18_PIN_INPUT);
-        // контактор
-        e18_cmd_init_gpio(E18_LOCAL_DATA_ADDRESS, E18_PIN_CONTACTOR, E18_PIN_INPUT);
-
         tcflush(coordinatorFd, TCIFLUSH);   /* Discards old data in the rx buffer            */
     }
+
+
+    rc = send_zb_cmd(coordinatorFd, ZB_SYSTEM_RESET, nullptr, kernel);
+    if (rc == -1) {
+        lostZBCoordinator(mtmZigbeeDBase, mtmZigBeeThreadId, &coordinatorUuid);
+        return -5;
+    }
+
+    sleep(1);
+
+    // регистрируем свою конечную точку
+    kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] Register our end point.", TAG);
+    zigbee_mt_af_register af_register;
+    af_register.ep = MTM_API_END_POINT;
+    af_register.app_prof_id = MTM_PROFILE_ID;
+    af_register.app_device_id = 0x0101;
+    af_register.app_device_version = 0x01;
+    af_register.latency_req = NO_LATENCY;
+    af_register.app_num_in_clusters = 1;
+    af_register.app_in_cluster_list[0] = 0xFC00;
+    af_register.app_num_out_clusters = 1;
+    af_register.app_out_cluster_list[0] = 0xFC00;
+    rc = send_zb_cmd(coordinatorFd, AF_REGISTER, &af_register, kernel);
+    if (rc == -1) {
+        lostZBCoordinator(mtmZigbeeDBase, mtmZigBeeThreadId, &coordinatorUuid);
+        return -5;
+    }
+    if (kernel->isDebug) {
+        kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] rc=%ld", TAG, rc);
+    }
+
+    // тестовый пакет с состоянием светильника
+//    uint8_t buff0[] = {
+//            0xfe,
+//            0x23, 0x44, 0x81,
+//            0x00, 0x00,
+//            0x00, 0xfc,
+//            0x12, 0x34,
+//            0xe9, 0xe9,
+//            0x00, 0x00, 0x00,
+//            0x01, 0x02, 0x03, 0x04,
+//            0x00,
+//            0x12,
+//            0x01, 0x00,
+//            0x07, 0x06, 0x05, 0x04, 0x03, 0x02, 0x01, 0x00,
+//            0x01, 0x00, // alert
+//            0x42, 0x4D, // power,temp
+//            0x51, 0x07, // rssi, hops
+//            0xC8, 0x01, // co2
+//            0xff
+//    };
+//    buff0[sizeof(buff0) - 1] = compute_fcs(buff0, sizeof(buff0));
+//    send_cmd(coordinatorFd, buff0, sizeof(buff0), kernel);
+
+//    uint8_t buff1[] = {
+//            0xFE,
+//            0x24, 0x44, 0x81,
+//            0x00, 0x00, 0x00, 0xFC,
+//            0x84, 0x1D, 0xE9, 0xE9, 0x00, 0x00, 0x00, 0x1F,
+//            0x1D, 0x34, 0x00, 0x00,
+//            0x10,
+//            0x01, 0x00,
+//            0x07, 0x06, 0x05, 0x04, 0x03, 0x02, 0x01, 0x00,
+//            0x00, 0x00,
+//            0x6E, 0x00, 0x50, 0x03, 0x84, 0x1D, 0x07,
+//            0x00
+//    };
+//    send_cmd(coordinatorFd, buff1, sizeof(buff1), kernel);
+
+//    uint8_t buff2[] = {
+//            0xFE, 0x2E, 0x48, 0x81, 0x03, 0x01, 0xE8, 0x00,
+//            0xFF, 0xFF,
+//            0x96, 0x97, 0xAD, 0x04, 0x00, 0x4B, 0x12, 0x00,
+//            0x00, 0x00, 0x1D, 0x02, 0xF5, 0x1A,
+//            0x01, 0x21, 0x00, 0x00, 0xFF, 0x01, 0xC0, 0x0F,
+//            0xBE, 0x01, 0xFF, 0x07, 0x00, 0x00, 0x87, 0x07,
+//            0xCC, 0x05, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+//            0x00, 0x00, 0x13
+//    };
+//    send_cmd(coordinatorFd, buff2, sizeof(buff2), kernel);
+
+//    uint8_t buff2[] = { // пакет с температурой
+//            0xFE, 0x13, 0x48, 0x81, 0x09, 0x02, 0xE8, 0x00, 0xFF, 0xFF,
+//            0x96, 0x97, 0xAD, 0x04, 0x00, 0x4B, 0x12, 0x00,
+//            0x00, 0x00,
+//            0x02, 0xBB, 0x05,
+//            0x74
+//    };
+//    send_cmd(coordinatorFd, buff2, sizeof(buff2), kernel);
 
     return 0;
 }

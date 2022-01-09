@@ -11,6 +11,7 @@
 #include <sys/resource.h>
 #include <unistd.h>
 #include <uuid/uuid.h>
+#include <drivers/E18Module.h>
 #include "dbase.h"
 #include "kernel.h"
 #include "drivers/ce102.h"
@@ -188,6 +189,21 @@ void *dispatcher(void *thread_arg) {
                             if (pJRc == 0) {
                                 pRc = pthread_create(&zb_thr, nullptr, mtmZigbeeDeviceThread,
                                                      (void *) &typeThreads[th]);
+                            }
+                        }
+                    }
+                } else if (strncasecmp(DEVICE_TYPE_ZB_COORDINATOR_E18, typeThreads[th].deviceType, 36) == 0) {
+                    auto *e18Module = new E18Module(&currentKernelInstance, &typeThreads[th]);
+                    static pthread_t e18_thr;
+                    if (typeThreads[th].work > 0) {
+                        if (e18_thr == 0) {
+                            pRc = pthread_create(&e18_thr, nullptr, &E18Module::getModuleThread, (void *) e18Module);
+                        } else {
+                            timeOut.tv_sec = time(nullptr) + 1;
+                            pJRc = pthread_timedjoin_np(e18_thr, nullptr, &timeOut);
+                            if (pJRc == 0) {
+                                pRc = pthread_create(&e18_thr, nullptr, &E18Module::getModuleThread,
+                                                     (void *) e18Module);
                             }
                         }
                     }

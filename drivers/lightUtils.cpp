@@ -10,7 +10,6 @@
 #include "function.h"
 #include "DeviceProgram.h"
 
-extern Kernel *kernel;
 extern std::string coordinatorUuid;
 // массив в который складируем текущие уровни яркости
 std::map<uint8_t, uint8_t> lightGroupBright = {
@@ -297,6 +296,7 @@ void fillGroupsDefValues(groupsMap *groups, std::map<std::string, std::map<int, 
 void checkLightProgram(DBase *dBase, time_t currentTime, double lon, double lat) {
     MYSQL_RES *res;
     MYSQL_ROW row;
+    Kernel *kernel = &Kernel::Instance();
 
     // асоциативный массив в котором будем хранить данные по датам, времени, действиям, программам групп
     groupsMap groups;

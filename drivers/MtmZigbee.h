@@ -54,13 +54,13 @@ void mtmZigbeeProcessInPacket(uint8_t *pktBuff, uint32_t length);
 
 void mtmZigbeeProcessOutPacket(int32_t threadId);
 
-bool findDevice(DBase *dBase, uint8_t *addr, uint8_t *uuid);
+bool findDevice(DBase *dBase, std::string *addr, uint8_t *uuid);
 
 std::string findSChannel(DBase *dBase, uint8_t *deviceUuid, uint8_t regIdx, const char *measureType);
 
 void log_buffer_hex(uint8_t *buffer, size_t buffer_size);
 
-void switchContactor(bool enable, uint8_t line);
+ssize_t switchContactor(bool enable, uint8_t line);
 
 ssize_t switchAllLight(uint16_t level);
 
@@ -74,12 +74,6 @@ bool storeMeasureValue(DBase *dBase, uint8_t *uuid, std::string *channelUuid, do
 ssize_t resetCoordinator();
 
 void makeCoordinatorStatus(DBase *dBase, uint8_t *address, const uint8_t *packetBuffer);
-
-void storeCoordinatorDoorStatus(DBase *dBase, std::string *address, bool in, bool out);
-
-void storeCoordinatorContactorStatus(DBase *dBase, std::string *address, bool in, bool out);
-
-void storeCoordinatorRelayStatus(DBase *dBase, std::string *address, bool in, bool out);
 
 std::string findMeasure(DBase *dBase, std::string *sChannelUuid, uint8_t regIdx);
 
