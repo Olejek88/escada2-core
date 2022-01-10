@@ -13,7 +13,9 @@
 #include <string>
 #include <map>
 #include <termios.h>
+#include <queue>
 #include "IZigbeeModule.h"
+#include "E18CmdItem.h"
 
 class E18Module : public IZigbeeModule {
 
@@ -178,41 +180,7 @@ private:
     bool isCheckCoordinatorRespond;
     TypeThread *pth;
 
-    // массив в который складируем текущие уровни яркости
-    std::map<uint8_t, uint8_t> lightGroupBright = {
-            {0,  0},
-            {1,  0},
-            {2,  0},
-            {3,  0},
-            {4,  0},
-            {5,  0},
-            {6,  0},
-            {7,  0},
-            {8,  0},
-            {9,  0},
-            {10, 0},
-            {11, 0},
-            {12, 0},
-            {13, 0},
-            {14, 0},
-            {15, 0},
-    };
-
-    struct e18_cmd_item {
-        void *data;
-        uint8_t cmd;
-        uint8_t extra[32];
-        uint32_t len;
-        struct {
-            struct e18_cmd_item *sle_next;
-        } cmds;
-    };
-
-    struct e18_cmd_queue {
-        struct e18_cmd_item *slh_first;
-    };
-
-    e18_cmd_queue e18_cmd_queue_head;
+    std::queue<E18CmdItem> e18_cmd_queue;
 
     void mtmZigbeePktListener();
 
@@ -237,13 +205,13 @@ private:
     void mtmZigbeeSetRun(bool val);
 
     //---
-    ssize_t send_e18_hex_cmd(int fd, uint16_t short_addr, void *mtm_cmd);
+    ssize_t send_e18_hex_cmd(uint16_t short_addr, void *mtm_cmd);
 
     void e18_cmd_init_gpio(uint16_t short_addr, uint8_t line, uint8_t mode);
 
     void e18_cmd_get_baud_rate();
 
-    ssize_t e18_read_fixed_data(int coordinatorFd, uint8_t *buffer, ssize_t len);
+    ssize_t e18_read_fixed_data(uint8_t *buffer, ssize_t len);
 
     void e18_cmd_read_gpio_level(uint16_t short_addr, uint8_t gpio);
 
@@ -270,7 +238,7 @@ private:
 
     void mtmZigbeeStopThread();
 
-    ssize_t send_cmd(int fd, uint8_t *buffer, size_t size);
+    ssize_t send_cmd(uint8_t *buffer, size_t size);
 
     void log_buffer_hex(uint8_t *buffer, size_t buffer_size);
 

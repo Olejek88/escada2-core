@@ -99,8 +99,7 @@ void E18Module::mtmZigbeePktListener() {
     bool isNetworkCheck = true;
     bool isNetwork = false;
     bool isCmdRun = false;
-    e18_cmd_item currentCmd = {nullptr};
-    currentCmd.data = malloc(128);
+    E18CmdItem currentCmd;
     time_t currentTime, heartBeatTime = 0, syncTimeTime = 0, checkDoorSensorTime = 0, checkContactorSensorTime = 0,
             checkRelaySensorTime = 0, checkAstroTime = 0, checkOutPacket = 0, checkCoordinatorTime = 0,
             checkLinkState = 0, checkShortAddresses = 0, checkNetworkTime = 0;
@@ -150,7 +149,7 @@ void E18Module::mtmZigbeePktListener() {
                 }
 
                 // читаем данные ответа
-                if (e18_read_fixed_data(coordinatorFd, seek, readDataLen) < 0) {
+                if (e18_read_fixed_data(seek, readDataLen) < 0) {
                     // ошибка чтения данных, нужно остановить поток
                     lostZBCoordinator();
                     return;
@@ -180,7 +179,7 @@ void E18Module::mtmZigbeePktListener() {
                         inState = seek[3];
                         outState = seek[4];
                         printf("Addr: 0x%04X, In: %d, Out: %d\n", addr, inState, outState);
-                        switch (currentCmd.extra[0]) {
+                        switch (currentCmd.pin) {
                             case E18_PIN_DOOR :
                                 printf("door status: in=%d, out=%d\n", inState, outState);
                                 storeCoordinatorDoorStatus(inState == 1, outState == 1);
@@ -202,8 +201,7 @@ void E18Module::mtmZigbeePktListener() {
                         // сохраняем/обновляем запись с коротким адресом
                         sstream.str("");
                         sstream << std::hex << *(uint16_t *) seek;
-                        e18_store_parameter(std::string((char *) currentCmd.extra), std::string("shortAddr"),
-                                            std::string(sstream.str()));
+                        e18_store_parameter(currentCmd.mac, std::string("shortAddr"), std::string(sstream.str()));
                         break;
                     default:
                         break;
@@ -242,7 +240,7 @@ void E18Module::mtmZigbeePktListener() {
                 }
 
                 // читаем данные ответа
-                if (e18_read_fixed_data(coordinatorFd, seek, readDataLen) < 0) {
+                if (e18_read_fixed_data(seek, readDataLen) < 0) {
                     // ошибка чтения данных, нужно остановить поток
                     lostZBCoordinator();
                     return;
@@ -254,7 +252,7 @@ void E18Module::mtmZigbeePktListener() {
 
                 switch (currentCmd.cmd) {
                     case E18_HEX_CMD_SET_GPIO_LEVEL :
-                        if (currentCmd.extra[0] == E18_PIN_RELAY) {
+                        if (currentCmd.pin == E18_PIN_RELAY) {
                             // даём задержку для того чтоб стартанули модули в светильниках
                             // т.к. неизвестно, питаются они через контактор или всё время под напряжением
                             // задержка будет и при выключении реле
@@ -269,7 +267,7 @@ void E18Module::mtmZigbeePktListener() {
             } else if (isCmdRun && data == E18_ERROR) {
                 // ошибка
                 // читаем данные ответа
-                if (e18_read_fixed_data(coordinatorFd, seek, 1) < 0) {
+                if (e18_read_fixed_data(seek, 1) < 0) {
                     // ошибка чтения данных, нужно остановить поток
                     lostZBCoordinator();
                     return;
@@ -292,7 +290,7 @@ void E18Module::mtmZigbeePktListener() {
             } else if (data == E18_NETWORK_STATE) {
                 // состояние сети
                 // читаем данные ответа
-                if (e18_read_fixed_data(coordinatorFd, seek, 1) < 0) {
+                if (e18_read_fixed_data(seek, 1) < 0) {
                     // ошибка чтения данных, нужно остановить поток
                     lostZBCoordinator();
                     return;
@@ -397,20 +395,14 @@ void E18Module::mtmZigbeePktListener() {
 
             // если в очереди есть команда, отправляем её
             if (!isCmdRun) {
-                if (!SLIST_EMPTY(&e18_cmd_queue_head)) {
-                    e18_cmd_item *cmdItem = SLIST_FIRST(&e18_cmd_queue_head);
+                if (!e18_cmd_queue.empty()) {
+                    E18CmdItem cmdItem = e18_cmd_queue.front();
                     isCmdRun = true;
 
-                    currentCmd.cmd = cmdItem->cmd;
-                    memcpy(currentCmd.extra, cmdItem->extra, 32);
-                    memcpy(currentCmd.data, cmdItem->data, cmdItem->len);
-                    currentCmd.len = cmdItem->len;
-
-                    size_t rc = send_cmd(coordinatorFd, (uint8_t *) cmdItem->data, cmdItem->len);
+                    currentCmd = cmdItem;
+                    size_t rc = send_cmd((uint8_t *) cmdItem.data, cmdItem.dataLen);
                     usleep(100000);
-                    SLIST_REMOVE_HEAD(&e18_cmd_queue_head, cmds);
-                    free(cmdItem->data);
-                    free(cmdItem);
+                    e18_cmd_queue.pop();
 
                     if (kernel->isDebug) {
                         kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] Written %ld bytes.", TAG, rc);
@@ -516,7 +508,7 @@ void E18Module::mtmZigbeePktListener() {
                     }
 
                     printf("Send packets with time\n");
-                    ssize_t rc = send_e18_hex_cmd(coordinatorFd, E18_BROADCAST_ADDRESS, &currentTimeCmd);
+                    ssize_t rc = send_e18_hex_cmd(E18_BROADCAST_ADDRESS, &currentTimeCmd);
 
                     if (kernel->isDebug) {
                         kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] Written %ld bytes.", TAG, rc);
@@ -715,7 +707,7 @@ ssize_t E18Module::switchAllLight(uint16_t level) {
     action.header.protoVersion = MTM_VERSION_0;
     action.device = MTM_DEVICE_LIGHT;
     action.data = level;
-    ssize_t rc = send_e18_hex_cmd(coordinatorFd, E18_BROADCAST_ADDRESS, &action);
+    ssize_t rc = send_e18_hex_cmd(E18_BROADCAST_ADDRESS, &action);
     return rc;
 }
 
@@ -806,7 +798,7 @@ void E18Module::mtmZigbeeProcessOutPacket() {
                                 config.min = *(uint16_t *) &mtmPkt[3];
                                 config.max = *(uint16_t *) &mtmPkt[5];
 
-                                rc = send_e18_hex_cmd(coordinatorFd, dstAddr, &config);
+                                rc = send_e18_hex_cmd(dstAddr, &config);
 
                                 if (kernel->isDebug) {
                                     log_buffer_hex(mtmPkt, decoded);
@@ -828,7 +820,7 @@ void E18Module::mtmZigbeeProcessOutPacket() {
                                     config_light.config[nCfg].value = *(uint16_t *) &mtmPkt[3 + nCfg * 4 + 2];
                                 }
 
-                                rc = send_e18_hex_cmd(coordinatorFd, dstAddr, &config_light);
+                                rc = send_e18_hex_cmd(dstAddr, &config_light);
 
                                 if (kernel->isDebug) {
                                     log_buffer_hex(mtmPkt, decoded);
@@ -846,7 +838,7 @@ void E18Module::mtmZigbeeProcessOutPacket() {
                                 current_time.header.protoVersion = mtmPkt[1];
                                 current_time.time = *(uint16_t *) &mtmPkt[2];
 
-                                rc = send_e18_hex_cmd(coordinatorFd, dstAddr, &current_time);
+                                rc = send_e18_hex_cmd(dstAddr, &current_time);
 
                                 if (kernel->isDebug) {
                                     kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] Written %ld bytes.", TAG, rc);
@@ -865,7 +857,7 @@ void E18Module::mtmZigbeeProcessOutPacket() {
                                 action.device = mtmPkt[2];
                                 action.data = *(uint16_t *) &mtmPkt[3];
 
-                                rc = send_e18_hex_cmd(coordinatorFd, dstAddr, &action);
+                                rc = send_e18_hex_cmd(dstAddr, &action);
 
                                 if (kernel->isDebug) {
                                     kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] Written %ld bytes.", TAG, rc);
@@ -1147,8 +1139,6 @@ int32_t E18Module::mtmZigbeeInit(int32_t mode, uint8_t *path, uint64_t speed) {
         }
 
         // Инициализируем внешние линии координатора e18
-        // отключаем реле
-        e18_cmd_set_gpio_level(E18_LOCAL_DATA_ADDRESS, E18_PIN_RELAY, E18_LEVEL_LOW);
         // индикатор
         e18_cmd_init_gpio(E18_LOCAL_DATA_ADDRESS, E18_PIN_LED, E18_PIN_OUTPUT);
         // реле
@@ -1157,6 +1147,8 @@ int32_t E18Module::mtmZigbeeInit(int32_t mode, uint8_t *path, uint64_t speed) {
         e18_cmd_init_gpio(E18_LOCAL_DATA_ADDRESS, E18_PIN_DOOR, E18_PIN_INPUT);
         // контактор
         e18_cmd_init_gpio(E18_LOCAL_DATA_ADDRESS, E18_PIN_CONTACTOR, E18_PIN_INPUT);
+        // отключаем реле
+        e18_cmd_set_gpio_level(E18_LOCAL_DATA_ADDRESS, E18_PIN_RELAY, E18_LEVEL_LOW);
 
         tcflush(coordinatorFd, TCIFLUSH);   /* Discards old data in the rx buffer            */
     }
@@ -1197,7 +1189,7 @@ void E18Module::mtmZigbeeSetRun(bool val) {
 
 // ---------
 // отправляем mtm команду
-ssize_t E18Module::send_e18_hex_cmd(int fd, uint16_t short_addr, void *mtm_cmd) {
+ssize_t E18Module::send_e18_hex_cmd(uint16_t short_addr, void *mtm_cmd) {
     uint8_t buffer[1024];
     uint8_t sendBuffer[1024];
     uint8_t bufferSize;
@@ -1244,7 +1236,7 @@ ssize_t E18Module::send_e18_hex_cmd(int fd, uint16_t short_addr, void *mtm_cmd) 
     sendBuffer[sendBufferSize++] = E18_EOF;
     sendBuffer[1] = sendBufferSize - 2; // указываем размер передаваемых данных минус два "служебных" байта
 
-    rc = send_cmd(fd, sendBuffer, sendBufferSize);
+    rc = send_cmd(sendBuffer, sendBufferSize);
     usleep(100000);
 
     return rc;
@@ -1266,12 +1258,12 @@ void E18Module::e18_cmd_init_gpio(uint16_t short_addr, uint8_t line, uint8_t mod
     };
 
     // складываем команду в список
-    auto *cmdItem = (struct e18_cmd_item *) malloc(sizeof(struct e18_cmd_item));
-    cmdItem->len = sizeof(cmd);
-    cmdItem->data = malloc(cmdItem->len);
-    cmdItem->cmd = E18_HEX_CMD_SET_GPIO_IO_STATUS;
-    memcpy(cmdItem->data, (const void *) cmd, cmdItem->len);
-    SLIST_INSERT_HEAD(&e18_cmd_queue_head, cmdItem, cmds);
+    E18CmdItem cmdItem;
+    cmdItem.dataLen = sizeof(cmd);
+    cmdItem.data = new uint8_t(cmdItem.dataLen);
+    memcpy(cmdItem.data, cmd, cmdItem.dataLen);
+    cmdItem.cmd = E18_HEX_CMD_SET_GPIO_IO_STATUS;
+    e18_cmd_queue.push(cmdItem);
 }
 
 void E18Module::e18_cmd_set_gpio_level(uint16_t short_addr, uint8_t gpio, uint8_t level) {
@@ -1289,13 +1281,13 @@ void E18Module::e18_cmd_set_gpio_level(uint16_t short_addr, uint8_t gpio, uint8_
     };
 
     // складываем команду в список
-    auto *cmdItem = (struct e18_cmd_item *) malloc(sizeof(struct e18_cmd_item));
-    cmdItem->len = sizeof(cmd);
-    cmdItem->data = malloc(cmdItem->len);
-    cmdItem->cmd = E18_HEX_CMD_SET_GPIO_LEVEL;
-    cmdItem->extra[0] = gpio;
-    memcpy(cmdItem->data, (const void *) cmd, cmdItem->len);
-    SLIST_INSERT_HEAD(&e18_cmd_queue_head, cmdItem, cmds);
+    E18CmdItem cmdItem;
+    cmdItem.dataLen = sizeof(cmd);
+    cmdItem.data = new uint8_t(cmdItem.dataLen);
+    memcpy(cmdItem.data, cmd, cmdItem.dataLen);
+    cmdItem.cmd = E18_HEX_CMD_SET_GPIO_LEVEL;
+    cmdItem.pin = gpio;
+    e18_cmd_queue.push(cmdItem);
 }
 
 void E18Module::e18_cmd_get_baud_rate() {
@@ -1307,13 +1299,12 @@ void E18Module::e18_cmd_get_baud_rate() {
     };
 
     // складываем команду в список
-    auto *cmdItem = (struct e18_cmd_item *) malloc(sizeof(struct e18_cmd_item));
-    cmdItem->len = sizeof(cmd);
-    cmdItem->data = malloc(cmdItem->len);
-    cmdItem->cmd = E18_HEX_CMD_GET_UART_BAUD_RATE;
-    memcpy(cmdItem->data, (const void *) cmd, cmdItem->len);
-    SLIST_INSERT_HEAD(&e18_cmd_queue_head, cmdItem, cmds);
-
+    E18CmdItem cmdItem;
+    cmdItem.dataLen = sizeof(cmd);
+    cmdItem.data = new uint8_t(cmdItem.dataLen);
+    memcpy(cmdItem.data, cmd, cmdItem.dataLen);
+    cmdItem.cmd = E18_HEX_CMD_GET_UART_BAUD_RATE;
+    e18_cmd_queue.push(cmdItem);
 }
 
 void E18Module::e18_cmd_read_gpio_level(uint16_t short_addr, uint8_t gpio) {
@@ -1331,16 +1322,16 @@ void E18Module::e18_cmd_read_gpio_level(uint16_t short_addr, uint8_t gpio) {
     };
 
     // складываем команду в список
-    auto *cmdItem = (struct e18_cmd_item *) malloc(sizeof(struct e18_cmd_item));
-    cmdItem->len = sizeof(cmd);
-    cmdItem->data = malloc(cmdItem->len);
-    cmdItem->cmd = E18_HEX_CMD_GET_GPIO_LEVEL;
-    cmdItem->extra[0] = gpio;
-    memcpy(cmdItem->data, (const void *) cmd, cmdItem->len);
-    SLIST_INSERT_HEAD(&e18_cmd_queue_head, cmdItem, cmds);
+    E18CmdItem cmdItem;
+    cmdItem.dataLen = sizeof(cmd);
+    cmdItem.data = new uint8_t(cmdItem.dataLen);
+    memcpy(cmdItem.data, cmd, cmdItem.dataLen);
+    cmdItem.cmd = E18_HEX_CMD_GET_GPIO_LEVEL;
+    cmdItem.pin = gpio;
+    e18_cmd_queue.push(cmdItem);
 }
 
-ssize_t E18Module::e18_read_fixed_data(int coordinatorFd, uint8_t *buffer, ssize_t size) {
+ssize_t E18Module::e18_read_fixed_data(uint8_t *buffer, ssize_t size) {
     int64_t count = 0;
     ssize_t readed;
     time_t currentTime = time(nullptr);
@@ -1371,12 +1362,12 @@ void E18Module::e18_cmd_get_network_state() {
     };
 
     // складываем команду в список
-    auto *cmdItem = (struct e18_cmd_item *) malloc(sizeof(struct e18_cmd_item));
-    cmdItem->len = sizeof(cmd);
-    cmdItem->data = malloc(cmdItem->len);
-    cmdItem->cmd = E18_HEX_CMD_GET_NETWORK_STATE;
-    memcpy(cmdItem->data, (const void *) cmd, cmdItem->len);
-    SLIST_INSERT_HEAD(&e18_cmd_queue_head, cmdItem, cmds);
+    E18CmdItem cmdItem;
+    cmdItem.dataLen = sizeof(cmd);
+    cmdItem.data = new uint8_t(cmdItem.dataLen);
+    memcpy(cmdItem.data, cmd, cmdItem.dataLen);
+    cmdItem.cmd = E18_HEX_CMD_GET_NETWORK_STATE;
+    e18_cmd_queue.push(cmdItem);
 }
 
 void E18Module::e18_cmd_get_remote_short_address(uint8_t *mac) {
@@ -1398,14 +1389,13 @@ void E18Module::e18_cmd_get_remote_short_address(uint8_t *mac) {
     };
 
     // складываем команду в список
-    auto *cmdItem = (struct e18_cmd_item *) malloc(sizeof(struct e18_cmd_item));
-    cmdItem->len = sizeof(cmd);
-    cmdItem->data = malloc(cmdItem->len);
-    cmdItem->cmd = E18_HEX_CMD_GET_REMOTE_SHORT_ADDR;
-    memset(cmdItem->extra, 0, 32);
-    memcpy(cmdItem->extra, mac, 16);
-    memcpy(cmdItem->data, (const void *) cmd, cmdItem->len);
-    SLIST_INSERT_HEAD(&e18_cmd_queue_head, cmdItem, cmds);
+    E18CmdItem cmdItem;
+    cmdItem.dataLen = sizeof(cmd);
+    cmdItem.data = new uint8_t(cmdItem.dataLen);
+    memcpy(cmdItem.data, cmd, cmdItem.dataLen);
+    cmdItem.cmd = E18_HEX_CMD_GET_REMOTE_SHORT_ADDR;
+    cmdItem.mac = std::string((char *) mac);
+    e18_cmd_queue.push(cmdItem);
 }
 
 bool E18Module::e18_store_parameter(std::string deviceMac, std::string parameterName, std::string value) {
@@ -1446,12 +1436,12 @@ void E18Module::e18_cmd_set_network_off() {
     };
 
     // складываем команду в список
-    auto *cmdItem = (struct e18_cmd_item *) malloc(sizeof(struct e18_cmd_item));
-    cmdItem->len = sizeof(cmd);
-    cmdItem->data = malloc(cmdItem->len);
-    cmdItem->cmd = E18_HEX_CMD_OFF_NETWORK_AND_RESTART;
-    memcpy(cmdItem->data, (const void *) cmd, cmdItem->len);
-    SLIST_INSERT_HEAD(&e18_cmd_queue_head, cmdItem, cmds);
+    E18CmdItem cmdItem;
+    cmdItem.dataLen = sizeof(cmd);
+    cmdItem.data = new uint8_t(cmdItem.dataLen);
+    memcpy(cmdItem.data, cmd, cmdItem.dataLen);
+    cmdItem.cmd = E18_HEX_CMD_OFF_NETWORK_AND_RESTART;
+    e18_cmd_queue.push(cmdItem);
 }
 
 //----
@@ -1832,7 +1822,7 @@ void E18Module::mtmZigbeeStopThread() {
 }
 
 // отправляем команду
-ssize_t E18Module::send_cmd(int fd, uint8_t *buffer, size_t size) {
+ssize_t E18Module::send_cmd(uint8_t *buffer, size_t size) {
     ssize_t count = 0;
     ssize_t writen;
 
@@ -1847,7 +1837,7 @@ ssize_t E18Module::send_cmd(int fd, uint8_t *buffer, size_t size) {
     }
 
     while (count < size) {
-        writen = write(fd, &buffer[count], size - count);
+        writen = write(coordinatorFd, &buffer[count], size - count);
         if (writen >= 0) {
             count += writen;
         } else {
@@ -2001,7 +1991,7 @@ void E18Module::checkAstroEvents(time_t currentTime, double lon, double lat) {
 
             // передаём команду "астро событие" "закат"
             action.data = (0x02 << 8 | 0x01); // NOLINT(hicpp-signed-bitwise)
-            rc = send_e18_hex_cmd(coordinatorFd, E18_BROADCAST_ADDRESS, &action);
+            rc = send_e18_hex_cmd(E18_BROADCAST_ADDRESS, &action);
             if (rc == -1) {
                 lostZBCoordinator();
                 return;
@@ -2027,7 +2017,7 @@ void E18Module::checkAstroEvents(time_t currentTime, double lon, double lat) {
 
             // передаём команду "астро событие" "конец сумерек"
             action.data = (0x01 << 8 | 0x00); // NOLINT(hicpp-signed-bitwise)
-            ssize_t rc = send_e18_hex_cmd(coordinatorFd, E18_BROADCAST_ADDRESS, &action);
+            ssize_t rc = send_e18_hex_cmd(E18_BROADCAST_ADDRESS, &action);
             if (rc == -1) {
                 lostZBCoordinator();
                 return;
@@ -2057,7 +2047,7 @@ void E18Module::checkAstroEvents(time_t currentTime, double lon, double lat) {
 
             // передаём команду "астро событие" "начало сумерек"
             action.data = (0x03 << 8 | 0x00); // NOLINT(hicpp-signed-bitwise)
-            ssize_t rc = send_e18_hex_cmd(coordinatorFd, E18_BROADCAST_ADDRESS, &action);
+            ssize_t rc = send_e18_hex_cmd(E18_BROADCAST_ADDRESS, &action);
             if (rc == -1) {
                 lostZBCoordinator();
                 return;
@@ -2085,7 +2075,7 @@ void E18Module::checkAstroEvents(time_t currentTime, double lon, double lat) {
             switchAllLight(0);
             // передаём команду "астро событие" "восход"
             action.data = (0x00 << 8 | 0x00); // NOLINT(hicpp-signed-bitwise)
-            ssize_t rc = send_e18_hex_cmd(coordinatorFd, E18_BROADCAST_ADDRESS, &action);
+            ssize_t rc = send_e18_hex_cmd(E18_BROADCAST_ADDRESS, &action);
             if (rc == -1) {
                 lostZBCoordinator();
                 return;
@@ -2133,6 +2123,6 @@ ssize_t E18Module::sendLightLevel(uint8_t shortAddress, char *level) {
     action.header.protoVersion = MTM_VERSION_0;
     action.device = MTM_DEVICE_LIGHT;
     action.data = std::stoi(level);
-    return send_e18_hex_cmd(coordinatorFd, shortAddress, &action);
+    return send_e18_hex_cmd(shortAddress, &action);
 }
 
