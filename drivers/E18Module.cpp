@@ -577,6 +577,14 @@ void E18Module::mtmZigbeePktListener() {
             // проверка на наступление астрономических событий
             currentTime = time(nullptr) + kernel->timeOffset;
             if (isNetwork && !isCmdRun && currentTime - checkAstroTime > 60) {
+                if (kernel->isDebug) {
+                    char currentTimeString[64] = {0};
+                    std::tm tmpTm = {0};
+                    localtime_r(&currentTime, &tmpTm);
+                    std::strftime(currentTimeString, 20, "%F %T", &tmpTm);
+                    kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] %s", TAG, currentTimeString);
+                }
+
                 // костыль для демонстрационных целей, т.е. когда флаг установлен, ни какого автоматического
                 // управления светильниками не происходит. только ручной режим.
                 if (!manualMode()) {
@@ -2041,10 +2049,6 @@ void E18Module::checkAstroEvents(time_t currentTime, double lon, double lat) {
             switchContactor(true, E18_PIN_RELAY);
 //            AddDeviceRegister(dBase, (char *) coordinatorUuid.data(), message);
 
-            // даём задержку для того чтоб стартанули модули в светильниках
-            // т.к. неизвестно, питаются они через контактор или всё время под напряжением
-            sleep(5);
-
             // передаём команду "астро событие" "начало сумерек"
             action.data = (0x03 << 8 | 0x00); // NOLINT(hicpp-signed-bitwise)
             ssize_t rc = send_e18_hex_cmd(E18_BROADCAST_ADDRESS, &action);
@@ -2071,6 +2075,8 @@ void E18Module::checkAstroEvents(time_t currentTime, double lon, double lat) {
             switchContactor(false, E18_PIN_RELAY);
             AddDeviceRegister(dBase, (char *) coordinatorUuid.data(), message);
 
+            // строим список неисправных светильников
+            makeLostLightList(dBase, kernel);
             // на всякий случай, если светильники всегда под напряжением
             switchAllLight(0);
             // передаём команду "астро событие" "восход"

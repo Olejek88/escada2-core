@@ -13,6 +13,7 @@
 #include <ctime>
 #include "drivers/SensorChannel.h"
 #include "drivers/Device.h"
+#include "lightUtils.h"
 
 extern bool isSunInit;
 extern bool isSunSet, isTwilightEnd, isTwilightStart, isSunRise;
@@ -825,6 +826,8 @@ void checkAstroEvents(time_t currentTime, double lon, double lat, DBase *dBase, 
             kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] %s", TAG, message);
             AddDeviceRegister(dBase, (char *) coordinatorUuid.data(), message);
 
+            // строим список неисправных светильников
+            makeLostLightList(dBase, kernel);
             // на всякий случай, если светильники всегда под напряжением
             switchAllLight(0);
             // передаём команду "астро событие" "восход"

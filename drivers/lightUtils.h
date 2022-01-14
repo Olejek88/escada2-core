@@ -2,6 +2,7 @@
 #define ESCADA_CORE_LIGHTUTILS_H
 
 #include <map>
+#include <kernel.h>
 #include "DeviceProgram.h"
 #include "dbase.h"
 
@@ -20,5 +21,7 @@ void recalcAstroEvents(std::map<std::string, std::map<int, time_t>> *defAstroEve
 void fillGroupsDefValues(groupsMap *groups, std::map<std::string, std::map<int, time_t>> *defAstroEvents);
 
 void checkLightProgram(DBase *dBase, time_t currentTime, double lon, double lat);
+
+void makeLostLightList(DBase *dBase, Kernel *kernel);
 
 #endif //ESCADA_CORE_LIGHTUTILS_H

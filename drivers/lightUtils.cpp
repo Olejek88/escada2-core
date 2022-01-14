@@ -5,6 +5,7 @@
 #include "suninfo.h"
 #include <iostream>
 #include <ctime>
+#include <main.h>
 #include "kernel.h"
 #include "MtmZigbee.h"
 #include "function.h"
@@ -529,3 +530,24 @@ void checkLightProgram(DBase *dBase, time_t currentTime, double lon, double lat)
     }
 }
 
+void makeLostLightList(DBase *dBase, Kernel *kernel) {
+    // выбираем все управляемые светильники со статусом отличным от WORK и NOT_MOUNTED
+    // полученные данные записываем в lost_light
+    std::string currentDate("FROM_UNIXTIME(" + std::to_string(time(nullptr)) + ")");
+    auto query = std::string(
+            "INSERT INTO lost_light (uuid, date, title, status, macAddress, deviceUuid, nodeUuid, createdAt, changedAt) ")
+            .append("SELECT UPPER(UUID()) uuid, " + currentDate +
+                    ", dt.name, dst.title, dt.address, dt.uuid, dt.nodeUuid, " + currentDate + ", " + currentDate + " ")
+            .append("FROM device dt ")
+            .append("LEFT JOIN device_status dst ON dt.deviceStatusUuid=dst.uuid ")
+            .append("WHERE deviceTypeUuid IN ('" + std::string(DEVICE_TYPE_ZB_LIGHT) + "') ")
+            .append("AND deviceStatusUuid NOT IN ('" + std::string(DEVICE_STATUS_WORK) + "', ")
+            .append("'" + std::string(DEVICE_STATUS_NOT_MOUNTED) + "')");
+
+    if (kernel->isDebug) {
+        kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] lost_light: %s", TAG, query.data());
+    }
+
+    auto res = dBase->sqlexec(query.data());
+    mysql_free_result(res);
+}
