@@ -135,6 +135,8 @@ void E18Module::mtmZigbeePktListener() {
                 switch (currentCmd.cmd) {
                     case E18_HEX_CMD_GET_NETWORK_STATE :
                     case E18_HEX_CMD_GET_UART_BAUD_RATE :
+                    case E18_HEX_CMD_OFF_NETWORK_AND_RESTART:
+                    case E18_HEX_CMD_DEVICE_RESTART:
                         readDataLen = 1;
                         break;
                     case E18_HEX_CMD_GET_GPIO_LEVEL:
@@ -202,6 +204,9 @@ void E18Module::mtmZigbeePktListener() {
                         sstream.str("");
                         sstream << std::hex << *(uint16_t *) seek;
                         e18_store_parameter(currentCmd.mac, std::string("shortAddr"), std::string(sstream.str()));
+                    case E18_HEX_CMD_OFF_NETWORK_AND_RESTART :
+                    case E18_HEX_CMD_DEVICE_RESTART :
+                        // ни чего не делаем
                         break;
                     default:
                         break;
@@ -902,6 +907,15 @@ void E18Module::mtmZigbeeProcessOutPacket() {
                                                   TAG);
                                 kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] Stopping thread", TAG);
                                 break;
+                            case MTM_CMD_TYPE_CLEAR_NETWORK:
+                                if (kernel->isDebug) {
+                                    kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] send MTM_CMD_TYPE_CLEAR_NETWORK", TAG);
+                                    log_buffer_hex(mtmPkt, decoded);
+                                }
+
+                                e18_cmd_set_network_off();
+                                e18_cmd_device_restart();
+                                break;
                             default:
                                 rc = 0;
                                 break;
@@ -1440,6 +1454,23 @@ void E18Module::e18_cmd_set_network_off() {
             E18_HEX_CMD_SET,
             0x01,
             E18_HEX_CMD_OFF_NETWORK_AND_RESTART,
+            E18_HEX_CMD_END_CMD
+    };
+
+    // складываем команду в список
+    E18CmdItem cmdItem;
+    cmdItem.dataLen = sizeof(cmd);
+    cmdItem.data = new uint8_t(cmdItem.dataLen);
+    memcpy(cmdItem.data, cmd, cmdItem.dataLen);
+    cmdItem.cmd = E18_HEX_CMD_OFF_NETWORK_AND_RESTART;
+    e18_cmd_queue.push(cmdItem);
+}
+
+void E18Module::e18_cmd_device_restart() {
+    uint8_t cmd[] = {
+            E18_HEX_CMD_SET,
+            0x01,
+            E18_HEX_CMD_DEVICE_RESTART,
             E18_HEX_CMD_END_CMD
     };
 

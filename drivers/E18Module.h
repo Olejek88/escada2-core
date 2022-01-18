@@ -225,6 +225,8 @@ private:
 
     void e18_cmd_set_network_off();
 
+    void e18_cmd_device_restart();
+
     //----
     void storeCoordinatorDoorStatus(bool in, bool out);
 
