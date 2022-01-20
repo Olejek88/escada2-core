@@ -4,6 +4,7 @@
 #include <sys/stat.h>
 #include <sys/queue.h>
 #include <nettle/base64.h>
+#include <nettle/version.h>
 #include <zigbeemtm.h>
 #include "dbase.h"
 #include "TypeThread.h"
@@ -546,7 +547,11 @@ void mtmZigbeeProcessOutPacket(int32_t threadId) {
                 struct base64_decode_ctx b64_ctx = {};
                 size_t decoded = 512;
                 base64_decode_init(&b64_ctx);
+#if (NETTLE_VERSION_MAJOR == 3) && (NETTLE_VERSION_MINOR > 2)
                 if (base64_decode_update(&b64_ctx, &decoded, mtmPkt, flen, (const char *) tmpData)) {
+#else
+                    if (base64_decode_update(&b64_ctx, &decoded, mtmPkt, flen, tmpData)) {
+#endif
                     if (base64_decode_final(&b64_ctx)) {
                         uint8_t pktType = mtmPkt[0];
                         switch (pktType) {
@@ -811,6 +816,7 @@ void mtmZigbeeProcessInPacket(uint8_t *pktBuff, uint32_t length) {
                     addressStr->assign((char *) address);
 
                     base64_encode_init(&b64_ctx);
+#if (NETTLE_VERSION_MAJOR == 3) && (NETTLE_VERSION_MINOR > 2)
 #ifdef __APPLE__
                 encoded_bytes = base64_encode_update(&b64_ctx, (char *) resultBuff, get_mtm_command_size(pktType, MTM_VERSION_0),
                                                      reinterpret_cast<const uint8_t *>((size_t) &pktBuff[21]));
@@ -819,6 +825,16 @@ void mtmZigbeeProcessInPacket(uint8_t *pktBuff, uint32_t length) {
                     encoded_bytes = base64_encode_update(&b64_ctx, (char *) resultBuff, mtmLightStatusPktSize,
                                                          &pktBuff[21]);
                     base64_encode_final(&b64_ctx, (char *) (resultBuff + encoded_bytes));
+#endif
+#else
+#ifdef __APPLE__
+                encoded_bytes = base64_encode_update(&b64_ctx, resultBuff, get_mtm_command_size(pktType, MTM_VERSION_0),
+                                                     reinterpret_cast<const uint8_t *>((size_t) &pktBuff[21]));
+                base64_encode_final(&b64_ctx, reinterpret_cast<char *>(resultBuff + encoded_bytes));
+#elif __USE_GNU
+                    encoded_bytes = base64_encode_update(&b64_ctx, resultBuff, mtmLightStatusPktSize, &pktBuff[21]);
+                    base64_encode_final(&b64_ctx, (resultBuff + encoded_bytes));
+#endif
 #endif
 
                     if (kernel->isDebug) {
