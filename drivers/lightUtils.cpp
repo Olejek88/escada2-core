@@ -5,12 +5,12 @@
 #include "suninfo.h"
 #include <iostream>
 #include <ctime>
+#include <main.h>
 #include "kernel.h"
 #include "MtmZigbee.h"
 #include "function.h"
 #include "DeviceProgram.h"
 
-extern Kernel *kernel;
 extern std::string coordinatorUuid;
 // массив в который складируем текущие уровни яркости
 std::map<uint8_t, uint8_t> lightGroupBright = {
@@ -294,19 +294,10 @@ void fillGroupsDefValues(groupsMap *groups, std::map<std::string, std::map<int, 
     }
 }
 
-void checkLightProgram(DBase *dBase, time_t currentTime, double lon, double lat, int32_t threadId) {
-//    struct tm ttm = {0};
-//    ttm.tm_year = 119;
-//    ttm.tm_mon = 7;
-//    ttm.tm_mday = 28;
-//    ttm.tm_hour = 00;
-//    ttm.tm_min = 0;
-//    ttm.tm_sec = 21133;
-//    ttm.tm_gmtoff = 5 * 3600;
-//    currentTime = std::mktime(&ttm);
-
+void checkLightProgram(DBase *dBase, time_t currentTime, double lon, double lat) {
     MYSQL_RES *res;
     MYSQL_ROW row;
+    Kernel *kernel = &Kernel::Instance();
 
     // асоциативный массив в котором будем хранить данные по датам, времени, действиям, программам групп
     groupsMap groups;
@@ -537,260 +528,26 @@ void checkLightProgram(DBase *dBase, time_t currentTime, double lon, double lat,
 
         lightGroupBright[i] = brightValue;
     }
-
-    // TODO: скопировать необходимые данные для отладки и протоколирования из старого варианта
-/*
-if (kernel->isDebug) {
-    kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] checkTime: %llu", TAG, checkTime);
-    kernel->log.ulogw(LOG_LEVEL_INFO,
-                      "[%s] twilightStartTime: %llu, sunRiseTime: %llu, sunSetTime: %llu, twilightEndTime: %llu",
-                      TAG, twilightStartTime, sunRiseTime, sunSetTime, twilightEndTime);
-    kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] dayLen: %llu, nightLen: %llu, twilightLen: %llu, sum: %llu",
-                      TAG, dayLen, nightLen, twilightLen, dayLen + nightLen + twilightLen);
 }
 
-    res = dBase->sqlexec(query.data());
-    if (res) {
-        dBase->makeFieldsList(res);
-        while ((row = mysql_fetch_row(res)) != nullptr) {
-            int percent;
-            if (currentProgram != row[dBase->getFieldIndex("title")]) {
-                currentProgram = row[dBase->getFieldIndex("title")];
-                // нужно пересчитать параметры программы
-                percent = std::stoi(row[dBase->getFieldIndex("time2")]);
-                time1raw = twilightEndTime + (uint64_t) (nightLen * (1.0 / (100.0 / percent)));
-                percent = std::stoi(row[dBase->getFieldIndex("time3")]);
-                time2raw = time1raw + (uint64_t) (nightLen * (1.0 / (100.0 / percent)));
+void makeLostLightList(DBase *dBase, Kernel *kernel) {
+    // выбираем все управляемые светильники со статусом отличным от WORK и NOT_MOUNTED
+    // полученные данные записываем в lost_light
+    std::string currentDate("FROM_UNIXTIME(" + std::to_string(time(nullptr)) + ")");
+    auto query = std::string(
+            "INSERT INTO lost_light (uuid, date, title, status, macAddress, deviceUuid, nodeUuid, createdAt, changedAt) ")
+            .append("SELECT UPPER(UUID()) uuid, " + currentDate +
+                    ", dt.name, dst.title, dt.address, dt.uuid, dt.nodeUuid, " + currentDate + ", " + currentDate + " ")
+            .append("FROM device dt ")
+            .append("LEFT JOIN device_status dst ON dt.deviceStatusUuid=dst.uuid ")
+            .append("WHERE deviceTypeUuid IN ('" + std::string(DEVICE_TYPE_ZB_LIGHT) + "') ")
+            .append("AND deviceStatusUuid NOT IN ('" + std::string(DEVICE_STATUS_WORK) + "', ")
+            .append("'" + std::string(DEVICE_STATUS_NOT_MOUNTED) + "')");
 
-                time1loc = time1raw > 86400 ? time1raw - 86400 : time1raw;
-                time2loc = time2raw > 86400 ? time2raw - 86400 : time2raw;
-if (kernel->isDebug) {
-                kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] time1raw: %llu, time2raw: %llu", TAG, time1raw, time2raw);
-                kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] time1loc: %llu, time2loc: %llu", TAG, time1loc, time2loc);
-}
-            }
-
-            ssize_t rc;
-            bool processed = false;
-            std::string address = row[dBase->getFieldIndex("address")];
-            // интервал от заката до конца сумерек
-            if (!lightFlags[address].isPeriod1()) {
-                if (twilightEndTime > 86400) {
-                    if ((checkTime >= sunSetTime && checkTime < 86400) ||
-                        (checkTime >= 0 && checkTime < twilightEndTimeLoc)) {
-                        processed = true;
-if (kernel->isDebug) {
-                        kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] %s period 1 overnight", TAG, address.data());
-}
-                    }
-                } else {
-                    if (checkTime >= sunSetTime && checkTime < twilightEndTime) {
-                        processed = true;
-if (kernel->isDebug) {
-                        kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] %s period 1", TAG, address.data());
-}
-                    }
-                }
-
-                if (processed) {
-                    lightFlags[address].setPeriod1Active();
-                    rc = sendLightLevel((char *) address.data(), row[dBase->getFieldIndex("value1")]);
-                    if (rc == -1) {
-                        kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] ERROR write to port", TAG);
-                        // останавливаем поток с целью его последующего автоматического запуска и инициализации
-                        mtmZigbeeStopThread(dBase, threadId);
-                        AddDeviceRegister(dBase, (char *) coordinatorUuid.data(),
-                                          (char *) "Ошибка записи в порт координатора");
-                        return;
-                    }
-if (kernel->isDebug) {
-                    kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] checkTime: %ld", TAG, checkTime);
-                    kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] rc=%ld", TAG, rc);
-}
-                }
-            }
-
-            // интервал от конца сумерек до длительности заданной time1
-            processed = false;
-            if (!lightFlags[address].isPeriod2()) {
-                if (time1raw > 86400) {
-                    // переход через полночь
-                    if ((checkTime >= twilightEndTime && checkTime < 86400) ||
-                        (checkTime >= 0 && checkTime < time1loc)) {
-                        processed = true;
-if (kernel->isDebug) {
-                        kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] %s period 2 overnight", TAG, address.data());
-}
-                    }
-                } else {
-                    if (checkTime >= twilightEndTime && checkTime < time1loc) {
-                        processed = true;
-if (kernel->isDebug) {
-                        kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] %s period 2", TAG, address.data());
-}
-                    }
-                }
-
-                if (processed) {
-                    lightFlags[address].setPeriod2Active();
-                    rc = sendLightLevel((char *) address.data(), row[dBase->getFieldIndex("value2")]);
-                    if (rc == -1) {
-                        kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] ERROR write to port", TAG);
-                        // останавливаем поток с целью его последующего автоматического запуска и инициализации
-                        mtmZigbeeStopThread(dBase, threadId);
-                        AddDeviceRegister(dBase, (char *) coordinatorUuid.data(),
-                                          (char *) "Ошибка записи в порт координатора");
-                        return;
-                    }
-if (kernel->isDebug) {
-                    kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] checkTime: %ld", TAG, checkTime);
-                    kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] rc=%ld", TAG, rc);
-}
-                }
-            }
-
-            // интервал от time1 до длительности заданной time2
-            processed = false;
-            if (!lightFlags[address].isPeriod3()) {
-                if (time1loc > time2loc) {
-                    // переход через полночь (time1 находится до полуночи, time2 после полуночи)
-                    if ((checkTime >= time1raw && checkTime < 86400) || (checkTime >= 0 && checkTime < time2loc)) {
-                        processed = true;
-if (kernel->isDebug) {
-                        kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] %s period 3 overnight time2 after", TAG,
-                                          address.data());
-}
-                    }
-                } else {
-                    if (checkTime >= time1loc && checkTime < time2loc) {
-                        processed = true;
-if (kernel->isDebug) {
-                        kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] %s period 3", TAG, address.data());
-}
-                    }
-                }
-
-                if (processed) {
-                    lightFlags[address].setPeriod3Active();
-                    rc = sendLightLevel((char *) address.data(), row[dBase->getFieldIndex("value3")]);
-                    if (rc == -1) {
-                        kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] ERROR write to port", TAG);
-                        // останавливаем поток с целью его последующего автоматического запуска и инициализации
-                        mtmZigbeeStopThread(dBase, threadId);
-                        AddDeviceRegister(dBase, (char *) coordinatorUuid.data(),
-                                          (char *) "Ошибка записи в порт координатора");
-                        return;
-                    }
-if (kernel->isDebug) {
-                    kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] checkTime: %ld", TAG, checkTime);
-                    kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] rc=%ld", TAG, rc);
-}
-                }
-            }
-
-            // интервал от time2 до начала сумерек
-            processed = false;
-            if (!lightFlags[address].isPeriod4()) {
-                if (time2raw > 86400) {
-                    // переход через полночь (time2 находится после полуночи)
-                    if (checkTime >= time2loc && checkTime < twilightStartTime) {
-                        processed = true;
-if (kernel->isDebug) {
-                        kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] %s period 4 overnight", TAG, address.data());
-}
-                    }
-                } else {
-                    if ((checkTime >= time2loc && checkTime < 86400) ||
-                        (checkTime >= 0 && checkTime < twilightStartTime)) {
-                        processed = true;
-if (kernel->isDebug) {
-                        kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] %s period 4", TAG, address.data());
-}
-                    }
-                }
-
-                if (processed) {
-                    lightFlags[address].setPeriod4Active();
-                    rc = sendLightLevel((char *) address.data(), row[dBase->getFieldIndex("value4")]);
-                    if (rc == -1) {
-                        kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] ERROR write to port", TAG);
-                        // останавливаем поток с целью его последующего автоматического запуска и инициализации
-                        mtmZigbeeStopThread(dBase, threadId);
-                        AddDeviceRegister(dBase, (char *) coordinatorUuid.data(),
-                                          (char *) "Ошибка записи в порт координатора");
-                        return;
-                    }
-if (kernel->isDebug) {
-                    kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] checkTime: %ld", TAG, checkTime);
-                    kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] rc=%ld", TAG, rc);
-}
-                }
-            }
-
-            // интервал от начала сумерек до восхода
-            if (!lightFlags[address].isPeriod5()) {
-                if (checkTime >= twilightStartTime && checkTime < sunRiseTime) {
-                    lightFlags[address].setPeriod5Active();
-                    rc = sendLightLevel((char *) address.data(), row[dBase->getFieldIndex("value5")]);
-                    if (rc == -1) {
-                        kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] ERROR write to port", TAG);
-                        // останавливаем поток с целью его последующего автоматического запуска и инициализации
-                        mtmZigbeeStopThread(dBase, threadId);
-                        AddDeviceRegister(dBase, (char *) coordinatorUuid.data(),
-                                          (char *) "Ошибка записи в порт координатора");
-                        return;
-                    }
-if (kernel->isDebug) {
-                    kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] %s period 5", TAG, address.data());
-                    kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] checkTime: %llu", TAG, checkTime);
-                    kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] rc=%ld", TAG, rc);
-}
-                }
-            }
-
-            // день
-            if (!lightFlags[address].isDay()) {
-                if (checkTime >= sunRiseTime && checkTime < sunSetTime) {
-                    isDay = true;
-                    lightFlags[address].setDayActive();
-if (kernel->isDebug) {
-                    kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] %s period day", TAG, address.data());
-                    kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] checkTime: %llu", TAG, checkTime);
-                    // TODO: разобраться - должен я здесь отправлять какие-то команды?
-//                    kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] rc=%ld", TAG, rc);
-}
-                }
-            }
-
-            // TODO: пересмотреть алгоритм, для выявления подобного события
-            // длина суммы периодов меньше длины ночи или равна 0
-//            if (!processed) {
-//                if (!lightFlags[addresses[i]].isNoEvents) {
-//                    setNoEventsActive(&lightFlags[addresses[i]]);
-//                    printf("[%s] no events by light program\n", TAG);
-//                    printf("[%s] checkTime: %ld\n", TAG, checkTime);
-//                }
-//            }
-        }
-
-        if (isDay) {
-            ssize_t rc = switchAllLight(0);
-            if (rc == -1) {
-                kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] ERROR write to port", TAG);
-                // останавливаем поток с целью его последующего автоматического запуска и инициализации
-                mtmZigbeeStopThread(dBase, threadId);
-                AddDeviceRegister(dBase, (char *) coordinatorUuid.data(),
-                                  (char *) "Ошибка записи в порт координатора");
-                return;
-            }
-if (kernel->isDebug) {
-            kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] Switch all lights off by program", TAG);
-            kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] rc=%ld", TAG, rc);
-}
-        }
-
-        mysql_free_result(res);
+    if (kernel->isDebug) {
+        kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] lost_light: %s", TAG, query.data());
     }
-*/
-}
 
+    auto res = dBase->sqlexec(query.data());
+    mysql_free_result(res);
+}

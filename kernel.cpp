@@ -11,6 +11,7 @@
 #include <sys/resource.h>
 #include <unistd.h>
 #include <uuid/uuid.h>
+#include <drivers/E18Module.h>
 #include "dbase.h"
 #include "kernel.h"
 #include "drivers/ce102.h"
@@ -18,6 +19,7 @@
 #include "version/version.h"
 #include "TypeThread.h"
 #include "drivers/MtmZigbee.h"
+#include "main.h"
 
 bool runKernel = true;
 DBase *dBase;
@@ -111,6 +113,12 @@ int Kernel::init() {
             if (debug != nullptr) {
                 this->isDebug = debug->BoolText(false);
             }
+
+            // смещения времени астрономических событий в секундах
+            tinyxml2::XMLElement *offset = options->FirstChildElement("offset");
+            if (offset != nullptr) {
+                this->timeOffset = offset->Int64Text(0);
+            }
         }
 
         if (dBase->openConnection() == 0) {
@@ -159,7 +167,7 @@ void *dispatcher(void *thread_arg) {
 //            currentKernelInstance.log.ulogw(LOG_LEVEL_ERROR, "thr [%s] %ld %ld", typeThreads[th].title, typeThreads[th].lastDate, now);
             if ((now - typeThreads[th].lastDate) > 30) {
                 pRc = 0;
-                if (strncasecmp("0FBACF26-31CA-4B92-BCA3-220E09A6D2D3", typeThreads[th].deviceType, 36) == 0) {
+                if (strncasecmp(DEVICE_TYPE_ELECTRO_COUNTER_CE102, typeThreads[th].deviceType, 36) == 0) {
                     if (typeThreads[th].work > 0) {
                         if (thr == 0) {
                             pRc = pthread_create(&thr, nullptr, ceDeviceThread, (void *) &typeThreads[th]);
@@ -171,7 +179,7 @@ void *dispatcher(void *thread_arg) {
                             }
                         }
                     }
-                } else if (strncasecmp("8CF354DB-6FC2-4256-A24E-3E497BA99589", typeThreads[th].deviceType, 36) == 0) {
+                } else if (strncasecmp(DEVICE_TYPE_ZB_COORDINATOR, typeThreads[th].deviceType, 36) == 0) {
                     if (typeThreads[th].work > 0) {
                         if (zb_thr == 0) {
                             pRc = pthread_create(&zb_thr, nullptr, mtmZigbeeDeviceThread, (void *) &typeThreads[th]);
@@ -181,6 +189,21 @@ void *dispatcher(void *thread_arg) {
                             if (pJRc == 0) {
                                 pRc = pthread_create(&zb_thr, nullptr, mtmZigbeeDeviceThread,
                                                      (void *) &typeThreads[th]);
+                            }
+                        }
+                    }
+                } else if (strncasecmp(DEVICE_TYPE_ZB_COORDINATOR_E18, typeThreads[th].deviceType, 36) == 0) {
+                    auto *e18Module = new E18Module(&currentKernelInstance, &typeThreads[th]);
+                    static pthread_t e18_thr;
+                    if (typeThreads[th].work > 0) {
+                        if (e18_thr == 0) {
+                            pRc = pthread_create(&e18_thr, nullptr, &E18Module::getModuleThread, (void *) e18Module);
+                        } else {
+                            timeOut.tv_sec = time(nullptr) + 1;
+                            pJRc = pthread_timedjoin_np(e18_thr, nullptr, &timeOut);
+                            if (pJRc == 0) {
+                                pRc = pthread_create(&e18_thr, nullptr, &E18Module::getModuleThread,
+                                                     (void *) e18Module);
                             }
                         }
                     }

@@ -13,23 +13,24 @@
 #include <ctime>
 #include "drivers/SensorChannel.h"
 #include "drivers/Device.h"
+#include "lightUtils.h"
 
-extern Kernel *kernel;
 extern bool isSunInit;
 extern bool isSunSet, isTwilightEnd, isTwilightStart, isSunRise;
 extern int coordinatorFd;
 extern std::string coordinatorUuid;
 
 void log_buffer_hex(uint8_t *buffer, size_t buffer_size) {
+    Kernel *kernel = &Kernel::Instance();
     uint8_t message[1024];
     for (int i = 0; i < buffer_size; i++) {
-        sprintf((char *) &message[i * 2], "%02x", buffer[i]);
+        sprintf((char *) &message[i * 2], "%02X", buffer[i]);
     }
 
     kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] MTM packet: %s", TAG, message);
 }
 
-bool findDevice(DBase *dBase, uint8_t *addr, uint8_t *uuid) {
+bool findDevice(DBase *dBase, std::string *deviceUuid, uint8_t *uuid) {
     ulong nRows;
     uint32_t nFields;
     MYSQL_FIELD *field;
@@ -41,7 +42,7 @@ bool findDevice(DBase *dBase, uint8_t *addr, uint8_t *uuid) {
     uint8_t query[1024];
     MYSQL_RES *res;
 
-    sprintf((char *) query, "SELECT * FROM device WHERE address LIKE '%s'", addr);
+    sprintf((char *) query, "SELECT * FROM device WHERE uuid = '%s'", deviceUuid->data());
     res = dBase->sqlexec((char *) query);
     if (res) {
         nRows = mysql_num_rows(res);
@@ -92,7 +93,7 @@ Device *findDeviceByAddress(DBase *dBase, std::string *address) {
             dBase->makeFieldsList(res);
             row = mysql_fetch_row(res);
             if (row) {
-                item->_id = std::stoi(dBase->getFieldValue(row, "_id"));
+                item->_id = std::stoull(dBase->getFieldValue(row, "_id"));
                 item->uuid = dBase->getFieldValue(row, "uuid");
                 item->name = dBase->getFieldValue(row, "name");
                 item->address = dBase->getFieldValue(row, "address");
@@ -204,7 +205,7 @@ SensorChannel *findSensorChannelsByDevice(DBase *dBase, std::string *deviceUuid,
             dBase->makeFieldsList(res);
             uint16_t idx = 0;
             while ((row = mysql_fetch_row(res)) != nullptr) {
-                list[idx]._id = std::stoi(dBase->getFieldValue(row, "_id"));
+                list[idx]._id = std::stoll(dBase->getFieldValue(row, "_id"));
                 list[idx].uuid = dBase->getFieldValue(row, "uuid");
                 list[idx].title = dBase->getFieldValue(row, "title");
                 list[idx].reg = std::stoi(dBase->getFieldValue(row, "register"));
@@ -230,6 +231,7 @@ bool updateMeasureValue(DBase *dBase, uint8_t *uuid, double value, time_t change
 
     MYSQL_RES *res;
     char query[1024];
+    Kernel *kernel = &Kernel::Instance();
 
     sprintf(query,
             "UPDATE data SET value=%f, date=FROM_UNIXTIME(%ld), changedAt=FROM_UNIXTIME(%ld) WHERE uuid = '%s'",
@@ -250,6 +252,7 @@ bool updateMeasureValueExt(DBase *dBase, uint8_t *uuid, int32_t type, double val
 
     MYSQL_RES *res;
     char query[1024];
+    Kernel *kernel = &Kernel::Instance();
 
     sprintf(query,
             "UPDATE data SET type=%d, value=%f, date=FROM_UNIXTIME(%ld), changedAt=FROM_UNIXTIME(%ld) WHERE uuid = '%s'",
@@ -270,10 +273,11 @@ bool storeMeasureValue(DBase *dBase, uint8_t *uuid, std::string *channelUuid, do
                        time_t changedTime) {
     MYSQL_RES *res;
     char query[1024];
+    Kernel *kernel = &Kernel::Instance();
 
     sprintf(query,
-            "INSERT INTO data (uuid, sensorChannelUuid, value, date, createdAt) value('%s', '%s', %f, FROM_UNIXTIME(%ld), FROM_UNIXTIME(%ld))",
-            uuid, channelUuid->data(), value, createTime, changedTime);
+            "INSERT INTO data (uuid, sensorChannelUuid, value, date, createdAt, changedAt) value('%s', '%s', %f, FROM_UNIXTIME(%ld), FROM_UNIXTIME(%ld), FROM_UNIXTIME(%ld))",
+            uuid, channelUuid->data(), value, createTime, changedTime, changedTime);
     if (kernel->isDebug) {
         kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] %s", TAG, query);
     }
@@ -287,14 +291,14 @@ bool storeMeasureValue(DBase *dBase, uint8_t *uuid, std::string *channelUuid, do
 }
 
 bool insertMeasureValue(DBase *dBase, uint8_t *uuid, std::string *channelUuid, int32_t type, double value,
-                        time_t createTime,
-                        time_t changedTime) {
+                        time_t createTime, time_t changedTime) {
     MYSQL_RES *res;
     char query[1024];
+    Kernel *kernel = &Kernel::Instance();
 
     sprintf(query,
-            "INSERT INTO data (uuid, sensorChannelUuid, type, value, date, createdAt) value('%s', '%s', %d, %f, FROM_UNIXTIME(%ld), FROM_UNIXTIME(%ld))",
-            uuid, channelUuid->data(), type, value, createTime, changedTime);
+            "INSERT INTO data (uuid, sensorChannelUuid, type, value, date, createdAt, changedAt) value('%s', '%s', %d, %f, FROM_UNIXTIME(%ld), FROM_UNIXTIME(%ld), FROM_UNIXTIME(%ld))",
+            uuid, channelUuid->data(), type, value, createTime, changedTime, changedTime);
     if (kernel->isDebug) {
         kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] %s", TAG, query);
     }
@@ -312,6 +316,8 @@ createSChannel(DBase *dBase, uint8_t *uuid, const char *channelTitle, uint8_t se
                const char *channelTypeUuid, time_t createTime) {
     char query[1024];
     MYSQL_RES *res;
+    Kernel *kernel = &Kernel::Instance();
+
     sprintf((char *) query,
             "INSERT INTO sensor_channel (uuid, title, register, deviceUuid, measureTypeUuid, createdAt) value('%s', '%s', '%d', '%s', '%s', FROM_UNIXTIME(%ld))",
             uuid, channelTitle, sensorIndex, deviceUuid, channelTypeUuid, createTime);
@@ -374,9 +380,11 @@ void makeCoordinatorStatus(DBase *dBase, uint8_t *address, const uint8_t *packet
     char query[1024];
     MYSQL_RES *res;
     MYSQL_ROW row;
+    std::string addressString = std::string((char *) address);
+    Kernel *kernel = &Kernel::Instance();
 
     memset(deviceUuid, 0, 37);
-    if (!findDevice(dBase, address, deviceUuid)) {
+    if (!findDevice(dBase, &addressString, deviceUuid)) {
         sprintf(message, "Не удалось найти устройство с адресом %s", address);
         kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] %s %s", TAG, message);
         AddDeviceRegister(dBase, (char *) coordinatorUuid.data(), message);
@@ -386,7 +394,7 @@ void makeCoordinatorStatus(DBase *dBase, uint8_t *address, const uint8_t *packet
     // найти канал по устройству sensor_channel и regIdx
     std::string in1ChannelUuid = findSChannel(dBase, deviceUuid, MTM_ZB_CHANNEL_COORD_DOOR_IDX, CHANNEL_DOOR_STATE);
     if (!in1ChannelUuid.empty()) {
-        uint16_t value = *(uint16_t * )(&packetBuffer[34]);
+        uint16_t value = *(uint16_t *) (&packetBuffer[34]);
         // получаем конфигурацию канала измерения
         threshold = 1024;
         std::string config = getSChannelConfig(dBase, &in1ChannelUuid);
@@ -432,12 +440,11 @@ void makeCoordinatorStatus(DBase *dBase, uint8_t *address, const uint8_t *packet
         }
     }
 
-
     // найти канал по устройству sensor_channel и regIdx
     std::string in2ChannelUuid = findSChannel(dBase, deviceUuid, MTM_ZB_CHANNEL_COORD_CONTACTOR_IDX,
                                               CHANNEL_CONTACTOR_STATE);
     if (!in2ChannelUuid.empty()) {
-        uint16_t value = *(uint16_t * )(&packetBuffer[36]);
+        uint16_t value = *(uint16_t *) (&packetBuffer[36]);
         // получаем конфигурацию канала измерения
         threshold = 1024;
         std::string config = getSChannelConfig(dBase, &in2ChannelUuid);
@@ -486,7 +493,7 @@ void makeCoordinatorStatus(DBase *dBase, uint8_t *address, const uint8_t *packet
     // найти канал по устройству sensor_channel и regIdx (цифровой пин управления контактором)
     std::string digi1ChannelUuid = findSChannel(dBase, deviceUuid, MTM_ZB_CHANNEL_COORD_RELAY_IDX, CHANNEL_RELAY_STATE);
     if (!digi1ChannelUuid.empty()) {
-        uint16_t value = *(uint16_t * )(&packetBuffer[32]);
+        uint16_t value = *(uint16_t *) (&packetBuffer[32]);
         value &= 0x0040u;
         value = value >> 6; // NOLINT(hicpp-signed-bitwise)
         oldValue = 0;
@@ -524,6 +531,7 @@ void storeMeasureValueExt(DBase *dBase, SensorChannel *sc, int16_t value, bool i
     uuid_t newUuid;
     uint8_t newUuidString[37] = {0};
     time_t createTime = time(nullptr);
+    Kernel *kernel = &Kernel::Instance();
 
     int8_t type = instant ? 0 : 1;
     std::string measureUuid = findMeasure(dBase, &sc->uuid, type);
@@ -550,9 +558,11 @@ void makeCoordinatorTemperature(DBase *dBase, uint8_t *address, const uint8_t *p
     time_t createTime = time(nullptr);
     int8_t value;
     char message[1024];
+    std::string addressString = std::string((char *) address);
+    Kernel *kernel = &Kernel::Instance();
 
     memset(deviceUuid, 0, 37);
-    if (!findDevice(dBase, address, deviceUuid)) {
+    if (!findDevice(dBase, &addressString, deviceUuid)) {
         sprintf(message, "Не удалось найти устройство с адресом %s", address);
         kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] %s", TAG, message);
         AddDeviceRegister(dBase, (char *) coordinatorUuid.data(), message);
@@ -563,7 +573,7 @@ void makeCoordinatorTemperature(DBase *dBase, uint8_t *address, const uint8_t *p
     sChannelUuid = findSChannel(dBase, deviceUuid, MTM_ZB_CHANNEL_LIGHT_TEMPERATURE_IDX, CHANNEL_T);
     if (!sChannelUuid.empty()) {
         // температура лежит в двух байтах начиная с 21-го
-        uint16_t tempCount = *(uint16_t * ) & packetBuffer[21];
+        uint16_t tempCount = *(uint16_t *) &packetBuffer[21];
         value = (int8_t) ((tempCount - 1480) / 4.5) + 25;
         measureUuid = findMeasure(dBase, &sChannelUuid, MTM_ZB_CHANNEL_LIGHT_TEMPERATURE_IDX);
         if (!measureUuid.empty()) {
@@ -616,6 +626,8 @@ void checkAstroEvents(time_t currentTime, double lon, double lat, DBase *dBase, 
     MYSQL_RES *res;
     MYSQL_ROW row;
     std::string query;
+
+    Kernel *kernel = &Kernel::Instance();
 
     localtime_r(&currentTime, &ctm);
 
@@ -681,8 +693,8 @@ void checkAstroEvents(time_t currentTime, double lon, double lat, DBase *dBase, 
 
         // расчитываем время начала/конца сумерек относительно рассвета/заката (которые возможно получили из календаря)
         // устанавливая их длительность пропорционально изменившейся длительности ночи
-        twilightStartTime = sunRiseTime - (uint64_t)(twilightLength * nightRate);
-        twilightEndTime = sunSetTime + (uint64_t)(twilightLength * nightRate);
+        twilightStartTime = sunRiseTime - (uint64_t) (twilightLength * nightRate);
+        twilightEndTime = sunSetTime + (uint64_t) (twilightLength * nightRate);
 
         action.header.type = MTM_CMD_TYPE_ACTION;
         action.header.protoVersion = MTM_VERSION_0;
@@ -814,6 +826,8 @@ void checkAstroEvents(time_t currentTime, double lon, double lat, DBase *dBase, 
             kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] %s", TAG, message);
             AddDeviceRegister(dBase, (char *) coordinatorUuid.data(), message);
 
+            // строим список неисправных светильников
+            makeLostLightList(dBase, kernel);
             // на всякий случай, если светильники всегда под напряжением
             switchAllLight(0);
             // передаём команду "астро событие" "восход"
@@ -856,6 +870,8 @@ void checkAstroEvents(time_t currentTime, double lon, double lat, DBase *dBase, 
 
 ssize_t sendLightLevel(char *addrString, char *level) {
     mtm_cmd_action action = {0};
+    Kernel *kernel = &Kernel::Instance();
+
     action.header.type = MTM_CMD_TYPE_ACTION;
     action.header.protoVersion = MTM_VERSION_0;
     action.device = MTM_DEVICE_LIGHT;
@@ -885,6 +901,7 @@ void mtmCheckLinkState(DBase *dBase) {
     std::string inParamList;
     char message[1024];
     std::string devType;
+    Kernel *kernel = &Kernel::Instance();
 
     // проверяем состояние контактора, если он включен, тогда следим за состоянием светильников
     query = "SELECT mt.* FROM device AS dt ";
@@ -892,7 +909,10 @@ void mtmCheckLinkState(DBase *dBase) {
     query.append("LEFT JOIN data AS mt ON mt.sensorChannelUuid=sct.uuid ");
     query.append("WHERE dt.deviceTypeUuid='" + std::string(DEVICE_TYPE_ZB_COORDINATOR) + "' ");
     query.append("AND sct.measureTypeUuid='" + std::string(CHANNEL_CONTACTOR_STATE) + "'");
-//    kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] contactor query: %s", TAG, query.data());
+    if (kernel->isDebug) {
+        kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] contactor query: %s", TAG, query.data());
+    }
+
     res = dBase->sqlexec(query.data());
     if (res) {
         nRows = mysql_num_rows(res);
@@ -933,7 +953,10 @@ void mtmCheckLinkState(DBase *dBase) {
     query.append(") ");
     query.append("AND dt.deviceStatusUuid='" + std::string(DEVICE_STATUS_WORK) + "' ");
     query.append("GROUP BY dt.uuid");
-//    kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] select to not link query: %s", TAG, query.data());
+    if (kernel->isDebug) {
+        kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] select to not link query: %s", TAG, query.data());
+    }
+
     res = dBase->sqlexec(query.data());
     firstItem = true;
     if (res) {
@@ -965,12 +988,15 @@ void mtmCheckLinkState(DBase *dBase) {
         query = "UPDATE device SET deviceStatusUuid='" + std::string(DEVICE_STATUS_NO_CONNECT) +
                 "', changedAt=current_timestamp() ";
         query.append("WHERE device.uuid IN (" + inParamList + ")");
-//        kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] update to not link query: %s", TAG, query.data());
+        if (kernel->isDebug) {
+            kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] update to not link query: %s", TAG, query.data());
+        }
+
         res = dBase->sqlexec(query.data());
         mysql_free_result(res);
     }
 
-    // для всех светильников от которых были получены пакеты со статусом менее 30 секунд назад,
+    // для всех светильников от которых были получены пакеты со статусом менее limitTimeOut секунд назад,
     // а статус был "Нет связи", устанавливаем статус "В порядке"
     query = "SELECT dt.uuid, dt.address as devAddr, nt.address as nodeAddr, dt.deviceTypeUuid FROM device AS dt ";
     query.append("LEFT JOIN node AS nt ON nt.uuid=dt.nodeUuid ");
@@ -986,7 +1012,10 @@ void mtmCheckLinkState(DBase *dBase) {
     query.append(") ");
     query.append("AND dt.deviceStatusUuid='" + std::string(DEVICE_STATUS_NO_CONNECT) + "' ");
     query.append("GROUP BY dt.uuid");
-//    kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] select to work query: %s", TAG, query.data());
+    if (kernel->isDebug) {
+        kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] select to work query: %s", TAG, query.data());
+    }
+
     res = dBase->sqlexec(query.data());
     firstItem = true;
     inParamList.clear();
@@ -1019,7 +1048,10 @@ void mtmCheckLinkState(DBase *dBase) {
         query = "UPDATE device SET deviceStatusUuid='" + std::string(DEVICE_STATUS_WORK) +
                 "', changedAt=current_timestamp() ";
         query.append("WHERE device.uuid IN (" + inParamList + ")");
-//        kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] update to work query: %s", TAG, query.data());
+        if (kernel->isDebug) {
+            kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] update to work query: %s", TAG, query.data());
+        }
+
         res = dBase->sqlexec(query.data());
         mysql_free_result(res);
     }
@@ -1033,7 +1065,10 @@ void mtmCheckLinkState(DBase *dBase) {
     query.append("AND device.deviceTypeUuid IN ('" + std::string(DEVICE_TYPE_ZB_LIGHT) + "', '" +
                  std::string(DEVICE_TYPE_ZB_COORDINATOR) + "') ");
     query.append("AND device.deviceStatusUuid='" + std::string(DEVICE_STATUS_WORK) + "'");
-//    kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] update without measure to not link query: %s", TAG, query.data());
+    if (kernel->isDebug) {
+        kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] update without measure to not link query: %s", TAG, query.data());
+    }
+
     res = dBase->sqlexec(query.data());
     mysql_free_result(res);
 }
@@ -1041,6 +1076,7 @@ void mtmCheckLinkState(DBase *dBase) {
 void lostZBCoordinator(DBase *dBase, int32_t threadId, std::string *coordUuid) {
     std::string query;
     MYSQL_RES *res;
+    Kernel *kernel = &Kernel::Instance();
 
     kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] ERROR write to port", TAG);
     // меняем статус координатора на DEVICE_STATUS_NO_CONNECT
@@ -1053,4 +1089,19 @@ void lostZBCoordinator(DBase *dBase, int32_t threadId, std::string *coordUuid) {
     // останавливаем поток с целью его последующего автоматического запуска и инициализации
     mtmZigbeeStopThread(dBase, threadId);
     AddDeviceRegister(dBase, (char *) coordUuid->data(), (char *) "Ошибка записи в порт координатора");
+}
+
+void setDeviceStatus(DBase *dBase, std::string uuid, std::string statusUuid) {
+    std::string query;
+    MYSQL_RES *res;
+    Kernel *kernel = &Kernel::Instance();
+
+    query = "UPDATE device SET deviceStatusUuid='" + statusUuid +
+            "', changedAt=FROM_UNIXTIME(" + std::to_string(time(nullptr)) + ") WHERE uuid='" + uuid + "'";
+    if (kernel->isDebug) {
+        kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] %s", TAG, query.data());
+    }
+
+    res = dBase->sqlexec(query.data());
+    mysql_free_result(res);
 }

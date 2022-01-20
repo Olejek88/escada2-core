@@ -40,11 +40,11 @@
 
 void *mtmZigbeeDeviceThread(void *device);
 
-int32_t mtmZigbeeInit(int32_t mode, uint8_t *path, uint32_t speed);
+int32_t mtmZigbeeInit(int32_t mode, uint8_t *path, uint64_t speed);
 
 void mtmZigbeePktListener(DBase *dBase, int32_t threadId);
 
-speed_t mtmZigbeeGetSpeed(uint32_t speed);
+speed_t mtmZigbeeGetSpeed(uint64_t speed);
 
 bool mtmZigbeeGetRun();
 
@@ -54,7 +54,7 @@ void mtmZigbeeProcessInPacket(uint8_t *pktBuff, uint32_t length);
 
 void mtmZigbeeProcessOutPacket(int32_t threadId);
 
-bool findDevice(DBase *dBase, uint8_t *addr, uint8_t *uuid);
+bool findDevice(DBase *dBase, std::string *addr, uint8_t *uuid);
 
 std::string findSChannel(DBase *dBase, uint8_t *deviceUuid, uint8_t regIdx, const char *measureType);
 
@@ -110,5 +110,7 @@ bool insertMeasureValue(DBase *dBase, uint8_t *uuid, std::string *channelUuid, i
 bool manualMode(DBase *dBase);
 
 void lostZBCoordinator(DBase *dBase, int32_t threadId, std::string *coordUuid);
+
+void setDeviceStatus(DBase *dBase, std::string uuid, std::string statusUuid);
 
 #endif //ESCADA_CORE_MTMZIGBEE_H

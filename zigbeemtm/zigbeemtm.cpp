@@ -323,6 +323,7 @@ ssize_t send_mtm_cmd(int fd, uint16_t short_addr, void *mtm_cmd, Kernel *kernel)
     zigbee_frame frame;
     zigbee_mt_cmd_af_data_request zb_cmd;
     ssize_t rc;
+    auto *cmdHeader = (mtm_cmd_header *) mtm_cmd;
 
     // заполняем данными команду mt_api
     zb_cmd.dst_addr = short_addr;
@@ -332,7 +333,7 @@ ssize_t send_mtm_cmd(int fd, uint16_t short_addr, void *mtm_cmd, Kernel *kernel)
     zb_cmd.tid = 0;
     zb_cmd.opt = ZB_O_APS_ACKNOWLEDGE; // флаг для получения подтверждения с конечного устройства а не с первого хопа.
     zb_cmd.rad = MAX_PACKET_HOPS;
-    zb_cmd.adl = (uint8_t) get_mtm_command_size(((mtm_cmd_header *) mtm_cmd)->type);
+    zb_cmd.adl = (uint8_t) get_mtm_command_size(cmdHeader->type, cmdHeader->protoVersion);
     zb_cmd.mt_cmd = mtm_cmd;
 
     // заполняем данными фрейм zigbee
@@ -359,6 +360,7 @@ ssize_t send_mtm_cmd_ext(int fd, uint64_t addr, void *mtm_cmd, Kernel *kernel) {
     zigbee_frame frame;
     zigbee_mt_cmd_af_data_request_ext zb_cmd;
     ssize_t rc;
+    auto *cmdHeader = (mtm_cmd_header *) mtm_cmd;
 
     // заполняем данными команду mt_api
     zb_cmd.dst_addr_mode = 3; // 8 byte
@@ -370,7 +372,7 @@ ssize_t send_mtm_cmd_ext(int fd, uint64_t addr, void *mtm_cmd, Kernel *kernel) {
     zb_cmd.tid = 0;
     zb_cmd.opt = ZB_O_APS_ACKNOWLEDGE; // флаг для получения подтверждения с конечного устройства а не с первого хопа.
     zb_cmd.rad = MAX_PACKET_HOPS;
-    zb_cmd.adl = (uint16_t) get_mtm_command_size(((mtm_cmd_header *) mtm_cmd)->type);
+    zb_cmd.adl = (uint16_t) get_mtm_command_size(cmdHeader->type, cmdHeader->protoVersion);
     zb_cmd.mt_cmd = mtm_cmd;
 
     // заполняем данными фрейм zigbee
@@ -390,10 +392,30 @@ ssize_t send_mtm_cmd_ext(int fd, uint64_t addr, void *mtm_cmd, Kernel *kernel) {
     return rc;
 }
 
-int8_t get_mtm_command_size(uint8_t type) {
+int8_t get_mtm_status_data_start(uint8_t protoVersion) {
     int8_t size = 0;
     mtm_cmd_header header;
     mtm_cmd_status status;
+    mtm_cmd_status_v1 statusV1;
+
+    size += sizeof(header.type);
+    size += sizeof(header.protoVersion);
+
+    size += sizeof(status.mac);
+    if (protoVersion == MTM_VERSION_1) {
+        size += sizeof(statusV1.parentMac);
+    }
+
+    size += sizeof(status.alert.devices);
+
+    return size;
+}
+
+int8_t get_mtm_command_size(uint8_t type, uint8_t protoVersion) {
+    int8_t size = 0;
+    mtm_cmd_header header;
+    mtm_cmd_status status;
+    mtm_cmd_status_v1 statusV1;
     mtm_cmd_config config;
     mtm_cmd_config_light config_light;
     mtm_cmd_current_time current_time;
@@ -405,6 +427,10 @@ int8_t get_mtm_command_size(uint8_t type) {
     switch (type) {
         case MTM_CMD_TYPE_STATUS:
             size += sizeof(status.mac);
+            if (protoVersion == MTM_VERSION_1) {
+                size += sizeof(statusV1.parentMac);
+            }
+
             size += sizeof(status.alert.devices);
             size += sizeof(status.data);
             break;

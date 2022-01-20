@@ -7,6 +7,7 @@
 #include <sys/times.h>
 #include "const.h"
 #include "logs.h"
+#include <stdint.h>
 
 class Kernel {
 public:
@@ -22,6 +23,7 @@ public:
     char    log_name[MAX_FILE_LENGTH];    // maximum file length
     tm      *current_time;            // current system time
     bool isDebug = false;
+    uint64_t timeOffset = 0;
 private:
     Kernel() {}
 

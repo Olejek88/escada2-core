@@ -35,8 +35,9 @@ int DBase::openConnection() {
     if (strlen(host) == 0)
         sprintf(host, "localhost");
 
-    currentKernelInstance.log.ulogw(LOG_LEVEL_INFO, "%s connection %s, %s, %s, %s", MODULE_NAME, driver, host, user,
-                                    pass);
+    if (currentKernelInstance.isDebug) {
+        currentKernelInstance.log.ulogw(LOG_LEVEL_INFO, "%s connection %s, %s, %s", MODULE_NAME, driver, host, user);
+    }
 
     mysql = mysql_init(nullptr);    // init mysql connection
     if (!mysql) {
@@ -51,7 +52,9 @@ int DBase::openConnection() {
         mysql_close(mysql);
         return ERROR;
     } else {
-        currentKernelInstance.log.ulogw(LOG_LEVEL_INFO, "%s connecting to database........success", MODULE_NAME);
+        if (currentKernelInstance.isDebug) {
+            currentKernelInstance.log.ulogw(LOG_LEVEL_INFO, "%s connecting to database........success", MODULE_NAME);
+        }
     }
     snprintf(query, MAX_QUERY_LENGTH, "USE %s", database);
     mysql_real_query(mysql, query, strlen(query));

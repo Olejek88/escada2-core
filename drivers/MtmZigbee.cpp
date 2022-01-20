@@ -29,16 +29,15 @@ pthread_mutex_t mtmZigbeeStopMutex;
 bool mtmZigbeeStopIssued;
 DBase *mtmZigbeeDBase;
 int32_t mtmZigBeeThreadId;
-Kernel *kernel;
 bool isSunInit;
 bool isSunSet, isTwilightEnd, isTwilightStart, isSunRise;
 std::string coordinatorUuid;
 bool isCheckCoordinatorRespond;
 
 void *mtmZigbeeDeviceThread(void *pth) { // NOLINT
-    uint16_t speed;
+    uint64_t speed;
     uint8_t *port;
-    kernel = &Kernel::Instance();
+    Kernel *kernel = &Kernel::Instance();
     auto *tInfo = (TypeThread *) pth;
 
     mtmZigBeeThreadId = tInfo->id;
@@ -102,6 +101,7 @@ void mtmZigbeePktListener(DBase *dBase, int32_t threadId) {
     time_t currentTime, heartBeatTime = 0, syncTimeTime = 0, checkSensorTime = 0, checkAstroTime = 0,
             checkOutPacket = 0, checkCoordinatorTime = 0, checkLinkState = 0;
     struct tm *localTime;
+    Kernel *kernel = &Kernel::Instance();
 
     struct zb_pkt_item {
 //        zigbee_frame frame;
@@ -388,7 +388,7 @@ void mtmZigbeePktListener(DBase *dBase, int32_t threadId) {
                     checkAstroEvents(currentTime, lon, lat, dBase, threadId);
 
                     // рассылка пакетов светильникам по параметрам заданным в программах
-                    checkLightProgram(mtmZigbeeDBase, currentTime, lon, lat, threadId);
+                    checkLightProgram(mtmZigbeeDBase, currentTime, lon, lat);
                 }
             }
 
@@ -420,7 +420,8 @@ bool manualMode(DBase *dBase) {
     std::string coordUuid;
 
     // ищем координатор
-    query.append("SELECT * FROM device WHERE deviceTypeUuid = '" + std::string(DEVICE_TYPE_ZB_COORDINATOR) + "' LIMIT 1");
+    query.append(
+            "SELECT * FROM device WHERE deviceTypeUuid = '" + std::string(DEVICE_TYPE_ZB_COORDINATOR) + "' LIMIT 1");
     res = dBase->sqlexec(query.data());
     if (res) {
         nRows = mysql_num_rows(res);
@@ -452,14 +453,13 @@ bool manualMode(DBase *dBase) {
         }
     }
 
-
-
     mysql_free_result(res);
 
     return mode == 1;
 }
 
 ssize_t switchAllLight(uint16_t level) {
+    Kernel *kernel = &Kernel::Instance();
     mtm_cmd_action action = {0};
     action.header.type = MTM_CMD_TYPE_ACTION;
     action.header.protoVersion = MTM_VERSION_0;
@@ -470,6 +470,7 @@ ssize_t switchAllLight(uint16_t level) {
 }
 
 ssize_t switchContactor(bool enable, uint8_t line) {
+    Kernel *kernel = &Kernel::Instance();
     zigbee_mt_cmd_af_data_request request = {0};
     request.dst_addr = 0x0000; // пока тупо локальному координатору отправляем
     request.dep = MBEE_API_END_POINT;
@@ -504,6 +505,7 @@ void mtmZigbeeProcessOutPacket(int32_t threadId) {
     uint8_t mtmPkt[512];
     uint64_t dstAddr;
     ssize_t rc;
+    Kernel *kernel = &Kernel::Instance();
 
     sprintf((char *) query, "SELECT * FROM light_message WHERE dateOut IS NULL;");
     if (kernel->isDebug) {
@@ -544,7 +546,7 @@ void mtmZigbeeProcessOutPacket(int32_t threadId) {
                 struct base64_decode_ctx b64_ctx = {};
                 size_t decoded = 512;
                 base64_decode_init(&b64_ctx);
-                if (base64_decode_update(&b64_ctx, &decoded, mtmPkt, flen, tmpData)) {
+                if (base64_decode_update(&b64_ctx, &decoded, mtmPkt, flen, (const char *) tmpData)) {
                     if (base64_decode_final(&b64_ctx)) {
                         uint8_t pktType = mtmPkt[0];
                         switch (pktType) {
@@ -700,6 +702,8 @@ void mtmZigbeeProcessOutPacket(int32_t threadId) {
 void mtmZigbeeProcessInPacket(uint8_t *pktBuff, uint32_t length) {
     uint16_t cmd = *(uint16_t *) (&pktBuff[2]);
     uint8_t pktType;
+    uint8_t pktVersion;
+    uint8_t sensorDataStart;
     uint8_t dstEndPoint;
     uint16_t cluster;
     uint8_t address[32];
@@ -707,6 +711,7 @@ void mtmZigbeeProcessInPacket(uint8_t *pktBuff, uint32_t length) {
     auto *addressStr = new std::string();
     uint16_t sensorDataCount;
     Device *device;
+    Kernel *kernel = &Kernel::Instance();
 
     if (kernel->isDebug) {
         char pktStr[2048] = {0};
@@ -789,6 +794,7 @@ void mtmZigbeeProcessInPacket(uint8_t *pktBuff, uint32_t length) {
             }
 
             pktType = pktBuff[21];
+            pktVersion = pktBuff[22];
             switch (pktType) {
                 case MTM_CMD_TYPE_STATUS:
                     // размер полезных данных в zb пакете
@@ -806,12 +812,13 @@ void mtmZigbeeProcessInPacket(uint8_t *pktBuff, uint32_t length) {
 
                     base64_encode_init(&b64_ctx);
 #ifdef __APPLE__
-                encoded_bytes = base64_encode_update(&b64_ctx, (char *) resultBuff, get_mtm_command_size(pktType),
+                encoded_bytes = base64_encode_update(&b64_ctx, (char *) resultBuff, get_mtm_command_size(pktType, MTM_VERSION_0),
                                                      reinterpret_cast<const uint8_t *>((size_t) &pktBuff[21]));
                 base64_encode_final(&b64_ctx, reinterpret_cast<char *>(resultBuff + encoded_bytes));
 #elif __USE_GNU
-                    encoded_bytes = base64_encode_update(&b64_ctx, resultBuff, mtmLightStatusPktSize, &pktBuff[21]);
-                    base64_encode_final(&b64_ctx, resultBuff + encoded_bytes);
+                    encoded_bytes = base64_encode_update(&b64_ctx, (char *) resultBuff, mtmLightStatusPktSize,
+                                                         &pktBuff[21]);
+                    base64_encode_final(&b64_ctx, (char *) (resultBuff + encoded_bytes));
 #endif
 
                     if (kernel->isDebug) {
@@ -829,8 +836,20 @@ void mtmZigbeeProcessInPacket(uint8_t *pktBuff, uint32_t length) {
                         }
                     }
 
+                    // в нулевой версии протокола данные сенсоров в пакете zigbee начинаются с 33 байта
+                    sensorDataStart = 33;
+
                     // из размера пакета вычитаем два байта заголовка, восемь байт адреса, два байта флагов аварии
-                    sensorDataCount = (mtmLightStatusPktSize - 12) / 2;
+                    sensorDataCount = (mtmLightStatusPktSize - 12);
+                    if (pktVersion == MTM_VERSION_1) {
+                        // вычитаем ещё 8 байт родительского MAC
+                        sensorDataCount -= 8;
+                        // смещаем начало данных сенсоров на 8 байт
+                        sensorDataStart += 8;
+                        // TODO: реализовать сохранение родительского адреса
+                    }
+
+                    sensorDataCount /= 2;
                     // получаем устройство
                     device = findDeviceByAddress(mtmZigbeeDBase, addressStr);
                     if (device != nullptr) {
@@ -842,27 +861,27 @@ void mtmZigbeeProcessInPacket(uint8_t *pktBuff, uint32_t length) {
                                 if (reg < sensorDataCount) {
                                     // добавляем измерение
                                     if (list[i].measureTypeUuid == CHANNEL_STATUS) {
-                                        uint16_t alerts = *(uint16_t *) &pktBuff[31];
+                                        uint16_t alerts = *(uint16_t *) &pktBuff[sensorDataStart - 2];
                                         int8_t value = alerts & 0x0001u;
                                         storeMeasureValueExt(mtmZigbeeDBase, &list[i], value, true);
                                     } else if (list[i].measureTypeUuid == CHANNEL_W) {
-                                        int idx = 33 + reg * 2;
+                                        int idx = sensorDataStart + reg * 2;
                                         int8_t value = pktBuff[idx];
                                         storeMeasureValueExt(mtmZigbeeDBase, &list[i], value, true);
                                     } else if (list[i].measureTypeUuid == CHANNEL_T) {
-                                        int idx = 33 + reg * 2 + 1;
+                                        int idx = sensorDataStart + reg * 2 + 1;
                                         int8_t value = pktBuff[idx];
                                         storeMeasureValueExt(mtmZigbeeDBase, &list[i], value, true);
                                     } else if (list[i].measureTypeUuid == CHANNEL_RSSI) {
-                                        int idx = 33 + reg * 2;
+                                        int idx = sensorDataStart + reg * 2;
                                         int8_t value = pktBuff[idx];
                                         storeMeasureValueExt(mtmZigbeeDBase, &list[i], value, true);
                                     } else if (list[i].measureTypeUuid == CHANNEL_HOP_COUNT) {
-                                        int idx = 33 + reg * 2 + 1;
+                                        int idx = sensorDataStart + reg * 2 + 1;
                                         int8_t value = pktBuff[idx];
                                         storeMeasureValueExt(mtmZigbeeDBase, &list[i], value, true);
                                     } else if (list[i].measureTypeUuid == CHANNEL_CO2) {
-                                        int idx = 33 + reg * 2;
+                                        int idx = sensorDataStart + reg * 2;
                                         uint16_t value = *(uint16_t *) &pktBuff[idx];
                                         storeMeasureValueExt(mtmZigbeeDBase, &list[i], value, false);
                                     }
@@ -893,9 +912,10 @@ void mtmZigbeeProcessInPacket(uint8_t *pktBuff, uint32_t length) {
     }
 }
 
-int32_t mtmZigbeeInit(int32_t mode, uint8_t *path, uint32_t speed) {
+int32_t mtmZigbeeInit(int32_t mode, uint8_t *path, uint64_t speed) {
     struct termios serialPortSettings{};
     ssize_t rc;
+    Kernel *kernel = &Kernel::Instance();
 
     // TODO: видимо нужно как-то проверить что всё путём с соединением.
     mtmZigbeeDBase = new DBase();
@@ -969,7 +989,7 @@ int32_t mtmZigbeeInit(int32_t mode, uint8_t *path, uint32_t speed) {
             kernel->log.ulogw(LOG_LEVEL_ERROR, "[%s] ERROR ! in Setting attributes", TAG);
             return -4;
         } else {
-            kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] BaudRate = 38400\nStopBits = 1\nParity = none\n", TAG);
+            kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] BaudRate = %i StopBits = 1 Parity = none\n", TAG, speed);
         }
 
         tcflush(coordinatorFd, TCIFLUSH);   /* Discards old data in the rx buffer            */
@@ -1067,7 +1087,7 @@ int32_t mtmZigbeeInit(int32_t mode, uint8_t *path, uint32_t speed) {
     return 0;
 }
 
-speed_t mtmZigbeeGetSpeed(uint32_t speed) {
+speed_t mtmZigbeeGetSpeed(uint64_t speed) {
     switch (speed) {
         case 9600:
             return B9600;
