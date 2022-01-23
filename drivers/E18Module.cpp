@@ -1821,13 +1821,16 @@ void E18Module::mtmCheckLinkState() {
     // для этого, сначала выбираем все устройства которые будут менять статус
     query = "SELECT dt.uuid, dt.address as devAddr, nt.address as nodeAddr, dt.deviceTypeUuid FROM device AS dt ";
     query.append("LEFT JOIN node AS nt ON nt.uuid=dt.nodeUuid ");
-    query.append("LEFT JOIN entity_parameter ept on ept.entityUuid=dt.uuid ");
-    query.append("WHERE (timestampdiff(second,  ept.changedAt, current_timestamp()) > dt.linkTimeout ");
-    query.append("OR ept.changedAt IS NULL) ");
+    query.append("LEFT JOIN sensor_channel AS sct ON sct.deviceUuid=dt.uuid ");
+    query.append("LEFT JOIN data AS mt ON mt.sensorChannelUuid=sct.uuid ");
+    query.append("WHERE (timestampdiff(second,  mt.changedAt, current_timestamp()) > dt.linkTimeout ");
+    query.append("OR mt.changedAt IS NULL) ");
     query.append("AND (");
-    query.append("(dt.deviceTypeUuid='" + std::string(DEVICE_TYPE_ZB_LIGHT) + "')");
+    query.append("(dt.deviceTypeUuid='" + std::string(DEVICE_TYPE_ZB_LIGHT)
+                 + "' AND sct.measureTypeUuid='" + std::string(CHANNEL_STATUS) + "')");
     query.append(" OR ");
-    query.append("(dt.deviceTypeUuid='" + std::string(DEVICE_TYPE_ZB_COORDINATOR_E18) + "')");
+    query.append("(dt.deviceTypeUuid='" + std::string(DEVICE_TYPE_ZB_COORDINATOR_E18)
+                 + "' AND sct.measureTypeUuid='" + std::string(CHANNEL_RELAY_STATE) + "')");
     query.append(") ");
     query.append("AND dt.deviceStatusUuid='" + std::string(DEVICE_STATUS_WORK) + "' ");
     query.append("GROUP BY dt.uuid");
@@ -1878,12 +1881,15 @@ void E18Module::mtmCheckLinkState() {
     // а статус был "Нет связи", устанавливаем статус "В порядке"
     query = "SELECT dt.uuid, dt.address as devAddr, nt.address as nodeAddr, dt.deviceTypeUuid FROM device AS dt ";
     query.append("LEFT JOIN node AS nt ON nt.uuid=dt.nodeUuid ");
-    query.append("LEFT JOIN entity_parameter ept on ept.entityUuid=dt.uuid ");
-    query.append("WHERE (timestampdiff(second,  ept.changedAt, current_timestamp()) < dt.linkTimeout) ");
+    query.append("LEFT JOIN sensor_channel AS sct ON sct.deviceUuid=dt.uuid ");
+    query.append("LEFT JOIN data as mt on mt.sensorChannelUuid=sct.uuid ");
+    query.append("WHERE (timestampdiff(second,  mt.changedAt, current_timestamp()) < dt.linkTimeout) ");
     query.append("AND (");
-    query.append("(dt.deviceTypeUuid='" + std::string(DEVICE_TYPE_ZB_LIGHT) + "')");
+    query.append("(dt.deviceTypeUuid='" + std::string(DEVICE_TYPE_ZB_LIGHT)
+                 + "' AND sct.measureTypeUuid='" + std::string(CHANNEL_STATUS) + "')");
     query.append(" OR ");
-    query.append("(dt.deviceTypeUuid='" + std::string(DEVICE_TYPE_ZB_COORDINATOR_E18) + "')");
+    query.append("(dt.deviceTypeUuid='" + std::string(DEVICE_TYPE_ZB_COORDINATOR_E18)
+                 + "' AND sct.measureTypeUuid='" + std::string(CHANNEL_RELAY_STATE) + "')");
     query.append(") ");
     query.append("AND dt.deviceStatusUuid='" + std::string(DEVICE_STATUS_NO_CONNECT) + "' ");
     query.append("GROUP BY dt.uuid");
