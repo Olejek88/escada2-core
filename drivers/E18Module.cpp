@@ -103,7 +103,7 @@ void E18Module::mtmZigbeePktListener() {
     E18CmdItem currentCmd;
     time_t currentTime, heartBeatTime = 0, syncTimeTime = 0, checkDoorSensorTime = 0, checkContactorSensorTime = 0,
             checkRelaySensorTime = 0, checkAstroTime = 0, checkOutPacket = 0, checkCoordinatorTime = 0,
-            checkLinkState = 0, checkShortAddresses = 0, checkNetworkTime = 0;
+            checkLinkState = 0, checkShortAddresses = 0, checkNetworkTime = 0, checkGetStatus = 0;
     struct tm *localTime;
     uint16_t addr;
     uint8_t inState, outState;
@@ -123,6 +123,37 @@ void E18Module::mtmZigbeePktListener() {
 
     mtmZigbeeSetRun(true);
 
+//-------------------
+    // складываем тестовый пакет в список
+//    zb_item = (struct zb_pkt_item *) malloc(sizeof(struct zb_pkt_item));
+//    zb_item->len = 20;
+//    zb_item->pkt = malloc(zb_item->len);
+//
+//    ((uint8_t *)zb_item->pkt)[0] = 0x0A;
+//    ((uint8_t *)zb_item->pkt)[1] = 0x00;
+//
+//    ((uint8_t *)zb_item->pkt)[2] = 0x66;
+//    ((uint8_t *)zb_item->pkt)[3] = 0x55;
+//    ((uint8_t *)zb_item->pkt)[4] = 0x44;
+//    ((uint8_t *)zb_item->pkt)[5] = 0x33;
+//    ((uint8_t *)zb_item->pkt)[6] = 0x22;
+//    ((uint8_t *)zb_item->pkt)[7] = 0x11;
+//    ((uint8_t *)zb_item->pkt)[8] = 0x12;
+//    ((uint8_t *)zb_item->pkt)[9] = 0x00;
+//
+//    ((uint8_t *)zb_item->pkt)[10] = 0x66;
+//    ((uint8_t *)zb_item->pkt)[11] = 0x55;
+//    ((uint8_t *)zb_item->pkt)[12] = 0x44;
+//    ((uint8_t *)zb_item->pkt)[13] = 0x33;
+//    ((uint8_t *)zb_item->pkt)[14] = 0x22;
+//    ((uint8_t *)zb_item->pkt)[15] = 0x11;
+//    ((uint8_t *)zb_item->pkt)[16] = 0x12;
+//    ((uint8_t *)zb_item->pkt)[17] = 0x00;
+//
+//    ((uint8_t *)zb_item->pkt)[18] = 0xBB;
+//    ((uint8_t *)zb_item->pkt)[19] = 0xAA;
+//    SLIST_INSERT_HEAD(&zb_queue_head, zb_item, items);
+//-------------------
     while (run) {
         count = read(coordinatorFd, &data, 1);
         if (count > 0) {
@@ -657,6 +688,39 @@ void E18Module::mtmZigbeePktListener() {
                 }
             }
 
+            // опрашиваем светильники на предмет их статуса
+            currentTime = time(nullptr);
+            if (isNetwork && !isCmdRun && currentTime - checkGetStatus > 300) {
+                checkGetStatus = currentTime;
+                printf("get light module status\n");
+
+                // получаем все устройства типа управляемый светильник
+                std::string query;
+                query.append("SELECT ept.parameter, ept.value FROM device dt ")
+                        .append("LEFT JOIN entity_parameter ept ON ept.entityUuid=dt.uuid ")
+                        .append("WHERE deviceTypeUuid='" + std::string(DEVICE_TYPE_ZB_LIGHT) + "' ")
+                        .append("AND ept.parameter='shortAddr'");
+                MYSQL_RES *res = dBase->sqlexec(query.data());
+                if (res) {
+                    dBase->makeFieldsList(res);
+                    int nRows = mysql_num_rows(res);
+                    if (nRows > 0) {
+                        for (uint32_t i = 0; i < nRows; i++) {
+                            MYSQL_ROW row = mysql_fetch_row(res);
+                            if (row) {
+                                std::string address = dBase->getFieldValue(row, "value");
+                                uint16_t short_addr = std::stoi(address, 0, 16);
+                                mtm_cmd_get_status mtm_cmd;
+                                mtm_cmd.header.protoVersion = MTM_VERSION_0;
+                                mtm_cmd.header.type = MTM_CMD_TYPE_GET_STATUS;
+                                send_e18_hex_cmd(short_addr, &mtm_cmd);
+                            }
+                        }
+                    }
+
+                    mysql_free_result(res);
+                }
+            }
 
             run = mtmZigbeeGetRun();
 
@@ -970,6 +1034,11 @@ void E18Module::mtmZigbeeProcessInPacket(uint8_t *pktBuff, uint32_t length) {
     struct base64_encode_ctx b64_ctx = {};
     int encoded_bytes;
 
+    MYSQL_RES *res;
+    char query[2048] = {0};
+    mtm_cmd_beacon *beacon;
+    time_t cTime;
+
     switch (pktHeader->type) {
         case MTM_CMD_TYPE_STATUS :
             if (kernel->isDebug) {
@@ -1028,8 +1097,6 @@ void E18Module::mtmZigbeeProcessInPacket(uint8_t *pktBuff, uint32_t length) {
 
             if (kernel->isDebug) {
                 // для отладочных целей, сохраняем пакет в базу
-                uint8_t query[1024];
-                MYSQL_RES *res;
                 time_t createTime = time(nullptr);
 
                 sprintf((char *) query,
@@ -1092,6 +1159,40 @@ void E18Module::mtmZigbeeProcessInPacket(uint8_t *pktBuff, uint32_t length) {
         case MTM_CMD_TYPE_CONFIG_LIGHT:
         case MTM_CMD_TYPE_CURRENT_TIME:
         case MTM_CMD_TYPE_ACTION:
+        case MTM_CMD_TYPE_BEACON:
+            if (kernel->isDebug) {
+                kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] MTM_CMD_TYPE_BEACON", TAG);
+                log_buffer_hex(pktBuff, length);
+            }
+
+            beacon = (mtm_cmd_beacon *) pktBuff;
+            sprintf(query, "SELECT * FROM available_device WHERE macAddress='%016lX'", *(uint64_t *) beacon->mac);
+            res = dBase->sqlexec(query);
+            cTime = time(nullptr);
+            if (res != nullptr) {
+                if (mysql_num_rows(res) > 0) {
+                    sprintf(query,
+                            "UPDATE available_device SET parentMacAddress='%016lX', shortAddress='%04X', changedAt=current_timestamp() " \
+                            "WHERE macAddress='%016lX'",
+                            *(uint64_t *) beacon->parentMac, beacon->shortAddr, *(uint64_t *) beacon->mac);
+                    dBase->sqlexec(query);
+                } else {
+                    uuid_t newUuid;
+                    uint8_t newUuidString[37] = {0};
+                    uuid_generate(newUuid);
+                    uuid_unparse_upper(newUuid, (char *) newUuidString);
+                    sprintf(query,
+                            "INSERT INTO available_device (uuid, macAddress, parentMacAddress, shortAddress, createdAt, changedAt) " \
+                        "VALUE ('%s', '%016lX', '%016lX', '%04X', FROM_UNIXTIME(%lu), FROM_UNIXTIME(%lu))",
+                            newUuidString, *(uint64_t *) beacon->mac, *(uint64_t *) beacon->parentMac,
+                            beacon->shortAddr, cTime,
+                            cTime);
+                    dBase->sqlexec(query);
+                }
+            }
+
+            mysql_free_result(res);
+            break;
         default:
             printf("skip mtm packet\n");
             break;

@@ -134,6 +134,7 @@ int64_t zigbeemtm_get_mtm_cmd_data(uint8_t cmd, void *data, uint8_t *buffer) {
     mtm_cmd_config_light *config_light;
     mtm_cmd_current_time *current_time;
     mtm_cmd_action *action;
+    mtm_cmd_get_status *getStatus;
 
     switch (cmd) {
         case MTM_CMD_TYPE_CONFIG:
@@ -184,6 +185,13 @@ int64_t zigbeemtm_get_mtm_cmd_data(uint8_t cmd, void *data, uint8_t *buffer) {
 
         case MTM_CMD_TYPE_CONTACTOR:
             // ни какой полезной нагрузки в этой команде нет
+            break;
+
+        case MTM_CMD_TYPE_GET_STATUS:
+            // ни какой полезной нагрузки в этой команде нет
+            getStatus = (mtm_cmd_get_status *) data;
+            buffer[i++] = getStatus->header.type;
+            buffer[i++] = getStatus->header.protoVersion;
             break;
 
         default:
@@ -450,6 +458,8 @@ int8_t get_mtm_command_size(uint8_t type, uint8_t protoVersion) {
         case MTM_CMD_TYPE_ACTION:
             size += sizeof(action.device);
             size += sizeof(action.data);
+            break;
+        case MTM_CMD_TYPE_GET_STATUS:
             break;
         default:
             size = -1;

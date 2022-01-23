@@ -55,6 +55,8 @@ enum {
     MTM_CMD_TYPE_CONTACTOR,
     MTM_CMD_TYPE_RESET_COORDINATOR,
     MTM_CMD_TYPE_CLEAR_NETWORK,
+    MTM_CMD_TYPE_GET_STATUS,
+    MTM_CMD_TYPE_BEACON,
 };
 
 #define MBEE_API_DIGITAL_LINE7 0x0007
@@ -247,6 +249,34 @@ typedef struct _mtm_cmd_action {
     uint8_t device;
     uint16_t data;
 } mtm_cmd_action;
+
+// структура пакета МТМ "Команда управления контактором"
+typedef struct _mtm_cmd_contactor {
+    mtm_cmd_header header;
+} mtm_cmd_contactor;
+
+// структура пакета МТМ "Команда сброса координатора"
+typedef struct _mtm_cmd_reset_coordinator {
+    mtm_cmd_header header;
+} mtm_cmd_reset_coordinator;
+
+// структура пакета МТМ "Команда сброса сети Zigbee"
+typedef struct _mtm_cmd_clear_network {
+    mtm_cmd_header header;
+} mtm_cmd_clear_network;
+
+// структура пакета МТМ "Запрос статуса модуля"
+typedef struct _mtm_cmd_get_status {
+    mtm_cmd_header header;
+} mtm_cmd_get_status;
+
+// структура пакета МТМ "Маяк"
+typedef struct _mtm_cmd_beacon {
+    mtm_cmd_header header;
+    uint8_t mac[8];
+    uint8_t parentMac[8];
+    uint16_t shortAddr;
+} mtm_cmd_beacon;
 
 #ifdef __cplusplus
 extern "C" {
