@@ -422,7 +422,8 @@ bool manualMode(DBase *dBase) {
 
     // ищем координатор
     query.append(
-            "SELECT * FROM device WHERE deviceTypeUuid = '" + std::string(DEVICE_TYPE_ZB_COORDINATOR) + "' LIMIT 1");
+            "SELECT * FROM device WHERE deviceTypeUuid = '" + std::string(DEVICE_TYPE_ZB_COORDINATOR) +
+            "' AND deleted=0 LIMIT 1");
     res = dBase->sqlexec(query.data());
     if (res) {
         nRows = mysql_num_rows(res);

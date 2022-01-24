@@ -669,7 +669,8 @@ void E18Module::mtmZigbeePktListener() {
                 std::string query;
                 query.append("SELECT * FROM device WHERE deviceTypeUuid IN ")
                         .append("('" + std::string(DEVICE_TYPE_ZB_LIGHT) + "', ")
-                        .append("'" + std::string(DEVICE_TYPE_ZB_COORDINATOR_E18) + "')");
+                        .append("'" + std::string(DEVICE_TYPE_ZB_COORDINATOR_E18) + "') ")
+                        .append("AND deleted=0");
                 MYSQL_RES *res = dBase->sqlexec(query.data());
                 if (res) {
                     dBase->makeFieldsList(res);
@@ -699,7 +700,7 @@ void E18Module::mtmZigbeePktListener() {
                 query.append("SELECT ept.parameter, ept.value FROM device dt ")
                         .append("LEFT JOIN entity_parameter ept ON ept.entityUuid=dt.uuid ")
                         .append("WHERE deviceTypeUuid='" + std::string(DEVICE_TYPE_ZB_LIGHT) + "' ")
-                        .append("AND ept.parameter='shortAddr'");
+                        .append("AND ept.parameter='shortAddr' AND dt.deleted=0");
                 MYSQL_RES *res = dBase->sqlexec(query.data());
                 if (res) {
                     dBase->makeFieldsList(res);
@@ -740,7 +741,7 @@ bool E18Module::manualMode() {
     // ищем координатор
     query.append(
             "SELECT * FROM device WHERE deviceTypeUuid = '" + std::string(DEVICE_TYPE_ZB_COORDINATOR_E18) +
-            "' LIMIT 1");
+            "' AND deleted=0 LIMIT 1");
     res = dBase->sqlexec(query.data());
     if (res) {
         nRows = mysql_num_rows(res);
@@ -1789,7 +1790,8 @@ void E18Module::mtmCheckLinkState() {
     query.append("LEFT JOIN sensor_channel AS sct ON sct.deviceUuid=dt.uuid ");
     query.append("LEFT JOIN data AS mt ON mt.sensorChannelUuid=sct.uuid ");
     query.append("WHERE dt.deviceTypeUuid='" + std::string(DEVICE_TYPE_ZB_COORDINATOR_E18) + "' ");
-    query.append("AND sct.measureTypeUuid='" + std::string(CHANNEL_CONTACTOR_STATE) + "'");
+    query.append("AND sct.measureTypeUuid='" + std::string(CHANNEL_CONTACTOR_STATE) + "' ");
+    query.append("AND dt.deleted=0");
     if (kernel->isDebug) {
         kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] contactor query: %s", TAG, query.data());
     }
@@ -1833,6 +1835,7 @@ void E18Module::mtmCheckLinkState() {
                  + "' AND sct.measureTypeUuid='" + std::string(CHANNEL_RELAY_STATE) + "')");
     query.append(") ");
     query.append("AND dt.deviceStatusUuid='" + std::string(DEVICE_STATUS_WORK) + "' ");
+    query.append("AND dt.deleted=0 ");
     query.append("GROUP BY dt.uuid");
     if (kernel->isDebug) {
         kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] select to not link query: %s", TAG, query.data());
@@ -1892,6 +1895,7 @@ void E18Module::mtmCheckLinkState() {
                  + "' AND sct.measureTypeUuid='" + std::string(CHANNEL_RELAY_STATE) + "')");
     query.append(") ");
     query.append("AND dt.deviceStatusUuid='" + std::string(DEVICE_STATUS_NO_CONNECT) + "' ");
+    query.append("AND dt.deleted=0 ");
     query.append("GROUP BY dt.uuid");
     if (kernel->isDebug) {
         kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] select to work query: %s", TAG, query.data());
@@ -1945,7 +1949,8 @@ void E18Module::mtmCheckLinkState() {
     query.append(") ");
     query.append("AND device.deviceTypeUuid IN ('" + std::string(DEVICE_TYPE_ZB_LIGHT) + "', '" +
                  std::string(DEVICE_TYPE_ZB_COORDINATOR_E18) + "') ");
-    query.append("AND device.deviceStatusUuid='" + std::string(DEVICE_STATUS_WORK) + "'");
+    query.append("AND device.deviceStatusUuid='" + std::string(DEVICE_STATUS_WORK) + "' ");
+    query.append("AND dt.deleted=0");
     if (kernel->isDebug) {
         kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] update without measure to not link query: %s", TAG, query.data());
     }
