@@ -614,6 +614,7 @@ void E18Module::mtmZigbeePktListener() {
             // проверка на наступление астрономических событий
             currentTime = time(nullptr) + kernel->timeOffset;
             if (isNetwork && !isCmdRun && currentTime - checkAstroTime > 60) {
+                checkAstroTime = currentTime;
                 if (kernel->isDebug) {
                     char currentTimeString[64] = {0};
                     std::tm tmpTm = {0};
@@ -626,7 +627,6 @@ void E18Module::mtmZigbeePktListener() {
                 // управления светильниками не происходит. только ручной режим.
                 if (!manualMode()) {
                     double lon = 0, lat = 0;
-                    checkAstroTime = currentTime;
                     MYSQL_RES *res = dBase->sqlexec("SELECT * FROM node LIMIT 1");
                     if (res) {
                         MYSQL_ROW row = mysql_fetch_row(res);

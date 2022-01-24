@@ -366,13 +366,21 @@ void mtmZigbeePktListener(DBase *dBase, int32_t threadId) {
             }
 
             // проверка на наступление астрономических событий
-            currentTime = time(nullptr);
+            currentTime = time(nullptr) + kernel->timeOffset;
             if (currentTime - checkAstroTime > 60) {
+                checkAstroTime = currentTime;
+                if (kernel->isDebug) {
+                    char currentTimeString[64] = {0};
+                    std::tm tmpTm = {0};
+                    localtime_r(&currentTime, &tmpTm);
+                    std::strftime(currentTimeString, 20, "%F %T", &tmpTm);
+                    kernel->log.ulogw(LOG_LEVEL_INFO, "[%s] %s", TAG, currentTimeString);
+                }
+
                 // костыль для демонстрационных целей, т.е. когда флаг установлен, ни какого автоматического
                 // управления светильниками не происходит. только ручной режим.
                 if (!manualMode(dBase)) {
                     double lon = 0, lat = 0;
-                    checkAstroTime = currentTime;
                     MYSQL_RES *res = mtmZigbeeDBase->sqlexec("SELECT * FROM node LIMIT 1");
                     if (res) {
                         MYSQL_ROW row = mysql_fetch_row(res);
