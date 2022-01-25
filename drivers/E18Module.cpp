@@ -125,9 +125,19 @@ void E18Module::mtmZigbeePktListener() {
 
 //-------------------
     // складываем тестовый пакет в список
+//    uint8_t testPkt[] = {
+//            0x01, 0x01,
+////            0x34, 0x25, 0x43, 0x24, 0x00, 0x4B, 0x12, 0x00,
+////            0x58, 0xC8, 0x90, 0x11, 0x00, 0x4B, 0x12, 0x00,
+//            0x58, 0xC8, 0x90, 0x11, 0x00, 0x4B, 0x12, 0x00, // фонарь
+//            0x17, 0x29, 0x9D, 0x20, 0x00, 0x4B, 0x12, 0x00, // родитель
+//            0x00, 0x00,
+//            0x00, 0x1B, 0xFF, 0x01, 0x02, 0x00
+//    };
 //    zb_item = (struct zb_pkt_item *) malloc(sizeof(struct zb_pkt_item));
-//    zb_item->len = 20;
+//    zb_item->len = sizeof(testPkt);
 //    zb_item->pkt = malloc(zb_item->len);
+//    memcpy(zb_item->pkt, testPkt, zb_item->len);
 //
 //    ((uint8_t *)zb_item->pkt)[0] = 0x0A;
 //    ((uint8_t *)zb_item->pkt)[1] = 0x00;
@@ -1118,6 +1128,10 @@ void E18Module::mtmZigbeeProcessInPacket(uint8_t *pktBuff, uint32_t length) {
                 if (list != nullptr) {
                     for (uint16_t i = 0; i < listLength; i++) {
                         uint16_t reg = list[i].reg;
+                        if ((int16_t) reg == -1) {
+                            continue;
+                        }
+
                         uint8_t sensorDataStart = get_mtm_status_data_start(pktHeader->protoVersion);
                         if (reg < sensorDataCount) {
                             // добавляем измерение

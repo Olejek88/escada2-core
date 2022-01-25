@@ -208,7 +208,17 @@ SensorChannel *findSensorChannelsByDevice(DBase *dBase, std::string *deviceUuid,
                 list[idx]._id = std::stoll(dBase->getFieldValue(row, "_id"));
                 list[idx].uuid = dBase->getFieldValue(row, "uuid");
                 list[idx].title = dBase->getFieldValue(row, "title");
-                list[idx].reg = std::stoi(dBase->getFieldValue(row, "register"));
+                char *reg = dBase->getFieldValue(row, "register");
+                if (!std::string(reg).empty()) {
+                    try {
+                        list[idx].reg = std::stoi(reg);
+                    } catch (std::invalid_argument &e) {
+                        list[idx].reg = -1;
+                    }
+                } else {
+                    list[idx].reg = -1;
+                }
+
                 list[idx].deviceUuid = dBase->getFieldValue(row, "deviceUuid");
                 list[idx].measureTypeUuid = dBase->getFieldValue(row, "measureTypeUuid");
                 list[idx].createdAt = dBase->getFieldValue(row, "createdAt");
